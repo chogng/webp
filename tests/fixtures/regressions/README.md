@@ -7,7 +7,7 @@ tools/promote-regression.sh minimized.webp issue-123-riff-overflow \
   https://example.invalid/issues/123 CC0-1.0
 ```
 
-The command copies bytes, computes the fixture SHA-256, and creates the
-sidecar consumed by the Rust smoke runner. It begins as `MustReject`; edit the
-manifest if the regression is a valid image that needs a pixel, metadata, or
-`ReadInfo` golden expectation.
+The command copies the bytes into the regression corpus. Add a direct public
+API test in `crates/webp` for every promoted regression; assert rejection, or
+the appropriate pixel, metadata, or `ReadInfo` golden expectation for valid
+images.

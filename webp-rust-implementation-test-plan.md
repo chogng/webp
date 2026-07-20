@@ -293,7 +293,7 @@ source_sha256 = "<archive-sha256>"
 
 ### 6.4 malformed 输入不能简单要求“与 libwebp 同错误”
 
-无效输入按 manifest 分类：
+无效输入按 fixture 测试契约分类：
 
 ```rust
 pub enum FixtureClass {
@@ -1384,7 +1384,7 @@ for n in 0..file.len() {
 }
 ```
 
-对 bit-sensitive micro fixture 还要在最后 1 字节中逐 bit 清除/截断。所有结果必须是成功或受控错误，绝不能 panic、无限循环或超过 manifest 预算。
+对 bit-sensitive micro fixture 还要在最后 1 字节中逐 bit 清除/截断。所有结果必须是成功或受控错误，绝不能 panic、无限循环或超过 fixture 资源预算。
 
 ### 19.2 单 bit flip
 
@@ -1692,7 +1692,7 @@ Pixel comparison 应明确：VP8L/alpha/animation compat profile 逐字节；VP8
 
 - 公开/内部 corpus 100% 无 crash；
 - must-accept 100%；
-- pixel mismatch 全部归因并有 manifest；
+- pixel mismatch 全部归因并有 fixture 测试契约；
 - Android/Linux/macOS 主平台性能和内存达标；
 - 连续 fuzz 周期无高严重度问题；
 - FFI sanitizer clean；
@@ -1791,7 +1791,7 @@ Fuzz 时间建议分级：
 
 ### M0：测试地基与容器
 
-交付：workspace、oracle build、corpus lock、fixture manifest runner、bit reader、checked arithmetic、RIFF/VP8X parser、初始 fuzz/CI。
+交付：workspace、oracle build、corpus lock、直接 fixture 测试、bit reader、checked arithmetic、RIFF/VP8X parser、初始 fuzz/CI。
 
 退出条件：
 
@@ -1834,7 +1834,7 @@ Fuzz 时间建议分级：
 
 ## 28. Codex/多代理任务拆分建议
 
-并行代理只能处理接口稳定的模块。主代理/技术负责人先冻结以下契约：pixel representation、error kind、limits、bit reader 语义、fixture manifest 和 oracle result schema。
+并行代理只能处理接口稳定的模块。主代理/技术负责人先冻结以下契约：pixel representation、error kind、limits、bit reader 语义、fixture expectation 和 oracle result schema。
 
 可并行 workstream：
 
@@ -1990,7 +1990,7 @@ vp8l:
 
 ### 30.6 容差不断放宽
 
-风险：为了让差分绿色，将所有 RGBA 比较改成每通道误差。对策：容差只能存在于命名 profile 和逐 case manifest，VP8L/alpha/YUV 不允许模糊容差。
+风险：为了让差分绿色，将所有 RGBA 比较改成每通道误差。对策：容差只能存在于命名 profile 和逐 case fixture 测试中，VP8L/alpha/YUV 不允许模糊容差。
 
 ### 30.7 fuzz 运行但进不去深层路径
 
@@ -2071,7 +2071,7 @@ cargo xtask skia compare --suite migration
 5. chunk size overflow；
 6. VP8X canvas product limit；
 7. unknown chunk preserve；
-8. fixture manifest loader；
+8. direct fixture API tests；
 9. pinned libwebp build；
 10. canonical oracle result；
 11. official test-data smoke subset；

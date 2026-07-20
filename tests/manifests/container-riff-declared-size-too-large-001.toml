@@ -1,9 +1,0 @@
-id = "container-riff-declared-size-too-large-001"
-file = "../fixtures/generated/riff-declared-size-too-large.webp"
-sha256 = "eaaacbae8d8a81f6565d500254abf3040504284ca5f52a336e5a47b448d7908f"
-class = "MustReject"
-source = "generated: cargo xtask fixtures generate-malformed"
-license = "CC0-1.0"
-codec = "Container"
-features = ["riff-declared-size", "public-api", "no-panic"]
-notes = "Declared RIFF body length exceeds supplied bytes."

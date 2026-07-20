@@ -1,9 +1,0 @@
-id = "container-riff-trailing-byte-001"
-file = "../fixtures/generated/riff-trailing-byte.webp"
-sha256 = "17d4d7af2252dda6e0cbd646fea0c3019f0374fe3d944bc92f0f271a1a490f36"
-class = "MustReject"
-source = "generated: cargo xtask fixtures generate-malformed"
-license = "CC0-1.0"
-codec = "Container"
-features = ["riff-trailing-bytes", "public-api", "no-panic"]
-notes = "Strict parsing rejects data after the declared RIFF body."

@@ -1,9 +1,0 @@
-id = "container-chunk-payload-truncated-001"
-file = "../fixtures/generated/chunk-payload-truncated.webp"
-sha256 = "108b8f9f47b756c2942a56fad0eae39670f5d1cd9d29f520a62d78ffd9138a1e"
-class = "MustReject"
-source = "generated: cargo xtask fixtures generate-malformed"
-license = "CC0-1.0"
-codec = "Container"
-features = ["chunk-payload-truncated", "public-api", "no-panic"]
-notes = "RIFF ends immediately after a one-byte VP8 payload declaration."

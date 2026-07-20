@@ -1,9 +1,0 @@
-id = "container-mixed-vp8-vp8l-001"
-file = "../fixtures/generated/mixed-vp8-vp8l.webp"
-sha256 = "b029bc928f5bbedca855522815c639135663786a2a5fc5a0db0241f7c633bba5"
-class = "MustReject"
-source = "generated: cargo xtask fixtures generate-malformed"
-license = "CC0-1.0"
-codec = "Container"
-features = ["mixed-image-codecs", "public-api", "no-panic"]
-notes = "A container cannot carry both a VP8 and a VP8L image chunk."

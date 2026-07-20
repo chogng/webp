@@ -1,9 +1,0 @@
-id = "container-metadata-0-000-before"
-file = "../fixtures/generated/metadata-0-000-before.webp"
-sha256 = "50f92b74f7d34a667596671e99b8eec2912c9749b993873a53aa31c8e43e57ca"
-class = "MustAccept"
-source = "generated: cargo xtask fixtures generate-metadata"
-license = "CC0-1.0"
-codec = "Container"
-api = "ReadMetadata"
-features = ["metadata", "before"]
