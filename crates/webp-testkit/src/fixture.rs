@@ -167,12 +167,33 @@ impl std::error::Error for ManifestError {}
 #[derive(Debug, Clone)]
 pub struct FixtureRunner {
     root: PathBuf,
+    fixture_root: PathBuf,
 }
 
 impl FixtureRunner {
     /// Creates a runner rooted at a fixture directory.
     pub fn new(root: impl Into<PathBuf>) -> Self {
-        Self { root: root.into() }
+        let root = root.into();
+        Self {
+            fixture_root: root.clone(),
+            root,
+        }
+    }
+
+    /// Creates a runner whose manifests and fixture bytes have separate roots.
+    ///
+    /// This is used for ignored, pinned corpora such as libwebp-test-data and
+    /// reference-encoder outputs: the committed manifest remains under
+    /// `tests/`, while fixture paths are containment-checked against the
+    /// explicitly supplied external corpus root.
+    pub fn with_fixture_root(
+        manifest_root: impl Into<PathBuf>,
+        fixture_root: impl Into<PathBuf>,
+    ) -> Self {
+        Self {
+            root: manifest_root.into(),
+            fixture_root: fixture_root.into(),
+        }
     }
 
     /// Runs every `*.toml` sidecar below the corpus root in deterministic path
@@ -261,8 +282,8 @@ impl FixtureRunner {
             path: requested,
             source,
         })?;
-        let root = fs::canonicalize(&self.root).map_err(|source| RunError::Read {
-            path: self.root.clone(),
+        let root = fs::canonicalize(&self.fixture_root).map_err(|source| RunError::Read {
+            path: self.fixture_root.clone(),
             source,
         })?;
         if resolved.starts_with(&root) {
