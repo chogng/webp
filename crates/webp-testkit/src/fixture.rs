@@ -81,6 +81,15 @@ pub struct FixtureManifest {
     pub expected_exif_sha256: Option<String>,
     #[serde(default)]
     pub expected_xmp_sha256: Option<String>,
+    /// Commit of the external encoder/decoder used to produce this vector.
+    #[serde(default)]
+    pub oracle_revision: Option<String>,
+    /// Exact source-image digest used by an external encoder matrix.
+    #[serde(default)]
+    pub source_image_sha256: Option<String>,
+    /// Encoder command arguments, excluding environment-specific paths.
+    #[serde(default)]
+    pub generator_args: Vec<String>,
     #[serde(default)]
     pub max_work_units: Option<u64>,
     #[serde(default)]
@@ -105,6 +114,12 @@ impl FixtureManifest {
         validate_sha256("sha256", &self.sha256)?;
         if let Some(hash) = &self.expected_rgba_sha256 {
             validate_sha256("expected_rgba_sha256", hash)?;
+        }
+        if let Some(hash) = &self.source_image_sha256 {
+            validate_sha256("source_image_sha256", hash)?;
+        }
+        if let Some(revision) = &self.oracle_revision {
+            validate_git_revision(revision)?;
         }
         for (name, hash) in [
             ("expected_iccp_sha256", &self.expected_iccp_sha256),
@@ -379,13 +394,24 @@ fn validate_relative_file(path: &Path) -> Result<(), ManifestError> {
 fn validate_sha256(field: &'static str, value: &str) -> Result<(), ManifestError> {
     if value.len() == 64 && value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
         Ok(())
-    } else if field == "sha256" {
-        Err(ManifestError::InvalidField(
-            "sha256 must contain exactly 64 hexadecimal characters",
-        ))
+    } else {
+        let message = match field {
+            "sha256" => "sha256 must contain exactly 64 hexadecimal characters",
+            "source_image_sha256" => {
+                "source_image_sha256 must contain exactly 64 hexadecimal characters"
+            }
+            _ => "expected hash must contain exactly 64 hexadecimal characters",
+        };
+        Err(ManifestError::InvalidField(message))
+    }
+}
+
+fn validate_git_revision(value: &str) -> Result<(), ManifestError> {
+    if value.len() == 40 && value.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        Ok(())
     } else {
         Err(ManifestError::InvalidField(
-            "expected_rgba_sha256 must contain exactly 64 hexadecimal characters",
+            "oracle_revision must contain exactly 40 hexadecimal characters",
         ))
     }
 }

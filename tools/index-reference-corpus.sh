@@ -12,11 +12,22 @@ if [ ! -d "$oracle/.git" ]; then
     exit 1
 fi
 oracle_revision=$(git -C "$oracle" rev-parse HEAD)
+source_image="$root/inputs/test_ref.ppm"
+if [ ! -f "$source_image" ]; then
+    printf '%s\n' "error: missing $source_image; run tools/generate-reference-corpus.sh" >&2
+    exit 1
+fi
+source_sha=$(shasum -a 256 "$source_image" | awk '{print $1}')
 
 find "$root/lossy" "$root/lossless" -type f -name '*.webp' | sort | while IFS= read -r file; do
     relative=${file#"$root/"}
     stem=$(printf '%s' "$relative" | tr '/.' '--')
     sha=$(shasum -a 256 "$file" | awk '{print $1}')
+    filename=${relative##*/}
+    matrix=${filename%.webp}
+    quality=${matrix#q}
+    quality=${quality%%-m*}
+    method=${matrix##*-m}
     class=MustAccept
     printf '%s\n' "id = \"oracle-${stem}\"" > "$manifest_root/${stem}.toml"
     printf '%s\n' "file = \"../${relative}\"" >> "$manifest_root/${stem}.toml"
@@ -28,5 +39,11 @@ find "$root/lossy" "$root/lossless" -type f -name '*.webp' | sort | while IFS= r
     printf '%s\n' 'api = "Decode"' >> "$manifest_root/${stem}.toml"
     printf '%s\n' 'expected_width = 128' >> "$manifest_root/${stem}.toml"
     printf '%s\n' 'expected_height = 128' >> "$manifest_root/${stem}.toml"
+    printf '%s\n' "oracle_revision = \"${oracle_revision}\"" >> "$manifest_root/${stem}.toml"
+    printf '%s\n' "source_image_sha256 = \"${source_sha}\"" >> "$manifest_root/${stem}.toml"
+    case "$relative" in
+        lossless/*) printf '%s\n' "generator_args = [\"cwebp\", \"-lossless\", \"-q\", \"${quality}\", \"-m\", \"${method}\"]" >> "$manifest_root/${stem}.toml" ;;
+        *) printf '%s\n' "generator_args = [\"cwebp\", \"-q\", \"${quality}\", \"-m\", \"${method}\"]" >> "$manifest_root/${stem}.toml" ;;
+    esac
     printf '%s\n' "notes = \"Generated from examples/test_ref.ppm; oracle revision ${oracle_revision}.\"" >> "$manifest_root/${stem}.toml"
 done

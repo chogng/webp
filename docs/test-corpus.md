@@ -32,6 +32,11 @@ The reference checkout is test-only. It supplies the upstream fuzz dictionary,
 future `cwebp` pairwise encoder vectors, `webpmux` metadata vectors, and
 animation oracle outputs. It is not linked into the published Rust codec.
 
+Build `cwebp` from that checkout, then run
+`tools/generate-reference-corpus.sh`. It produces the 36-vector quality/method
+matrix outside Git and writes Rust-readable sidecars containing the resolved
+oracle revision, source-image SHA-256, and exact encoder arguments.
+
 ## Generated fixtures
 
 Run `cargo run -p xtask -- fixtures generate-malformed` after changing the
