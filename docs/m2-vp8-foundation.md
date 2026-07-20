@@ -26,11 +26,16 @@ segment inheritance/absolute modes, the distinct UV DC clamp, and the Y2 AC
 minimum, so later coefficient reconstruction receives specification-scale
 multipliers rather than raw quantizer indices.
 
+Scalar inverse 4×4 DCT and inverse Walsh-Hadamard primitives now provide the
+exact fixed-point rounding used by VP8 reconstruction. They return signed
+residues only; prediction, clipping, and pixel-plane ownership remain separate
+to keep transform failures locally diagnosable.
+
 `webp::read_info` now obtains dimensions from an unextended `VP8 ` chunk. The
 public `decode` path invokes the same validation and then returns
 `UnsupportedFeature` until the macroblock, transform, loop-filter, and YUV
 stages are implemented. This avoids treating a header-only parse as a pixel
 decode.
 
-The next M2 slice adds coefficient-token decoding and inverse transforms, then
-connects them to macroblock prediction and reconstruction.
+The next M2 slice adds coefficient-token decoding, then connects coefficients
+and transforms to macroblock prediction and reconstruction.

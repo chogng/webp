@@ -241,6 +241,88 @@ fn clamp_quantizer(index: i32, maximum: usize) -> usize {
     index.clamp(0, maximum as i32) as usize
 }
 
+/// Performs VP8's integer inverse 4×4 DCT and returns pixel-domain residues.
+///
+/// Coefficients are in raster order after dequantization. All intermediates
+/// use `i32`, preserving the specification's fixed-point rounding before the
+/// final divide by eight.
+#[must_use]
+pub fn inverse_dct_4x4(coefficients: [i16; 16]) -> [i32; 16] {
+    let mut temporary = [0_i32; 16];
+    for column in 0..4 {
+        let a = i32::from(coefficients[column]) + i32::from(coefficients[8 + column]);
+        let b = i32::from(coefficients[column]) - i32::from(coefficients[8 + column]);
+        let c =
+            transform_mul2(coefficients[4 + column]) - transform_mul1(coefficients[12 + column]);
+        let d =
+            transform_mul1(coefficients[4 + column]) + transform_mul2(coefficients[12 + column]);
+        temporary[column * 4] = a + d;
+        temporary[column * 4 + 1] = b + c;
+        temporary[column * 4 + 2] = b - c;
+        temporary[column * 4 + 3] = a - d;
+    }
+
+    let mut output = [0_i32; 16];
+    for row in 0..4 {
+        let dc = temporary[row] + 4;
+        let a = dc + temporary[8 + row];
+        let b = dc - temporary[8 + row];
+        let c = transform_mul2_i32(temporary[4 + row]) - transform_mul1_i32(temporary[12 + row]);
+        let d = transform_mul1_i32(temporary[4 + row]) + transform_mul2_i32(temporary[12 + row]);
+        output[row * 4] = (a + d) >> 3;
+        output[row * 4 + 1] = (b + c) >> 3;
+        output[row * 4 + 2] = (b - c) >> 3;
+        output[row * 4 + 3] = (a - d) >> 3;
+    }
+    output
+}
+
+/// Performs the VP8 4×4 inverse Walsh-Hadamard transform for Y2 DC values.
+#[must_use]
+pub fn inverse_wht_4x4(coefficients: [i16; 16]) -> [i32; 16] {
+    let mut temporary = [0_i32; 16];
+    for column in 0..4 {
+        let a0 = i32::from(coefficients[column]) + i32::from(coefficients[12 + column]);
+        let a1 = i32::from(coefficients[4 + column]) + i32::from(coefficients[8 + column]);
+        let a2 = i32::from(coefficients[4 + column]) - i32::from(coefficients[8 + column]);
+        let a3 = i32::from(coefficients[column]) - i32::from(coefficients[12 + column]);
+        temporary[column] = a0 + a1;
+        temporary[8 + column] = a0 - a1;
+        temporary[4 + column] = a3 + a2;
+        temporary[12 + column] = a3 - a2;
+    }
+
+    let mut output = [0_i32; 16];
+    for row in 0..4 {
+        let dc = temporary[row * 4] + 3;
+        let a0 = dc + temporary[3 + row * 4];
+        let a1 = temporary[1 + row * 4] + temporary[2 + row * 4];
+        let a2 = temporary[1 + row * 4] - temporary[2 + row * 4];
+        let a3 = dc - temporary[3 + row * 4];
+        output[row * 4] = (a0 + a1) >> 3;
+        output[row * 4 + 1] = (a3 + a2) >> 3;
+        output[row * 4 + 2] = (a0 - a1) >> 3;
+        output[row * 4 + 3] = (a3 - a2) >> 3;
+    }
+    output
+}
+
+fn transform_mul1(value: i16) -> i32 {
+    transform_mul1_i32(i32::from(value))
+}
+
+fn transform_mul2(value: i16) -> i32 {
+    transform_mul2_i32(i32::from(value))
+}
+
+fn transform_mul1_i32(value: i32) -> i32 {
+    ((value * 20_091) >> 16) + value
+}
+
+fn transform_mul2_i32(value: i32) -> i32 {
+    (value * 35_468) >> 16
+}
+
 /// Canonical VP8 coefficient probabilities after first-partition updates.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CoefficientProbabilities {
@@ -1209,5 +1291,21 @@ mod tests {
         assert_eq!(absolute[0].y1_ac, 4);
         assert_eq!(absolute[2].y1_ac, 284);
         assert_eq!(absolute[2].uv_dc, 132);
+    }
+
+    #[test]
+    fn inverse_dct_preserves_zero_and_dc_microvectors() {
+        assert_eq!(inverse_dct_4x4([0; 16]), [0; 16]);
+        let mut dc = [0_i16; 16];
+        dc[0] = 16;
+        assert_eq!(inverse_dct_4x4(dc), [2; 16]);
+    }
+
+    #[test]
+    fn inverse_wht_distributes_y2_dc_to_all_macroblock_blocks() {
+        assert_eq!(inverse_wht_4x4([0; 16]), [0; 16]);
+        let mut dc = [0_i16; 16];
+        dc[0] = 8;
+        assert_eq!(inverse_wht_4x4(dc), [1; 16]);
     }
 }

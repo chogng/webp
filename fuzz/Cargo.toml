@@ -72,3 +72,10 @@ path = "fuzz_targets/vp8_partition_raw.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "vp8_transforms"
+path = "fuzz_targets/vp8_transforms.rs"
+test = false
+doc = false
+bench = false

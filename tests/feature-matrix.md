@@ -15,3 +15,4 @@
 | VP8 partition layout | `webp-vp8` segmentation/filter controls, 1/2/4/8 layout, and table-boundary suites | VP8 decode path (pending macroblock decoder) | `vp8_partition_raw` |
 | VP8 quantization | base-index/delta vectors and dequant clamp/segment matrices | coefficient reconstruction (pending) | `vp8_partition_raw` |
 | VP8 coefficient probabilities | RFC table samples and all-flag default parsing | token decode (pending reconstruction) | `vp8_partition_raw` |
+| VP8 inverse transforms | 4×4 DCT and WHT zero/DC microvectors | coefficient reconstruction (pending token decode) | transform target (pending next M2 slice) |
