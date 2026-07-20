@@ -44,6 +44,26 @@ decodes / 114.8 MB RGBA per run. Across three five-iteration runs, the median
 was 1.894 s (60.6 MB/s) for Rust and 0.518 s (221.4 MB/s) for libwebp: a 3.65x
 gap. M1 is therefore functionally complete but performance pending.
 
+## VP8L entropy-path optimization record
+
+The 2026-07-20 optimization pass retained the same 41-file corpus, five
+iterations, public API, and checksum (`96355`). It replaced per-bit extraction
+with a bounded five-byte LSB-first window, made the cross-crate hot paths
+inlineable, and avoids per-pixel or per-copy capacity checks after the decoder
+has already reserved the validated image size. It also caches the input bit
+length in the reader. Allocation failures remain reported for generic output
+sinks that have exhausted their capacity.
+
+Three post-change runs measured Rust at 1.405 s, 1.407 s, and 1.440 s; its
+median is 1.407 s (81.6 MB/s), a 25.7% improvement over the established Rust
+baseline. The corresponding libwebp median was 0.531 s (216.0 MB/s), leaving
+a 2.65x gap. Sampling before this pass identified Huffman symbol decoding,
+entropy-image dispatch, LZ77 output expansion, and literal emission as the
+dominant entropy-path work; this pass addresses the shared bit-reader and
+allocation overhead in those paths. The gap remains performance pending and
+the next profile pass should separately quantify inverse transforms and final
+RGBA packing.
+
 ## Applying the gates to later milestones
 
 M0 owns the reusable fixture, corpus-pin, and benchmark infrastructure. Each
