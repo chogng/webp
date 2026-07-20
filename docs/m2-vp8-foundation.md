@@ -39,3 +39,7 @@ decode.
 
 The next M2 slice adds coefficient-token decoding, then connects coefficients
 and transforms to macroblock prediction and reconstruction.
+
+Before M2 is marked complete, it must satisfy the milestone exit gates in
+[`quality-gates.md`](quality-gates.md), including a release benchmark and
+profile for the public VP8 decode path.

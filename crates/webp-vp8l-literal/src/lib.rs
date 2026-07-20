@@ -17,7 +17,7 @@ use webp_vp8l_color_transform::ColorTransformMultipliers;
 use webp_vp8l_entropy::{
     copy_lz77_pixels, decode_distance, decode_length, distance_code_to_distance,
 };
-use webp_vp8l_huffman::{HuffmanTable, read_huffman_code};
+use webp_vp8l_huffman::{HuffmanTable, ROOT_TABLE_STORAGE_BYTES, read_huffman_code};
 use webp_vp8l_indexing::{Palette, TRANSPARENT_BLACK};
 use webp_vp8l_transform::{PredictorMode, Rgba, predict};
 
@@ -186,10 +186,18 @@ fn decode_entropy_image(
                 final_rgba_bytes,
             )?)
         } else {
-            EntropyCodes::Single(read_huffman_codes(bits, budget, color_cache_size)?)
+            EntropyCodes::Single(box_huffman_codes(read_huffman_codes(
+                bits,
+                budget,
+                color_cache_size,
+            )?)?)
         }
     } else {
-        EntropyCodes::Single(read_huffman_codes(bits, budget, color_cache_size)?)
+        EntropyCodes::Single(box_huffman_codes(read_huffman_codes(
+            bits,
+            budget,
+            color_cache_size,
+        )?)?)
     };
     let mut output = PixelOutput::new(color_cache_bits, pixels)?;
 
@@ -1054,24 +1062,46 @@ struct HuffmanCodes {
 /// The maximum number of prefix tables in one VP8L meta-prefix group.
 const HUFFMAN_TABLES_PER_GROUP: usize = 5;
 
-// `HuffmanTable` is intentionally opaque to this crate.  Reserve a
-// deliberately conservative amount for every possible wire symbol so the
-// allocation limit also covers the heap storage hidden behind its vectors.
-// The current representation is substantially smaller than this bound.
+// `HuffmanTable` is intentionally opaque to this crate. Reserve a deliberately
+// conservative amount for every possible wire symbol so the allocation limit
+// also covers the heap storage hidden behind its vectors. The root lookup
+// table is a fixed heap allocation per table and is accounted separately.
 const MAX_HUFFMAN_CODE_STORAGE_BYTES: usize = 64;
 
 enum EntropyCodes {
-    Single(HuffmanCodes),
+    // Keep the five-table single group off the enum's stack representation.
+    // A one-element boxed slice lets construction report allocation failure
+    // through Vec::try_reserve_exact rather than aborting via Box::new.
+    Single(Box<[HuffmanCodes]>),
     Meta(MetaHuffmanCodes),
 }
 
 impl EntropyCodes {
     fn for_pixel(&self, pixel: usize, image_width: u32) -> Result<&HuffmanCodes, DecodeError> {
         match self {
-            Self::Single(codes) => Ok(codes),
+            Self::Single(codes) => codes.first().ok_or_else(|| {
+                DecodeError::new(
+                    DecodeErrorKind::InvalidBitstream,
+                    None,
+                    "VP8L single Huffman-code group is missing",
+                )
+            }),
             Self::Meta(codes) => codes.for_pixel(pixel, image_width),
         }
     }
+}
+
+fn box_huffman_codes(codes: HuffmanCodes) -> Result<Box<[HuffmanCodes]>, DecodeError> {
+    let mut boxed = Vec::new();
+    boxed.try_reserve_exact(1).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::AllocationFailed,
+            None,
+            "VP8L single Huffman-code group allocation failed",
+        )
+    })?;
+    boxed.push(codes);
+    Ok(boxed.into_boxed_slice())
 }
 
 /// A decoded meta-prefix image and the prefix-code groups it references.
@@ -1346,6 +1376,12 @@ fn meta_group_storage_upper_bound(color_cache_size: usize) -> Result<usize, Deco
     symbol_count
         .checked_mul(MAX_HUFFMAN_CODE_STORAGE_BYTES)
         .and_then(|value| value.checked_add(HUFFMAN_TABLES_PER_GROUP * size_of::<HuffmanTable>()))
+        // A normal code header has one transient root table while its final
+        // table is being built. Include that extra allocation per group as a
+        // conservative bound for both retained and skipped meta groups.
+        .and_then(|value| {
+            value.checked_add((HUFFMAN_TABLES_PER_GROUP + 1) * ROOT_TABLE_STORAGE_BYTES)
+        })
         .ok_or_else(|| {
             DecodeError::new(
                 DecodeErrorKind::LimitExceeded,

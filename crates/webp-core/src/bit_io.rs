@@ -52,21 +52,56 @@ impl<'a> BitReader<'a> {
         Ok(self.read_bits(1)? != 0)
     }
 
+    /// Views up to 32 upcoming bits without advancing the cursor.
+    ///
+    /// As with [`Self::read_bits`], the first bit becomes bit 0 of the result.
+    pub fn peek_bits(&self, count: u8) -> Result<u32, DecodeError> {
+        self.bits_at(self.bit_position, count)
+    }
+
+    /// Advances over upcoming bits without returning their value.
+    ///
+    /// On failure the cursor is left unchanged.
+    pub fn skip_bits(&mut self, count: u8) -> Result<(), DecodeError> {
+        self.bit_position = self.end_position(self.bit_position, count)?;
+        Ok(())
+    }
+
     /// Reads up to 32 bits, with the first bit becoming bit 0 of the result.
     /// On failure the cursor is left unchanged.
     pub fn read_bits(&mut self, count: u8) -> Result<u32, DecodeError> {
+        let value = self.bits_at(self.bit_position, count)?;
+        self.bit_position += usize::from(count);
+        Ok(value)
+    }
+
+    fn bits_at(&self, position: usize, count: u8) -> Result<u32, DecodeError> {
+        let end = self.end_position(position, count)?;
+        let count = usize::from(count);
+
+        let mut value = 0_u32;
+        for output_bit in 0..count {
+            let bit_position = position + output_bit;
+            let bit = (self.data[bit_position / 8] >> (bit_position % 8)) & 1;
+            value |= u32::from(bit) << output_bit;
+        }
+        debug_assert!(position + count == end);
+        Ok(value)
+    }
+
+    fn end_position(&self, position: usize, count: u8) -> Result<usize, DecodeError> {
         if count > 32 {
             return Err(DecodeError::new(
                 DecodeErrorKind::InvalidParameter,
-                Some(self.bit_position / 8),
+                Some(position / 8),
                 "cannot read more than 32 bits",
             ));
         }
         let count = usize::from(count);
-        let end = self.bit_position.checked_add(count).ok_or_else(|| {
+        let end = position.checked_add(count).ok_or_else(|| {
             DecodeError::new(
                 DecodeErrorKind::UnexpectedEof,
-                Some(self.bit_position / 8),
+                Some(position / 8),
                 "bit position overflow",
             )
         })?;
@@ -74,19 +109,11 @@ impl<'a> BitReader<'a> {
         if end > total_bits {
             return Err(DecodeError::new(
                 DecodeErrorKind::UnexpectedEof,
-                Some(self.bit_position / 8),
+                Some(position / 8),
                 "truncated bitstream",
             ));
         }
-
-        let mut value = 0_u32;
-        for output_bit in 0..count {
-            let position = self.bit_position + output_bit;
-            let bit = (self.data[position / 8] >> (position % 8)) & 1;
-            value |= u32::from(bit) << output_bit;
-        }
-        self.bit_position = end;
-        Ok(value)
+        Ok(end)
     }
 }
 
@@ -227,6 +254,16 @@ mod tests {
         );
         assert_eq!(reader.bit_position(), cursor);
         assert_eq!(reader.read_bits(1), Ok(0));
+    }
+
+    #[test]
+    fn peek_does_not_advance_cursor() {
+        let mut reader = BitReader::new(&[0b0101_1010]);
+        assert_eq!(reader.peek_bits(4), Ok(0b1010));
+        assert_eq!(reader.bit_position(), 0);
+        assert_eq!(reader.skip_bits(3), Ok(()));
+        assert_eq!(reader.peek_bits(4), Ok(0b1011));
+        assert_eq!(reader.bit_position(), 3);
     }
 
     #[test]

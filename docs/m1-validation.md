@@ -24,6 +24,18 @@ This record summarizes the local M1 VP8L decoder gate run on 2026-07-20.
 The encoder-produced half of the bidirectional round trip remains an M4 gate:
 M1 has no encoder API or implementation.
 
+## Performance status: pending
+
+M1 met its conformance and robustness gates, but it did not originally have a
+performance exit gate. The repeatable baseline is now
+`bash tools/benchmark-vp8l.sh 5`; see [`quality-gates.md`](quality-gates.md).
+On the 41 `MustAccept` VP8L inputs, the local median was 1.894 s for the Rust
+public decoder and 0.518 s for the same libwebp C-API work, a 3.65x gap.
+
+M1 must not be described as fully complete until a profile identifies the
+dominant remaining hot paths and the remediation work has an accepted
+performance target.
+
 ## Critical mutation results
 
 | Package | Generated | Caught | Timeout | Equivalent/unreachable | Unviable |

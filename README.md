@@ -1,7 +1,8 @@
 # webp-rs
 
 A safe-Rust WebP implementation, built from a test-first plan. The current
-milestone is M2 foundation work: the M1 VP8L decoder is complete, while the
+milestone is M2 foundation work: the M1 VP8L decoder is functionally complete
+but performance pending, while the
 lossy VP8 path now has hardened key-frame/header validation and public image
 information. VP8 entropy, reconstruction, filtering, and pixel output are not
 yet implemented.
@@ -26,6 +27,10 @@ Run the workspace test suite with:
 ```sh
 cargo test --workspace
 ```
+
+Codec milestones also require the conformance, robustness, performance, and
+resource gates in [`docs/quality-gates.md`](docs/quality-gates.md); passing
+the test suite alone does not mark a decoder milestone complete.
 
 ## Bazel
 

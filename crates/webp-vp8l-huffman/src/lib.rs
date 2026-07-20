@@ -11,6 +11,9 @@ use webp_core::{BitReader, DecodeError, DecodeErrorKind};
 /// The longest code allowed by the VP8L format.
 pub const MAX_CODE_LENGTH: u8 = 15;
 
+const ROOT_TABLE_BITS: u8 = 8;
+const ROOT_TABLE_SIZE: usize = 1 << ROOT_TABLE_BITS;
+
 /// Permutation used to transmit the code lengths of a normal VP8L Huffman
 /// header.  The first `4 + ReadBits(4)` entries are present on the wire.
 pub const CODE_LENGTH_CODE_ORDER: [usize; 19] = [
@@ -212,10 +215,22 @@ fn extend_repeat(
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-struct Code {
-    bits: u16,
-    length: u8,
+struct RootTableEntry {
     symbol: usize,
+    bits: u8,
+}
+
+const EMPTY_ROOT_ENTRY: RootTableEntry = RootTableEntry { symbol: 0, bits: 0 };
+
+/// Heap storage used by one Huffman table's replicated root lookup table.
+///
+/// Consumers that impose a decoded-data allocation limit should include this
+/// alongside the table's inline representation and symbol vector.
+pub const ROOT_TABLE_STORAGE_BYTES: usize =
+    core::mem::size_of::<[RootTableEntry; ROOT_TABLE_SIZE]>();
+
+fn empty_root_table() -> Box<[RootTableEntry; ROOT_TABLE_SIZE]> {
+    Box::new([EMPTY_ROOT_ENTRY; ROOT_TABLE_SIZE])
 }
 
 /// A validated canonical Huffman table with symbols addressed by input index.
@@ -226,7 +241,16 @@ struct Code {
 /// symbol decoding begins.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct HuffmanTable {
-    codes: Vec<Code>,
+    // Symbols are ordered by code length and then by symbol value. Canonical
+    // codes with a given length occupy a contiguous numeric range, allowing a
+    // decoded code to select its symbol without scanning the entire alphabet.
+    symbols: Vec<usize>,
+    first_code: [u32; MAX_CODE_LENGTH as usize + 1],
+    first_symbol: [usize; MAX_CODE_LENGTH as usize + 1],
+    code_count: [usize; MAX_CODE_LENGTH as usize + 1],
+    // Most VP8L codes fit in this table. Entries are replicated over all
+    // unused high bits, so a direct hit consumes exactly the code length.
+    root_table: Box<[RootTableEntry; ROOT_TABLE_SIZE]>,
     max_code_length: u8,
 }
 
@@ -240,28 +264,27 @@ impl HuffmanTable {
     pub fn from_simple_symbols(first_symbol: usize, second_symbol: Option<usize>) -> Self {
         match second_symbol {
             None => Self {
-                codes: vec![Code {
-                    bits: 0,
-                    length: 0,
-                    symbol: first_symbol,
-                }],
+                symbols: vec![first_symbol],
+                first_code: [0; MAX_CODE_LENGTH as usize + 1],
+                first_symbol: [0; MAX_CODE_LENGTH as usize + 1],
+                code_count: [0; MAX_CODE_LENGTH as usize + 1],
+                root_table: empty_root_table(),
                 max_code_length: 0,
             },
-            Some(second_symbol) => Self {
-                codes: vec![
-                    Code {
-                        bits: 0,
-                        length: 1,
-                        symbol: first_symbol,
-                    },
-                    Code {
-                        bits: 1,
-                        length: 1,
-                        symbol: second_symbol,
-                    },
-                ],
-                max_code_length: 1,
-            },
+            Some(second_symbol) => {
+                let mut table = Self {
+                    symbols: vec![first_symbol, second_symbol],
+                    first_code: [0; MAX_CODE_LENGTH as usize + 1],
+                    first_symbol: [0; MAX_CODE_LENGTH as usize + 1],
+                    code_count: [0; MAX_CODE_LENGTH as usize + 1],
+                    root_table: empty_root_table(),
+                    max_code_length: 1,
+                };
+                table.code_count[1] = 2;
+                fill_root_table(&mut table.root_table, 0, 1, first_symbol);
+                fill_root_table(&mut table.root_table, 1, 1, second_symbol);
+                table
+            }
         }
     }
 
@@ -307,11 +330,11 @@ impl HuffmanTable {
                 .position(|&length| length != 0)
                 .ok_or_else(|| invalid("VP8L Huffman tree has no symbols"))?;
             return Ok(Self {
-                codes: vec![Code {
-                    bits: 0,
-                    length: 0,
-                    symbol,
-                }],
+                symbols: vec![symbol],
+                first_code: [0; MAX_CODE_LENGTH as usize + 1],
+                first_symbol: [0; MAX_CODE_LENGTH as usize + 1],
+                code_count: [0; MAX_CODE_LENGTH as usize + 1],
+                root_table: empty_root_table(),
                 max_code_length: 0,
             });
         }
@@ -332,20 +355,20 @@ impl HuffmanTable {
             return Err(invalid("VP8L Huffman tree is incomplete"));
         }
 
-        let mut next_code = [0_u16; MAX_CODE_LENGTH as usize + 1];
-        let mut code = 0_u16;
+        let mut first_code = [0_u32; MAX_CODE_LENGTH as usize + 1];
+        let mut code = 0_u32;
         for length in 1..=usize::from(MAX_CODE_LENGTH) {
             code = code
-                .checked_add(u16::try_from(counts[length - 1]).map_err(|_| {
+                .checked_add(u32::try_from(counts[length - 1]).map_err(|_| {
                     invalid("VP8L Huffman code count does not fit canonical representation")
                 })?)
-                .ok_or_else(|| invalid("VP8L Huffman canonical code overflow"))?
-                << 1;
-            next_code[length] = code;
+                .and_then(|value| value.checked_shl(1))
+                .ok_or_else(|| invalid("VP8L Huffman canonical code overflow"))?;
+            first_code[length] = code;
         }
 
-        let mut codes = Vec::new();
-        codes.try_reserve_exact(symbols).map_err(|_| {
+        let mut symbols_by_code = Vec::new();
+        symbols_by_code.try_reserve_exact(symbols).map_err(|_| {
             DecodeError::new(
                 DecodeErrorKind::AllocationFailed,
                 None,
@@ -353,26 +376,51 @@ impl HuffmanTable {
             )
         })?;
 
+        let mut first_symbol = [0_usize; MAX_CODE_LENGTH as usize + 1];
+        let mut next_symbol = 0_usize;
+        for length in 1..=usize::from(MAX_CODE_LENGTH) {
+            first_symbol[length] = next_symbol;
+            next_symbol = next_symbol
+                .checked_add(counts[length])
+                .ok_or_else(|| invalid("VP8L Huffman symbol index overflow"))?;
+        }
+
+        let mut next_code = first_code;
+        let mut root_table = empty_root_table();
         let mut max_code_length = 0_u8;
-        for (symbol, &length) in code_lengths.iter().enumerate() {
-            if length == 0 {
-                continue;
+        for (length, next_code_for_length) in next_code
+            .iter_mut()
+            .enumerate()
+            .take(usize::from(MAX_CODE_LENGTH) + 1)
+            .skip(1)
+        {
+            for (symbol, &symbol_length) in code_lengths.iter().enumerate() {
+                if usize::from(symbol_length) != length {
+                    continue;
+                }
+                let canonical_code = *next_code_for_length;
+                let wire_code = reverse_code(
+                    u16::try_from(canonical_code)
+                        .map_err(|_| invalid("VP8L Huffman canonical code exceeds 15 bits"))?,
+                    symbol_length,
+                );
+                if symbol_length <= ROOT_TABLE_BITS {
+                    fill_root_table(&mut root_table, wire_code, symbol_length, symbol);
+                }
+                *next_code_for_length = next_code_for_length
+                    .checked_add(1)
+                    .ok_or_else(|| invalid("VP8L Huffman canonical code overflow"))?;
+                symbols_by_code.push(symbol);
+                max_code_length = max_code_length.max(symbol_length);
             }
-            let slot = &mut next_code[usize::from(length)];
-            let bits = reverse_code(*slot, length);
-            *slot = slot
-                .checked_add(1)
-                .ok_or_else(|| invalid("VP8L Huffman canonical code overflow"))?;
-            codes.push(Code {
-                bits,
-                length,
-                symbol,
-            });
-            max_code_length = max_code_length.max(length);
         }
 
         Ok(Self {
-            codes,
+            symbols: symbols_by_code,
+            first_code,
+            first_symbol,
+            code_count: counts,
+            root_table,
             max_code_length,
         })
     }
@@ -381,27 +429,59 @@ impl HuffmanTable {
     pub fn decode(&self, bits: &mut BitReader<'_>) -> Result<usize, DecodeError> {
         if self.max_code_length == 0 {
             // Construction guarantees this is the VP8L single-symbol case.
-            return Ok(self.codes[0].symbol);
+            return Ok(self.symbols[0]);
         }
+
+        if bits.remaining_bits() >= usize::from(ROOT_TABLE_BITS) {
+            let prefix = usize::try_from(bits.peek_bits(ROOT_TABLE_BITS)?)
+                .map_err(|_| invalid("VP8L Huffman root table index does not fit usize"))?;
+            let entry = self.root_table[prefix];
+            if entry.bits != 0 {
+                bits.skip_bits(entry.bits)?;
+                return Ok(entry.symbol);
+            }
+
+            bits.skip_bits(ROOT_TABLE_BITS)?;
+            let mut code = u16::try_from(prefix)
+                .map_err(|_| invalid("VP8L Huffman prefix does not fit u16"))?;
+            for length in ROOT_TABLE_BITS + 1..=self.max_code_length {
+                code |= u16::from(bits.read_bit()?) << (length - 1);
+                if let Some(symbol) = self.symbol_for_code(code, length) {
+                    return Ok(symbol);
+                }
+            }
+            return Err(invalid("VP8L Huffman code does not exist in table"));
+        }
+
         let mut code = 0_u16;
         for length in 1..=self.max_code_length {
             let bit = u16::from(bits.read_bit()?);
             code |= bit << (length - 1);
-            if let Some(entry) = self
-                .codes
-                .iter()
-                .find(|entry| entry.length == length && entry.bits == code)
-            {
-                return Ok(entry.symbol);
+            if let Some(symbol) = self.symbol_for_code(code, length) {
+                return Ok(symbol);
             }
         }
         Err(invalid("VP8L Huffman code does not exist in table"))
     }
 
+    fn symbol_for_code(&self, wire_code: u16, length: u8) -> Option<usize> {
+        let length = usize::from(length);
+        let canonical_code = u32::from(reverse_code(wire_code, length as u8));
+        let first_code = self.first_code[length];
+        let code_index = canonical_code.checked_sub(first_code)?;
+        let code_index = usize::try_from(code_index).ok()?;
+        if code_index >= self.code_count[length] {
+            return None;
+        }
+        self.symbols
+            .get(self.first_symbol[length].checked_add(code_index)?)
+            .copied()
+    }
+
     /// Number of symbols with a nonzero code length.
     #[must_use]
     pub fn symbol_count(&self) -> usize {
-        self.codes.len()
+        self.symbols.len()
     }
 
     /// Longest code in this table.
@@ -419,10 +499,38 @@ fn reverse_code(code: u16, length: u8) -> u16 {
     code.reverse_bits() >> (u16::BITS - u32::from(length))
 }
 
+fn fill_root_table(
+    root_table: &mut [RootTableEntry; ROOT_TABLE_SIZE],
+    wire_code: u16,
+    length: u8,
+    symbol: usize,
+) {
+    debug_assert!((1..=ROOT_TABLE_BITS).contains(&length));
+    let stride = 1_usize << length;
+    for entry in root_table
+        .iter_mut()
+        .skip(usize::from(wire_code))
+        .step_by(stride)
+    {
+        *entry = RootTableEntry {
+            symbol,
+            bits: length,
+        };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{hint::black_box, time::Instant};
     use webp_core::BitWriter;
+
+    #[derive(Clone, Copy)]
+    struct LinearCode {
+        bits: u16,
+        length: u8,
+        symbol: usize,
+    }
 
     fn wire_code(lengths: &[u8], wanted_symbol: usize) -> (u32, u8) {
         let mut sorted: Vec<(u8, usize)> = lengths
@@ -452,6 +560,56 @@ mod tests {
             writer.write_bits(code, length).unwrap();
         }
         writer.into_bytes()
+    }
+
+    // Mirrors the pre-optimization representation and lookup loop. It exists
+    // only to keep a like-for-like performance baseline for the ignored
+    // release benchmark below.
+    fn legacy_linear_codes(lengths: &[u8]) -> Vec<LinearCode> {
+        let mut counts = [0_u16; MAX_CODE_LENGTH as usize + 1];
+        for &length in lengths {
+            if length != 0 {
+                counts[usize::from(length)] += 1;
+            }
+        }
+        let mut next_code = [0_u16; MAX_CODE_LENGTH as usize + 1];
+        let mut code = 0_u16;
+        for length in 1..=usize::from(MAX_CODE_LENGTH) {
+            code = (code + counts[length - 1]) << 1;
+            next_code[length] = code;
+        }
+        let mut codes = Vec::new();
+        for (symbol, &length) in lengths.iter().enumerate() {
+            if length == 0 {
+                continue;
+            }
+            let slot = &mut next_code[usize::from(length)];
+            codes.push(LinearCode {
+                bits: reverse_code(*slot, length),
+                length,
+                symbol,
+            });
+            *slot += 1;
+        }
+        codes
+    }
+
+    fn decode_legacy_linear(
+        codes: &[LinearCode],
+        max_code_length: u8,
+        bits: &mut BitReader<'_>,
+    ) -> Result<usize, DecodeError> {
+        let mut code = 0_u16;
+        for length in 1..=max_code_length {
+            code |= u16::from(bits.read_bit()?) << (length - 1);
+            if let Some(entry) = codes
+                .iter()
+                .find(|entry| entry.length == length && entry.bits == code)
+            {
+                return Ok(entry.symbol);
+            }
+        }
+        Err(invalid("VP8L Huffman code does not exist in table"))
     }
 
     fn write_normal_header(writer: &mut BitWriter, includes_one: bool) {
@@ -588,6 +746,57 @@ mod tests {
     }
 
     #[test]
+    fn root_lookup_does_not_require_eight_bits_at_the_end_of_input() {
+        let table = HuffmanTable::from_code_lengths(&[2, 2, 2, 2]).unwrap();
+        // Symbol one has canonical code 01, emitted as 10 in VP8L bit order.
+        // Positioning at bit six leaves only those two code bits available.
+        let mut input = BitReader::with_bit_position(&[0b1000_0000], 6).unwrap();
+        assert_eq!(table.decode(&mut input), Ok(1));
+        assert_eq!(input.bit_position(), 8);
+    }
+
+    #[test]
+    #[ignore = "run with --release -- --ignored --nocapture to measure Huffman lookup speed"]
+    fn benchmark_root_lookup_against_legacy_linear_scan() {
+        // A complete 256-symbol alphabet makes the old implementation scan
+        // every code for each of the first seven bits of a symbol.
+        const SAMPLES: usize = 500_000;
+        let lengths = vec![8; 256];
+        let table = HuffmanTable::from_code_lengths(&lengths).unwrap();
+        let legacy_codes = legacy_linear_codes(&lengths);
+        let symbols = (0..256).cycle().take(SAMPLES).collect::<Vec<_>>();
+        let encoded = encoded_symbols(&lengths, &symbols);
+
+        let root_input = black_box(encoded.as_slice());
+        let root_started = Instant::now();
+        let mut root_reader = BitReader::new(root_input);
+        let mut root_sum = 0_usize;
+        for _ in 0..SAMPLES {
+            root_sum = root_sum.wrapping_add(table.decode(&mut root_reader).unwrap());
+        }
+        let root_elapsed = root_started.elapsed();
+
+        let legacy_input = black_box(encoded.as_slice());
+        let legacy_started = Instant::now();
+        let mut legacy_reader = BitReader::new(legacy_input);
+        let mut legacy_sum = 0_usize;
+        for _ in 0..SAMPLES {
+            legacy_sum = legacy_sum.wrapping_add(
+                decode_legacy_linear(&legacy_codes, table.max_code_length(), &mut legacy_reader)
+                    .unwrap(),
+            );
+        }
+        let legacy_elapsed = legacy_started.elapsed();
+
+        assert_eq!(root_sum, legacy_sum);
+        eprintln!("root lookup: {root_elapsed:?}; legacy linear scan: {legacy_elapsed:?}");
+        assert!(
+            root_elapsed < legacy_elapsed,
+            "root lookup should outperform the legacy linear scan"
+        );
+    }
+
+    #[test]
     fn decodes_unbalanced_complete_table() {
         let lengths = [1, 2, 3, 3];
         let table = HuffmanTable::from_code_lengths(&lengths).unwrap();
@@ -629,7 +838,7 @@ mod tests {
         let table = HuffmanTable::from_code_lengths(&lengths).unwrap();
 
         assert_eq!(table.max_code_length, MAX_CODE_LENGTH);
-        assert_eq!(table.codes.len(), lengths.len());
+        assert_eq!(table.symbols.len(), lengths.len());
         let symbols = (0..lengths.len()).collect::<Vec<_>>();
         let encoded = encoded_symbols(&lengths, &symbols);
         let mut reader = BitReader::new(&encoded);
