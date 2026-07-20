@@ -86,3 +86,10 @@ path = "fuzz_targets/vp8_coefficients.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "vp8_residuals"
+path = "fuzz_targets/vp8_residuals.rs"
+test = false
+doc = false
+bench = false

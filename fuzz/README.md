@@ -15,6 +15,7 @@ cargo +nightly fuzz run vp8_bool_raw
 cargo +nightly fuzz run vp8_partition_raw
 cargo +nightly fuzz run vp8_transforms
 cargo +nightly fuzz run vp8_coefficients
+cargo +nightly fuzz run vp8_residuals
 ```
 
 `cargo-fuzz` enables AddressSanitizer with nightly-only Rust compiler options;
@@ -49,6 +50,8 @@ partition boundary validation. `vp8_transforms` drives arbitrary signed 4×4
 coefficient blocks through the scalar VP8 inverse DCT and WHT primitives.
 `vp8_coefficients` varies a bounded token partition, coefficient type,
 neighbour context, and scan start through the VP8 coefficient entropy decoder.
+`vp8_residuals` extends this to all coefficient blocks in one intra macroblock
+while varying its top and left non-zero contexts.
 Each uses explicit byte, dimension, metadata, allocation, and work limits. Run
 `tools/update-fuzz-dictionary.sh` after refreshing the test-only oracle to copy
 the current upstream dictionary into the checked-in fuzz target.

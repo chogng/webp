@@ -701,6 +701,151 @@ fn decode_chroma_mode(bits: &mut BoolDecoder<'_>) -> Result<ChromaMode, DecodeEr
     }
 }
 
+/// Non-zero-token context retained between neighbouring VP8 macroblocks.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct ResidualContext {
+    /// Four luma and four chroma edge contexts packed in VP8 scan order.
+    pub non_zero: u8,
+    /// The Y2 DC-transform context for 16×16-predicted macroblocks.
+    pub non_zero_dc: bool,
+}
+
+/// Quantized residual token data for one VP8 macroblock.
+///
+/// The coefficients remain quantized. Reconstruction owns dequantization and
+/// transform selection so it can use the macroblock's chosen segment matrix.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MacroblockResiduals {
+    /// Present only for a 16×16 luma prediction; it carries the Y2 DC block.
+    pub y2: Option<DecodedCoefficients>,
+    /// Sixteen luma 4×4 blocks in raster order.
+    pub luma: [DecodedCoefficients; 16],
+    /// Four U 4×4 blocks in raster order.
+    pub u: [DecodedCoefficients; 4],
+    /// Four V 4×4 blocks in raster order.
+    pub v: [DecodedCoefficients; 4],
+    /// VP8's compact two-bit luma transform-selection flags.
+    pub non_zero_y: u32,
+    /// VP8's compact two-bit chroma transform-selection flags.
+    pub non_zero_uv: u32,
+}
+
+/// Decodes one intra macroblock's coefficient-token residuals.
+///
+/// `top` and `left` retain the non-zero contexts from already-decoded
+/// neighbours and are updated in place. `is_i4x4` must match the corresponding
+/// [`IntraMacroblock`]'s luma mode. This function consumes only the selected
+/// token-partition boolean decoder and does not allocate.
+pub fn decode_intra_residuals(
+    bits: &mut BoolDecoder<'_>,
+    probabilities: &CoefficientProbabilities,
+    is_i4x4: bool,
+    top: &mut ResidualContext,
+    left: &mut ResidualContext,
+) -> Result<MacroblockResiduals, DecodeError> {
+    let empty = DecodedCoefficients {
+        values: [0; 16],
+        end: 0,
+        non_zero: 0,
+    };
+    let mut residuals = MacroblockResiduals {
+        y2: None,
+        luma: [empty; 16],
+        u: [empty; 4],
+        v: [empty; 4],
+        non_zero_y: 0,
+        non_zero_uv: 0,
+    };
+
+    let (first, luma_type) = if is_i4x4 {
+        (0, CoefficientBlockType::Luma4Ac)
+    } else {
+        let y2_context = u8::from(top.non_zero_dc) + u8::from(left.non_zero_dc);
+        let y2 = decode_coefficients(
+            bits,
+            probabilities,
+            CoefficientBlockType::LumaDc,
+            y2_context,
+            0,
+        )?;
+        let present = y2.end > 0;
+        top.non_zero_dc = present;
+        left.non_zero_dc = present;
+        residuals.y2 = Some(y2);
+        (1, CoefficientBlockType::Luma16Ac)
+    };
+
+    let mut top_non_zero = top.non_zero & 0x0f;
+    let mut left_non_zero = left.non_zero & 0x0f;
+    for row in 0..4 {
+        let mut left_block_non_zero = left_non_zero & 1;
+        let mut row_flags = 0_u32;
+        for column in 0..4 {
+            let context = left_block_non_zero + (top_non_zero & 1);
+            let coefficients = decode_coefficients(bits, probabilities, luma_type, context, first)?;
+            left_block_non_zero = u8::from(coefficients.end > first);
+            top_non_zero = (top_non_zero >> 1) | (left_block_non_zero << 7);
+            row_flags = non_zero_code(row_flags, coefficients);
+            residuals.luma[row * 4 + column] = coefficients;
+        }
+        top_non_zero >>= 4;
+        left_non_zero = (left_non_zero >> 1) | (left_block_non_zero << 7);
+        residuals.non_zero_y = (residuals.non_zero_y << 8) | row_flags;
+    }
+    let mut output_top = top_non_zero;
+    let mut output_left = left_non_zero >> 4;
+
+    for chroma_plane in 0..2 {
+        let shift = 4 + chroma_plane * 2;
+        top_non_zero = top.non_zero >> shift;
+        left_non_zero = left.non_zero >> shift;
+        let destination = if chroma_plane == 0 {
+            &mut residuals.u
+        } else {
+            &mut residuals.v
+        };
+        let mut plane_flags = 0_u32;
+        for row in 0..2 {
+            let mut left_block_non_zero = left_non_zero & 1;
+            for column in 0..2 {
+                let context = left_block_non_zero + (top_non_zero & 1);
+                let coefficients = decode_coefficients(
+                    bits,
+                    probabilities,
+                    CoefficientBlockType::ChromaAc,
+                    context,
+                    0,
+                )?;
+                left_block_non_zero = u8::from(coefficients.end > 0);
+                top_non_zero = (top_non_zero >> 1) | (left_block_non_zero << 3);
+                plane_flags = non_zero_code(plane_flags, coefficients);
+                destination[row * 2 + column] = coefficients;
+            }
+            top_non_zero >>= 2;
+            left_non_zero = (left_non_zero >> 1) | (left_block_non_zero << 5);
+        }
+        residuals.non_zero_uv |= plane_flags << (4 * chroma_plane);
+        output_top |= (top_non_zero << 4) << (chroma_plane * 2);
+        output_left |= (left_non_zero & 0xf0) << (chroma_plane * 2);
+    }
+    top.non_zero = output_top;
+    left.non_zero = output_left;
+    Ok(residuals)
+}
+
+fn non_zero_code(existing: u32, coefficients: DecodedCoefficients) -> u32 {
+    let code = if coefficients.end > 3 {
+        3
+    } else if coefficients.end > 1 {
+        2
+    } else if coefficients.values[0] != 0 {
+        1
+    } else {
+        0
+    };
+    (existing << 2) | code
+}
+
 /// The parsed prefix of a VP8 first partition.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FirstPartitionHeader {
@@ -1240,6 +1385,19 @@ mod tests {
             refresh_entropy_probabilities: false,
             coefficients,
         }
+    }
+
+    fn write_coefficient_eob(
+        writer: &mut TestBoolWriter,
+        probabilities: &CoefficientProbabilities,
+        coefficient_type: CoefficientBlockType,
+        position: usize,
+        context: usize,
+    ) {
+        writer.write_bool(
+            false,
+            coefficient_nodes(probabilities, coefficient_type, position, context)[0],
+        );
     }
 
     fn key_frame(
@@ -1917,5 +2075,52 @@ mod tests {
                 .kind(),
             DecodeErrorKind::InvalidParameter
         );
+    }
+
+    #[test]
+    fn residual_decoder_consumes_all_intra_block_families_and_preserves_empty_contexts() {
+        let probabilities = CoefficientProbabilities::default();
+        let mut writer = TestBoolWriter::new();
+        write_coefficient_eob(
+            &mut writer,
+            &probabilities,
+            CoefficientBlockType::LumaDc,
+            0,
+            0,
+        );
+        for _ in 0..16 {
+            write_coefficient_eob(
+                &mut writer,
+                &probabilities,
+                CoefficientBlockType::Luma16Ac,
+                1,
+                0,
+            );
+        }
+        for _ in 0..8 {
+            write_coefficient_eob(
+                &mut writer,
+                &probabilities,
+                CoefficientBlockType::ChromaAc,
+                0,
+                0,
+            );
+        }
+
+        let bytes = writer.finish();
+        let mut decoder = BoolDecoder::new(&bytes, &DecodeLimits::default()).unwrap();
+        let mut top = ResidualContext::default();
+        let mut left = ResidualContext::default();
+        let residuals =
+            decode_intra_residuals(&mut decoder, &probabilities, false, &mut top, &mut left)
+                .unwrap();
+        assert_eq!(residuals.y2.unwrap().end, 0);
+        assert!(residuals.luma.iter().all(|block| block.non_zero == 0));
+        assert!(residuals.u.iter().all(|block| block.non_zero == 0));
+        assert!(residuals.v.iter().all(|block| block.non_zero == 0));
+        assert_eq!(residuals.non_zero_y, 0);
+        assert_eq!(residuals.non_zero_uv, 0);
+        assert_eq!(top, ResidualContext::default());
+        assert_eq!(left, ResidualContext::default());
     }
 }
