@@ -214,7 +214,7 @@ pub fn read_metadata(data: &[u8], limits: &DecodeLimits) -> Result<Metadata, Dec
 #[cfg(test)]
 mod tests {
     use super::*;
-    use webp_testkit::{FixtureClass, FixtureRunner};
+    use webp_testkit::{FixtureApi, FixtureClass, FixtureRunner, sha256_hex};
 
     #[test]
     fn smoke_manifests_exercise_each_public_decode_entrypoint() {
@@ -243,13 +243,40 @@ mod tests {
                             fixture.id
                         );
                     }
-                    FixtureClass::MustAccept => {
-                        assert!(
+                    FixtureClass::MustAccept => match fixture.api {
+                        FixtureApi::Decode => assert!(
                             decode(bytes, &DecodeOptions::default()).is_ok(),
-                            "{} must accept",
+                            "{} must decode",
                             fixture.id
-                        );
-                    }
+                        ),
+                        FixtureApi::ReadInfo => assert!(
+                            read_info(bytes, &DecodeLimits::default()).is_ok(),
+                            "{}: read_info must accept",
+                            fixture.id
+                        ),
+                        FixtureApi::ReadMetadata => {
+                            let metadata = read_metadata(bytes, &DecodeLimits::default())
+                                .unwrap_or_else(|error| {
+                                    panic!("{}: read_metadata failed: {error}", fixture.id)
+                                });
+                            for (name, actual, expected) in [
+                                ("ICCP", metadata.iccp, &fixture.expected_iccp_sha256),
+                                ("EXIF", metadata.exif, &fixture.expected_exif_sha256),
+                                ("XMP", metadata.xmp, &fixture.expected_xmp_sha256),
+                            ] {
+                                match (actual, expected) {
+                                    (Some(actual), Some(expected)) => assert_eq!(
+                                        sha256_hex(&actual),
+                                        *expected,
+                                        "{}: {name} hash",
+                                        fixture.id
+                                    ),
+                                    (None, None) => {}
+                                    _ => panic!("{}: {name} presence mismatch", fixture.id),
+                                }
+                            }
+                        }
+                    },
                     FixtureClass::CompatAccept | FixtureClass::ImplementationDefined => {}
                 }
                 Ok::<_, String>(())

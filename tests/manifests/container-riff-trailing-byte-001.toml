@@ -1,6 +1,6 @@
 id = "container-riff-trailing-byte-001"
 file = "../fixtures/generated/riff-trailing-byte.webp"
-sha256 = "54e91dd65bc18c222b188a15a867e0d24bdb96e4f8fb2314e8f8208ec4d14a16"
+sha256 = "17d4d7af2252dda6e0cbd646fea0c3019f0374fe3d944bc92f0f271a1a490f36"
 class = "MustReject"
 source = "generated: cargo xtask fixtures generate-malformed"
 license = "CC0-1.0"

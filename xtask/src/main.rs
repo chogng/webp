@@ -34,8 +34,78 @@ fn print_usage() {
 fn fixtures(action: Option<&str>) -> Result<(), String> {
     match action {
         Some("generate-malformed") => generate_malformed_fixtures(),
+        Some("generate-metadata") => generate_metadata_fixtures(),
         _ => Err("usage: cargo xtask fixtures generate-malformed".to_owned()),
     }
+}
+
+fn generate_metadata_fixtures() -> Result<(), String> {
+    const LENGTHS: [usize; 11] = [0, 1, 2, 3, 4, 7, 8, 15, 16, 255, 256];
+    let mut generated = 0;
+    for mask in 0_u8..8 {
+        for length in LENGTHS {
+            if mask == 0 && length != 0 {
+                continue;
+            }
+            for placement in ["before", "after"] {
+                let payload = (0..length)
+                    .map(|index| (index as u8).wrapping_add(mask))
+                    .collect::<Vec<_>>();
+                let flags = (if mask & 1 != 0 { 1 << 5 } else { 0 })
+                    | (if mask & 2 != 0 { 1 << 3 } else { 0 })
+                    | (if mask & 4 != 0 { 1 << 2 } else { 0 });
+                let mut chunks = vec![chunk(*b"VP8X", &[flags, 0, 0, 0, 0, 0, 0, 0, 0, 0], None)];
+                let metadata_chunks = metadata_chunks(mask, &payload);
+                if placement == "before" {
+                    chunks.extend(metadata_chunks);
+                    chunks.push(chunk(*b"VP8 ", &[0, 0], None));
+                } else {
+                    chunks.push(chunk(*b"VP8 ", &[0, 0], None));
+                    chunks.extend(metadata_chunks);
+                }
+                let file = format!("metadata-{mask:01x}-{length:03}-{placement}.webp");
+                let bytes = riff_body(chunks.concat());
+                write_if_changed(&Path::new("tests/fixtures/generated").join(&file), &bytes)?;
+                let mut manifest = format!(
+                    "id = \"container-metadata-{mask:01x}-{length:03}-{placement}\"\nfile = \"../fixtures/generated/{file}\"\nsha256 = \"{:x}\"\nclass = \"MustAccept\"\nsource = \"generated: cargo xtask fixtures generate-metadata\"\nlicense = \"CC0-1.0\"\ncodec = \"Container\"\napi = \"ReadMetadata\"\nfeatures = [\"metadata\", \"{placement}\"]\n",
+                    Sha256::digest(&bytes)
+                );
+                for (present, field) in [
+                    (mask & 1 != 0, "iccp"),
+                    (mask & 2 != 0, "exif"),
+                    (mask & 4 != 0, "xmp"),
+                ] {
+                    if present {
+                        manifest.push_str(&format!(
+                            "expected_{field}_sha256 = \"{:x}\"\n",
+                            Sha256::digest(&payload)
+                        ));
+                    }
+                }
+                let manifest_path = Path::new("tests/manifests").join(format!(
+                    "container-metadata-{mask:01x}-{length:03}-{placement}.toml"
+                ));
+                write_if_changed(&manifest_path, manifest.as_bytes())?;
+                generated += 1;
+            }
+        }
+    }
+    println!("generated {generated} metadata fixtures");
+    Ok(())
+}
+
+fn metadata_chunks(mask: u8, payload: &[u8]) -> Vec<Vec<u8>> {
+    let mut chunks = Vec::new();
+    if mask & 1 != 0 {
+        chunks.push(chunk(*b"ICCP", payload, None));
+    }
+    if mask & 2 != 0 {
+        chunks.push(chunk(*b"EXIF", payload, None));
+    }
+    if mask & 4 != 0 {
+        chunks.push(chunk(*b"XMP ", payload, None));
+    }
+    chunks
 }
 
 struct GeneratedFixture {
@@ -52,7 +122,7 @@ fn generate_malformed_fixtures() -> Result<(), String> {
     trailing.push(0xff);
 
     let truncated_chunk = riff_body({
-        let mut body = b"WEBPVP8 ".to_vec();
+        let mut body = b"VP8 ".to_vec();
         body.extend_from_slice(&1_u32.to_le_bytes());
         body
     });
@@ -124,13 +194,15 @@ fn generate_malformed_fixtures() -> Result<(), String> {
 }
 
 fn riff_body(body: Vec<u8>) -> Vec<u8> {
+    let mut body_with_form_type = b"WEBP".to_vec();
+    body_with_form_type.extend_from_slice(&body);
     let mut bytes = b"RIFF".to_vec();
     bytes.extend_from_slice(
-        &u32::try_from(body.len())
+        &u32::try_from(body_with_form_type.len())
             .expect("generated RIFF body length fits u32")
             .to_le_bytes(),
     );
-    bytes.extend_from_slice(&body);
+    bytes.extend_from_slice(&body_with_form_type);
     bytes
 }
 

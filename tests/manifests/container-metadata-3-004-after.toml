@@ -1,0 +1,11 @@
+id = "container-metadata-3-004-after"
+file = "../fixtures/generated/metadata-3-004-after.webp"
+sha256 = "f5de0459a924b06c89430b4a8f37f0f7b695bccc4cb3084688c44ff47fc9b3aa"
+class = "MustAccept"
+source = "generated: cargo xtask fixtures generate-metadata"
+license = "CC0-1.0"
+codec = "Container"
+api = "ReadMetadata"
+features = ["metadata", "after"]
+expected_iccp_sha256 = "0488cd1104793edb7467998202babda2bef3061a13d7a940b6cb50f70c5d5070"
+expected_exif_sha256 = "0488cd1104793edb7467998202babda2bef3061a13d7a940b6cb50f70c5d5070"

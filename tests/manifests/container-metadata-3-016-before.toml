@@ -1,0 +1,11 @@
+id = "container-metadata-3-016-before"
+file = "../fixtures/generated/metadata-3-016-before.webp"
+sha256 = "d6201dc08de4b97f100253f2e6c2069753e714ccbd109ac7c90a192d28408629"
+class = "MustAccept"
+source = "generated: cargo xtask fixtures generate-metadata"
+license = "CC0-1.0"
+codec = "Container"
+api = "ReadMetadata"
+features = ["metadata", "before"]
+expected_iccp_sha256 = "b77d084fab3050b9672de0756fa7cb579f6beec5e34c6b99f81bb602e1c9e398"
+expected_exif_sha256 = "b77d084fab3050b9672de0756fa7cb579f6beec5e34c6b99f81bb602e1c9e398"

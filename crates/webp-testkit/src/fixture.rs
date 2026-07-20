@@ -38,6 +38,18 @@ pub enum Codec {
     Container,
 }
 
+/// Public entrypoint selected by an accepted fixture.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize)]
+pub enum FixtureApi {
+    #[default]
+    #[serde(rename = "Decode")]
+    Decode,
+    #[serde(rename = "ReadInfo")]
+    ReadInfo,
+    #[serde(rename = "ReadMetadata")]
+    ReadMetadata,
+}
+
 /// One TOML manifest sidecar for a WebP fixture.
 ///
 /// `source` is deliberately free-form.  It normally names `generated`, an
@@ -54,6 +66,8 @@ pub struct FixtureManifest {
     pub license: String,
     pub codec: Codec,
     #[serde(default)]
+    pub api: FixtureApi,
+    #[serde(default)]
     pub features: Vec<String>,
     #[serde(default)]
     pub expected_width: Option<u32>,
@@ -61,6 +75,12 @@ pub struct FixtureManifest {
     pub expected_height: Option<u32>,
     #[serde(default)]
     pub expected_rgba_sha256: Option<String>,
+    #[serde(default)]
+    pub expected_iccp_sha256: Option<String>,
+    #[serde(default)]
+    pub expected_exif_sha256: Option<String>,
+    #[serde(default)]
+    pub expected_xmp_sha256: Option<String>,
     #[serde(default)]
     pub max_work_units: Option<u64>,
     #[serde(default)]
@@ -86,6 +106,15 @@ impl FixtureManifest {
         if let Some(hash) = &self.expected_rgba_sha256 {
             validate_sha256("expected_rgba_sha256", hash)?;
         }
+        for (name, hash) in [
+            ("expected_iccp_sha256", &self.expected_iccp_sha256),
+            ("expected_exif_sha256", &self.expected_exif_sha256),
+            ("expected_xmp_sha256", &self.expected_xmp_sha256),
+        ] {
+            if let Some(hash) = hash {
+                validate_sha256(name, hash)?;
+            }
+        }
         if self.expected_width.is_some() != self.expected_height.is_some() {
             return Err(ManifestError::InvalidField(
                 "expected_width and expected_height must be specified together",
@@ -94,7 +123,8 @@ impl FixtureManifest {
         if matches!(
             self.class,
             FixtureClass::MustAccept | FixtureClass::CompatAccept
-        ) && self.expected_width.zip(self.expected_height).is_none()
+        ) && matches!(self.api, FixtureApi::Decode | FixtureApi::ReadInfo)
+            && self.expected_width.zip(self.expected_height).is_none()
         {
             return Err(ManifestError::InvalidField(
                 "accepted fixtures require expected_width and expected_height",
@@ -350,6 +380,12 @@ fn verify_sha256<E>(path: &Path, expected: &str, bytes: &[u8]) -> Result<(), Run
             actual,
         })
     }
+}
+
+/// Returns a lower-case SHA-256 digest suitable for fixture manifests.
+#[must_use]
+pub fn sha256_hex(bytes: &[u8]) -> String {
+    format!("{:x}", Sha256::digest(bytes))
 }
 
 /// Returns the lower-case hexadecimal SHA-256 digest of `bytes`.

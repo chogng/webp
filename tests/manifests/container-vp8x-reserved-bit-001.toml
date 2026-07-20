@@ -1,6 +1,6 @@
 id = "container-vp8x-reserved-bit-001"
 file = "../fixtures/generated/vp8x-reserved-bit.webp"
-sha256 = "1133aa7b39b123f0c96b8f5f9590f01de4380465df71573037c0ad68b7d98996"
+sha256 = "0c036428d0634e5ff7aca2154b03bbaca72a5a014d1202daea6aaf995ec13c1b"
 class = "MustReject"
 source = "generated: cargo xtask fixtures generate-malformed"
 license = "CC0-1.0"
