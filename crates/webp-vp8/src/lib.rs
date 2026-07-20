@@ -265,14 +265,24 @@ fn clamp_quantizer(index: i32, maximum: usize) -> usize {
 /// final divide by eight.
 #[must_use]
 pub fn inverse_dct_4x4(coefficients: [i16; 16]) -> [i32; 16] {
+    inverse_dct_4x4_i32(coefficients.map(i32::from))
+}
+
+/// Performs VP8's integer inverse 4×4 DCT on widened coefficients.
+///
+/// This is the reconstruction-facing form of [`inverse_dct_4x4`]. It keeps
+/// dequantized coefficients in `i32`, so a malformed stream cannot force an
+/// intermediate narrowing conversion before prediction and sample clipping.
+#[must_use]
+pub fn inverse_dct_4x4_i32(coefficients: [i32; 16]) -> [i32; 16] {
     let mut temporary = [0_i32; 16];
     for column in 0..4 {
-        let a = i32::from(coefficients[column]) + i32::from(coefficients[8 + column]);
-        let b = i32::from(coefficients[column]) - i32::from(coefficients[8 + column]);
-        let c =
-            transform_mul2(coefficients[4 + column]) - transform_mul1(coefficients[12 + column]);
-        let d =
-            transform_mul1(coefficients[4 + column]) + transform_mul2(coefficients[12 + column]);
+        let a = coefficients[column] + coefficients[8 + column];
+        let b = coefficients[column] - coefficients[8 + column];
+        let c = transform_mul2_i32(coefficients[4 + column])
+            - transform_mul1_i32(coefficients[12 + column]);
+        let d = transform_mul1_i32(coefficients[4 + column])
+            + transform_mul2_i32(coefficients[12 + column]);
         temporary[column * 4] = a + d;
         temporary[column * 4 + 1] = b + c;
         temporary[column * 4 + 2] = b - c;
@@ -297,12 +307,19 @@ pub fn inverse_dct_4x4(coefficients: [i16; 16]) -> [i32; 16] {
 /// Performs the VP8 4×4 inverse Walsh-Hadamard transform for Y2 DC values.
 #[must_use]
 pub fn inverse_wht_4x4(coefficients: [i16; 16]) -> [i32; 16] {
+    inverse_wht_4x4_i32(coefficients.map(i32::from))
+}
+
+/// Performs VP8's integer inverse Walsh-Hadamard transform on widened Y2 DC
+/// coefficients.
+#[must_use]
+pub fn inverse_wht_4x4_i32(coefficients: [i32; 16]) -> [i32; 16] {
     let mut temporary = [0_i32; 16];
     for column in 0..4 {
-        let a0 = i32::from(coefficients[column]) + i32::from(coefficients[12 + column]);
-        let a1 = i32::from(coefficients[4 + column]) + i32::from(coefficients[8 + column]);
-        let a2 = i32::from(coefficients[4 + column]) - i32::from(coefficients[8 + column]);
-        let a3 = i32::from(coefficients[column]) - i32::from(coefficients[12 + column]);
+        let a0 = coefficients[column] + coefficients[12 + column];
+        let a1 = coefficients[4 + column] + coefficients[8 + column];
+        let a2 = coefficients[4 + column] - coefficients[8 + column];
+        let a3 = coefficients[column] - coefficients[12 + column];
         temporary[column] = a0 + a1;
         temporary[8 + column] = a0 - a1;
         temporary[4 + column] = a3 + a2;
@@ -324,20 +341,14 @@ pub fn inverse_wht_4x4(coefficients: [i16; 16]) -> [i32; 16] {
     output
 }
 
-fn transform_mul1(value: i16) -> i32 {
-    transform_mul1_i32(i32::from(value))
-}
-
-fn transform_mul2(value: i16) -> i32 {
-    transform_mul2_i32(i32::from(value))
-}
-
 fn transform_mul1_i32(value: i32) -> i32 {
-    ((value * 20_091) >> 16) + value
+    let result = ((i64::from(value) * 20_091) >> 16) + i64::from(value);
+    result.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
 }
 
 fn transform_mul2_i32(value: i32) -> i32 {
-    (value * 35_468) >> 16
+    let result = (i64::from(value) * 35_468) >> 16;
+    result.clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
 }
 
 /// Canonical VP8 coefficient probabilities after first-partition updates.
@@ -844,6 +855,70 @@ fn non_zero_code(existing: u32, coefficients: DecodedCoefficients) -> u32 {
         0
     };
     (existing << 2) | code
+}
+
+/// Dequantized frequency-domain coefficients for one VP8 macroblock.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DequantizedMacroblock {
+    pub luma: [[i32; 16]; 16],
+    pub u: [[i32; 16]; 4],
+    pub v: [[i32; 16]; 4],
+}
+
+/// Spatial-domain signed residues for one VP8 macroblock before prediction.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MacroblockSpatialResidues {
+    pub luma: [[i32; 16]; 16],
+    pub u: [[i32; 16]; 4],
+    pub v: [[i32; 16]; 4],
+}
+
+/// Applies one segment's VP8 dequantization matrix to a macroblock.
+///
+/// For a 16×16-predicted luma macroblock, this also inverse-transforms the
+/// Y2 block and places its sixteen DC values into the luma blocks, matching
+/// VP8's coefficient layout. All output is widened to `i32`.
+#[must_use]
+pub fn dequantize_macroblock(
+    residuals: &MacroblockResiduals,
+    matrix: DequantizationMatrix,
+) -> DequantizedMacroblock {
+    let mut luma = residuals
+        .luma
+        .map(|block| dequantize_block(block.values, matrix.y1_dc, matrix.y1_ac));
+    if let Some(y2) = residuals.y2 {
+        let y2_values = dequantize_block(y2.values, matrix.y2_dc, matrix.y2_ac);
+        for (block, dc) in luma.iter_mut().zip(inverse_wht_4x4_i32(y2_values)) {
+            block[0] = dc;
+        }
+    }
+    DequantizedMacroblock {
+        luma,
+        u: residuals
+            .u
+            .map(|block| dequantize_block(block.values, matrix.uv_dc, matrix.uv_ac)),
+        v: residuals
+            .v
+            .map(|block| dequantize_block(block.values, matrix.uv_dc, matrix.uv_ac)),
+    }
+}
+
+/// Applies VP8's inverse 4×4 DCT to every dequantized macroblock block.
+#[must_use]
+pub fn inverse_transform_macroblock(
+    coefficients: DequantizedMacroblock,
+) -> MacroblockSpatialResidues {
+    MacroblockSpatialResidues {
+        luma: coefficients.luma.map(inverse_dct_4x4_i32),
+        u: coefficients.u.map(inverse_dct_4x4_i32),
+        v: coefficients.v.map(inverse_dct_4x4_i32),
+    }
+}
+
+fn dequantize_block(values: [i16; 16], dc: u16, ac: u16) -> [i32; 16] {
+    let mut output = values.map(|value| i32::from(value) * i32::from(ac));
+    output[0] = i32::from(values[0]) * i32::from(dc);
+    output
 }
 
 /// The parsed prefix of a VP8 first partition.
@@ -1855,6 +1930,52 @@ mod tests {
         let mut dc = [0_i16; 16];
         dc[0] = 8;
         assert_eq!(inverse_wht_4x4(dc), [1; 16]);
+    }
+
+    #[test]
+    fn widened_transforms_and_macroblock_dequantization_preserve_y2_dc_layout() {
+        let mut dc = [0_i32; 16];
+        dc[0] = 16;
+        assert_eq!(inverse_dct_4x4_i32(dc), [2; 16]);
+
+        let empty = DecodedCoefficients {
+            values: [0; 16],
+            end: 0,
+            non_zero: 0,
+        };
+        let mut residuals = MacroblockResiduals {
+            y2: Some(DecodedCoefficients {
+                values: [8, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+                end: 1,
+                non_zero: 1,
+            }),
+            luma: [empty; 16],
+            u: [empty; 4],
+            v: [empty; 4],
+            non_zero_y: 0,
+            non_zero_uv: 0,
+        };
+        residuals.luma[0].values[1] = 2;
+        residuals.u[0].values[0] = 3;
+        residuals.u[0].values[1] = -2;
+        let matrix = DequantizationMatrix {
+            y1_dc: 2,
+            y1_ac: 3,
+            y2_dc: 4,
+            y2_ac: 5,
+            uv_dc: 6,
+            uv_ac: 7,
+            uv_quant: 0,
+        };
+
+        let dequantized = dequantize_macroblock(&residuals, matrix);
+        assert_eq!(dequantized.luma[0][0], 4);
+        assert_eq!(dequantized.luma[15][0], 4);
+        assert_eq!(dequantized.luma[0][1], 6);
+        assert_eq!(dequantized.u[0][0], 18);
+        assert_eq!(dequantized.u[0][1], -14);
+        let spatial = inverse_transform_macroblock(dequantized);
+        assert_eq!(spatial.luma[0], inverse_dct_4x4_i32(dequantized.luma[0]));
     }
 
     #[test]

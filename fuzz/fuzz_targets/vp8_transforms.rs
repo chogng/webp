@@ -2,7 +2,9 @@
 #![forbid(unsafe_code)]
 
 use libfuzzer_sys::fuzz_target;
-use webp_vp8::{inverse_dct_4x4, inverse_wht_4x4};
+use webp_vp8::{
+    inverse_dct_4x4, inverse_dct_4x4_i32, inverse_wht_4x4, inverse_wht_4x4_i32,
+};
 
 fuzz_target!(|input: &[u8]| {
     let mut coefficients = [0_i16; 16];
@@ -13,4 +15,7 @@ fuzz_target!(|input: &[u8]| {
     }
     let _ = inverse_dct_4x4(coefficients);
     let _ = inverse_wht_4x4(coefficients);
+    let widened = coefficients.map(i32::from);
+    let _ = inverse_dct_4x4_i32(widened);
+    let _ = inverse_wht_4x4_i32(widened);
 });
