@@ -3,6 +3,7 @@
 /crates/*/Cargo.lock
 /fuzz/artifacts/
 /fuzz/corpus/
+/fuzz/target/
 /third_party/corpus/
 /third_party/oracle/
 /third_party/benchdata/
