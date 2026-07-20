@@ -2,9 +2,9 @@
 //! A deliberately small, bounded VP8L entropy decoder.
 //!
 //! This crate is an integration seam for the first lossless decoder slice. It
-//! accepts a single Huffman group, an optional subtract-green transform,
-//! optional color cache, and literal/backward-reference entropy symbols. All
-//! other valid VP8L features receive an explicit
+//! accepts a single Huffman group, VP8L's subtract-green, predictor, and
+//! color transforms, optional color cache, and literal/backward-reference
+//! entropy symbols. All other valid VP8L features receive an explicit
 //! [`DecodeErrorKind::UnsupportedFeature`] rather than being partially
 //! interpreted.  The output uses straight RGBA byte order.
 
@@ -16,6 +16,7 @@ use webp_vp8l::{
     parse_header,
 };
 use webp_vp8l_color_cache::{ColorCacheOutput, MAX_COLOR_CACHE_BITS, MIN_COLOR_CACHE_BITS};
+use webp_vp8l_color_transform::ColorTransformMultipliers;
 use webp_vp8l_entropy::{
     copy_lz77_pixels, decode_distance, decode_length, distance_code_to_distance,
 };
@@ -38,9 +39,9 @@ pub struct LiteralImage {
 /// Decodes a standalone VP8L stream limited to one entropy group.
 ///
 /// The input begins with the five-byte VP8L fixed header. A transform list may
-/// be empty or contain subtract-green and predictor transforms; color cache,
-/// backward references, and literal entropy symbols are also supported. Other
-/// transforms and meta-Huffman groups remain explicitly unsupported.
+/// be empty or contain subtract-green, predictor, and color transforms; color
+/// cache, backward references, and literal entropy symbols are also supported.
+/// Color indexing and meta-Huffman groups remain explicitly unsupported.
 pub fn decode_literal_only(
     data: &[u8],
     limits: &DecodeLimits,
@@ -52,9 +53,9 @@ pub fn decode_literal_only(
 ///
 /// Literal pixels, green-alphabet backward-reference symbols, and color-cache
 /// references are supported. The transform list may be empty or contain
-/// subtract-green and predictor transforms. Predictor mode subimages use the
-/// non-level-zero entropy syntax: they have no transform list and cannot use
-/// meta-Huffman groups. Other transforms and meta-Huffman groups remain
+/// subtract-green, predictor, and color transforms. Transform subimages use
+/// the non-level-zero entropy syntax: they have no transform list and cannot
+/// use meta-Huffman groups. Color indexing and meta-Huffman groups remain
 /// explicitly unsupported. Internally decoded samples are packed as
 /// `0xAARRGGBB` until entropy expansion is complete, then inverse-transformed
 /// and emitted in RGBA byte order.
@@ -103,6 +104,10 @@ pub fn decode_no_transform(
             } => {
                 inverse_predictor_argb(&mut output, *descriptor, mode_pixels)?;
             }
+            DecodedTransform::Color {
+                descriptor,
+                multipliers,
+            } => inverse_color_argb(&mut output, *descriptor, multipliers)?,
         }
     }
     drop(transforms);
@@ -221,15 +226,19 @@ enum DecodedTransform {
         descriptor: BlockTransformDescriptor,
         mode_pixels: Vec<u32>,
     },
+    Color {
+        descriptor: BlockTransformDescriptor,
+        multipliers: Vec<ColorTransformMultipliers>,
+    },
     SubtractGreen,
 }
 
 /// Reads the main-level transform list and decodes supported transform
 /// subimages immediately.
 ///
-/// Predictor descriptors are followed by an `is_level0 = false` entropy
-/// image. The nested image has no transform-list flag or meta-Huffman flag;
-/// consuming either would desynchronize the main transform list.
+/// Predictor and color descriptors are followed by an `is_level0 = false`
+/// entropy image. The nested image has no transform-list flag or meta-Huffman
+/// flag; consuming either would desynchronize the main transform list.
 fn read_supported_transforms(
     bits: &mut BitReader<'_>,
     budget: &mut WorkBudget,
@@ -285,13 +294,99 @@ fn read_supported_transforms(
                     mode_pixels,
                 });
             }
-            Some(TransformDescriptor::Color(_) | TransformDescriptor::ColorIndexing(_)) => {
-                return Err(unsupported(
-                    "VP8L transforms with coded subimages are not implemented",
-                ));
+            Some(TransformDescriptor::Color(descriptor)) => {
+                let multipliers =
+                    decode_color_multipliers(bits, budget, descriptor, limits, *retained_bytes)?;
+                let multiplier_bytes = checked_transform_bytes(
+                    multipliers.len(),
+                    size_of::<ColorTransformMultipliers>(),
+                    "VP8L color-transform table byte size overflow",
+                )?;
+                *retained_bytes =
+                    retained_bytes
+                        .checked_add(multiplier_bytes)
+                        .ok_or_else(|| {
+                            DecodeError::new(
+                                DecodeErrorKind::LimitExceeded,
+                                None,
+                                "VP8L retained transform byte size overflow",
+                            )
+                        })?;
+                transforms.push(DecodedTransform::Color {
+                    descriptor,
+                    multipliers,
+                });
+            }
+            Some(TransformDescriptor::ColorIndexing(_)) => {
+                return Err(unsupported("VP8L color indexing is not implemented"));
             }
         }
     }
+}
+
+/// Decodes and converts a VP8L color-transform subimage to its three-byte
+/// coefficient table.  A transform pixel is packed as `0xAARRGGBB`; VP8L
+/// assigns B to green-to-red, G to green-to-blue, and R to red-to-blue. Alpha
+/// is intentionally ignored.
+fn decode_color_multipliers(
+    bits: &mut BitReader<'_>,
+    budget: &mut WorkBudget,
+    descriptor: BlockTransformDescriptor,
+    limits: &DecodeLimits,
+    retained_bytes: usize,
+) -> Result<Vec<ColorTransformMultipliers>, DecodeError> {
+    let color_pixels = decode_entropy_image(
+        bits,
+        descriptor.transform_width,
+        descriptor.transform_height,
+        false,
+        budget,
+        limits,
+        retained_bytes,
+        0,
+    )?;
+    let packed_bytes = checked_transform_bytes(
+        color_pixels.len(),
+        size_of::<u32>(),
+        "VP8L color-transform packed table byte size overflow",
+    )?;
+    let multiplier_bytes = checked_transform_bytes(
+        color_pixels.len(),
+        size_of::<ColorTransformMultipliers>(),
+        "VP8L color-transform multiplier table byte size overflow",
+    )?;
+    check_transient_transform_allocation(
+        retained_bytes,
+        packed_bytes,
+        multiplier_bytes,
+        limits.max_alloc_bytes,
+    )?;
+    budget.consume(u64::try_from(color_pixels.len()).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-transform table length exceeds work counter",
+        )
+    })?)?;
+
+    let mut multipliers = Vec::new();
+    multipliers
+        .try_reserve_exact(color_pixels.len())
+        .map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::AllocationFailed,
+                None,
+                "VP8L color-transform multiplier allocation failed",
+            )
+        })?;
+    for pixel in color_pixels {
+        multipliers.push(ColorTransformMultipliers::new(
+            pixel as u8 as i8,
+            (pixel >> 8) as u8 as i8,
+            (pixel >> 16) as u8 as i8,
+        ));
+    }
+    Ok(multipliers)
 }
 
 /// Bounds the allocations that coexist while entropy output becomes RGBA.
@@ -339,6 +434,44 @@ fn check_allocation_budget(
             DecodeErrorKind::LimitExceeded,
             None,
             "VP8L decoder allocations exceed configured allocation limit",
+        ));
+    }
+    Ok(())
+}
+
+fn checked_transform_bytes(
+    entries: usize,
+    entry_size: usize,
+    overflow_message: &'static str,
+) -> Result<usize, DecodeError> {
+    entries
+        .checked_mul(entry_size)
+        .ok_or_else(|| DecodeError::new(DecodeErrorKind::LimitExceeded, None, overflow_message))
+}
+
+/// Verifies the brief conversion overlap between an entropy-decoded packed
+/// color subimage and its compact coefficient table.
+fn check_transient_transform_allocation(
+    retained_bytes: usize,
+    packed_bytes: usize,
+    multiplier_bytes: usize,
+    max_alloc_bytes: usize,
+) -> Result<(), DecodeError> {
+    let total = retained_bytes
+        .checked_add(packed_bytes)
+        .and_then(|value| value.checked_add(multiplier_bytes))
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L color-transform conversion allocation size overflow",
+            )
+        })?;
+    if total > max_alloc_bytes {
+        return Err(DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-transform conversion exceeds allocation limit",
         ));
     }
     Ok(())
@@ -408,6 +541,108 @@ fn inverse_subtract_green_argb(pixels: &mut [u32]) {
         let blue = (*pixel as u8).wrapping_add(green);
         *pixel = (*pixel & 0xff00_ff00) | (u32::from(red) << 16) | u32::from(blue);
     }
+}
+
+/// Inverts a color transform in packed ARGB order without a second image
+/// buffer.  The coefficient table has already been validated against the
+/// descriptor during transform-subimage decoding.
+fn inverse_color_argb(
+    pixels: &mut [u32],
+    descriptor: BlockTransformDescriptor,
+    multipliers: &[ColorTransformMultipliers],
+) -> Result<(), DecodeError> {
+    let width = usize::try_from(descriptor.image_width).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-transform image width does not fit usize",
+        )
+    })?;
+    let height = usize::try_from(descriptor.image_height).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-transform image height does not fit usize",
+        )
+    })?;
+    let expected_pixels = width.checked_mul(height).ok_or_else(|| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-transform image pixel count overflow",
+        )
+    })?;
+    if pixels.len() != expected_pixels {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L color-transform output length does not match image dimensions",
+        ));
+    }
+
+    let table_width = usize::try_from(descriptor.transform_width).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-transform table width does not fit usize",
+        )
+    })?;
+    let table_height = usize::try_from(descriptor.transform_height).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-transform table height does not fit usize",
+        )
+    })?;
+    let expected_multipliers = table_width.checked_mul(table_height).ok_or_else(|| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-transform table pixel count overflow",
+        )
+    })?;
+    if multipliers.len() != expected_multipliers {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L color-transform table has unexpected dimensions",
+        ));
+    }
+
+    let block_size = usize::try_from(descriptor.block_size()).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-transform block size does not fit usize",
+        )
+    })?;
+    for y in 0..height {
+        for x in 0..width {
+            let pixel_index = y * width + x;
+            let table_index = (y / block_size) * table_width + (x / block_size);
+            pixels[pixel_index] =
+                inverse_color_pixel_argb(pixels[pixel_index], multipliers[table_index]);
+        }
+    }
+    Ok(())
+}
+
+/// Applies libwebp's scalar VP8L inverse color arithmetic to one packed pixel.
+/// Both green and the reconstructed red fed to the blue multiplier are signed
+/// bytes; the red result is reduced modulo 256 before the final multiplication.
+const fn inverse_color_pixel_argb(pixel: u32, multipliers: ColorTransformMultipliers) -> u32 {
+    let green = ((pixel >> 8) as u8) as i8;
+    let mut red = (pixel >> 16) as u8 as i32;
+    let mut blue = pixel as u8 as i32;
+    red = (red + color_delta(multipliers.green_to_red, green)) & 0xff;
+    blue += color_delta(multipliers.green_to_blue, green);
+    blue += color_delta(multipliers.red_to_blue, red as u8 as i8);
+    blue &= 0xff;
+    (pixel & 0xff00_ff00) | ((red as u32) << 16) | (blue as u32)
+}
+
+const fn color_delta(multiplier: i8, channel: i8) -> i32 {
+    ((multiplier as i32) * (channel as i32)) >> 5
 }
 
 /// Inverts a predictor transform without a second full-image allocation.
@@ -812,6 +1047,112 @@ mod tests {
         }
     }
 
+    fn write_channel_code(writer: &mut BitWriter, values: &[u8]) -> Option<Vec<u8>> {
+        let mut symbols = values.to_vec();
+        symbols.sort_unstable();
+        symbols.dedup();
+        match symbols.len() {
+            1 => {
+                write_simple_code(writer, symbols[0]);
+                None
+            }
+            2 => Some(write_normal_code(
+                writer,
+                CHANNEL_ALPHABET_SIZE,
+                &[(usize::from(symbols[0]), 1), (usize::from(symbols[1]), 1)],
+            )),
+            3 => Some(write_normal_code(
+                writer,
+                CHANNEL_ALPHABET_SIZE,
+                &[
+                    (usize::from(symbols[0]), 1),
+                    (usize::from(symbols[1]), 2),
+                    (usize::from(symbols[2]), 2),
+                ],
+            )),
+            4 => Some(write_normal_code(
+                writer,
+                CHANNEL_ALPHABET_SIZE,
+                &[
+                    (usize::from(symbols[0]), 2),
+                    (usize::from(symbols[1]), 2),
+                    (usize::from(symbols[2]), 2),
+                    (usize::from(symbols[3]), 2),
+                ],
+            )),
+            _ => panic!("test helper supports at most four channel symbols"),
+        }
+    }
+
+    /// Writes a small non-level-zero VP8L entropy image with literal pixels.
+    fn write_entropy_image_pixels(writer: &mut BitWriter, pixels: &[[u8; 4]]) {
+        assert!(!pixels.is_empty());
+        writer.write_bits(0, 1).unwrap(); // color_cache_present
+        let green = write_channel_code(
+            writer,
+            &pixels.iter().map(|pixel| pixel[1]).collect::<Vec<_>>(),
+        );
+        let red = write_channel_code(
+            writer,
+            &pixels.iter().map(|pixel| pixel[0]).collect::<Vec<_>>(),
+        );
+        let blue = write_channel_code(
+            writer,
+            &pixels.iter().map(|pixel| pixel[2]).collect::<Vec<_>>(),
+        );
+        let alpha = write_channel_code(
+            writer,
+            &pixels.iter().map(|pixel| pixel[3]).collect::<Vec<_>>(),
+        );
+        write_simple_code(writer, 0); // distance prefix
+
+        for pixel in pixels {
+            if let Some(lengths) = &green {
+                write_symbol(writer, lengths, usize::from(pixel[1]));
+            }
+            if let Some(lengths) = &red {
+                write_symbol(writer, lengths, usize::from(pixel[0]));
+            }
+            if let Some(lengths) = &blue {
+                write_symbol(writer, lengths, usize::from(pixel[2]));
+            }
+            if let Some(lengths) = &alpha {
+                write_symbol(writer, lengths, usize::from(pixel[3]));
+            }
+        }
+    }
+
+    fn color_transform_stream(
+        width: u32,
+        height: u32,
+        block_size_field: u8,
+        transform_pixels: &[[u8; 4]],
+        main_pixel: [u8; 4],
+        following_transforms: &[u8],
+    ) -> Vec<u8> {
+        let block_size = 1_u32 << (u32::from(block_size_field) + 2);
+        let table_width = width.div_ceil(block_size);
+        let table_height = height.div_ceil(block_size);
+        assert_eq!(
+            transform_pixels.len(),
+            usize::try_from(table_width * table_height).unwrap()
+        );
+
+        let mut writer = BitWriter::new();
+        write_header(&mut writer, width, height, main_pixel[3] != 255);
+        writer.write_bits(1, 1).unwrap(); // transform_present
+        writer.write_bits(1, 2).unwrap(); // color transform
+        writer.write_bits(u32::from(block_size_field), 3).unwrap();
+        write_entropy_image_pixels(&mut writer, transform_pixels);
+        for &transform in following_transforms {
+            writer.write_bits(1, 1).unwrap(); // transform_present
+            writer.write_bits(u32::from(transform), 2).unwrap();
+        }
+        writer.write_bits(0, 1).unwrap(); // transform-list terminator
+        write_flat_entropy_image(&mut writer, main_pixel, true);
+        writer.into_bytes()
+    }
+
     fn predictor_stream(mode: u8) -> Vec<u8> {
         let mut writer = BitWriter::new();
         write_header(&mut writer, 2, 2, false);
@@ -828,6 +1169,22 @@ mod tests {
         // the first row/column, while the lower-right pixel proves mode one
         // (left) is selected from the predictor subimage.
         write_flat_entropy_image(&mut writer, [1, 1, 1, 0], true);
+        writer.into_bytes()
+    }
+
+    fn predictor_then_color_stream() -> Vec<u8> {
+        let mut writer = BitWriter::new();
+        write_header(&mut writer, 2, 2, false);
+        writer.write_bits(1, 1).unwrap(); // predictor transform present
+        writer.write_bits(0, 2).unwrap(); // predictor transform
+        writer.write_bits(0, 3).unwrap(); // four-pixel blocks
+        write_flat_entropy_image(&mut writer, [0, 1, 0, 255], false);
+        writer.write_bits(1, 1).unwrap(); // color transform present
+        writer.write_bits(1, 2).unwrap(); // color transform
+        writer.write_bits(0, 3).unwrap(); // four-pixel blocks
+        write_entropy_image_pixels(&mut writer, &[[0, 0, 32, 0]]);
+        writer.write_bits(0, 1).unwrap(); // transform-list terminator
+        write_flat_entropy_image(&mut writer, [0, 32, 0, 0], true);
         writer.into_bytes()
     }
 
@@ -942,6 +1299,92 @@ mod tests {
     }
 
     #[test]
+    fn decodes_color_transform_with_specified_argb_multiplier_mapping() {
+        // The transform pixel is ARGB on wire. R feeds red-to-blue, G feeds
+        // green-to-blue, B feeds green-to-red, and alpha is ignored.
+        let data = color_transform_stream(
+            1,
+            1,
+            0,
+            &[[0x20, 0x80, 0x01, 0x55]],
+            [3, 0x80, 0, 0x44],
+            &[],
+        );
+        let image = decode_no_transform(&data, &limits()).unwrap();
+        // Green is signed -128. Red becomes 3 + (1 * -128 >> 5) = 255;
+        // blue then receives (-128 * -128 >> 5) + (32 * -1 >> 5).
+        assert_eq!(image.rgba, [255, 128, 255, 0x44]);
+    }
+
+    #[test]
+    fn color_transform_selects_multipliers_at_partial_block_boundaries() {
+        // 5x5 pixels with four-pixel blocks yield a 2x2 transform image.
+        // Each block carries a different green-to-red multiplier in B.
+        let data = color_transform_stream(
+            5,
+            5,
+            0,
+            &[[0, 0, 0, 0], [0, 0, 1, 0], [0, 0, 2, 0], [0, 0, 0xff, 0]],
+            [0, 32, 0, 1],
+            &[],
+        );
+        let image = decode_no_transform(&data, &limits()).unwrap();
+        let rgba_at = |x: usize, y: usize| &image.rgba[(y * 5 + x) * 4..(y * 5 + x + 1) * 4];
+        assert_eq!(rgba_at(0, 0), [0, 32, 0, 1]);
+        assert_eq!(rgba_at(4, 0), [1, 32, 0, 1]);
+        assert_eq!(rgba_at(0, 4), [2, 32, 0, 1]);
+        assert_eq!(rgba_at(4, 4), [255, 32, 0, 1]);
+    }
+
+    #[test]
+    fn inverse_transforms_run_in_reverse_wire_order_with_subtract_green() {
+        // Color appears before subtract-green on wire, so subtract-green is
+        // inverted first. Its reconstructed green then drives color's B=32
+        // green-to-red multiplier.
+        let data = color_transform_stream(1, 1, 0, &[[0, 0, 32, 0]], [0, 32, 0, 9], &[2]);
+        let image = decode_no_transform(&data, &limits()).unwrap();
+        assert_eq!(image.rgba, [64, 32, 32, 9]);
+    }
+
+    #[test]
+    fn inverse_transforms_run_in_reverse_wire_order_with_predictor() {
+        // Predictor appears before color on wire, so color is inverted first.
+        // The predictor then reconstructs each color-corrected residual.
+        let image = decode_no_transform(&predictor_then_color_stream(), &limits()).unwrap();
+        assert_eq!(
+            image.rgba,
+            [
+                32, 32, 0, 255, // top-left boundary predictor
+                64, 64, 0, 255, // top row uses left
+                64, 64, 0, 255, // left column uses top
+                96, 96, 0, 255, // mode one uses left
+            ]
+        );
+    }
+
+    #[test]
+    fn color_transform_storage_counts_toward_the_decoder_limit() {
+        let data = color_transform_stream(
+            5,
+            5,
+            0,
+            &[[0, 0, 0, 0], [0, 0, 1, 0], [0, 0, 2, 0], [0, 0, 3, 0]],
+            [0, 32, 0, 1],
+            &[],
+        );
+        // Four compact multiplier entries (12 B), 25 packed main pixels
+        // (100 B), and final RGBA (100 B) coexist during main entropy decode.
+        let limited = DecodeLimits {
+            max_alloc_bytes: 211,
+            ..limits()
+        };
+        assert_eq!(
+            decode_no_transform(&data, &limited).unwrap_err().kind(),
+            DecodeErrorKind::LimitExceeded
+        );
+    }
+
+    #[test]
     fn decodes_predictor_subimage_without_a_nested_transform_list() {
         let image = decode_no_transform(&predictor_stream(1), &limits()).unwrap();
         assert_eq!(
@@ -1005,26 +1448,20 @@ mod tests {
     }
 
     #[test]
-    fn rejects_unsupported_transforms_with_subimages_without_reading_their_payload() {
-        for transform_type in [1_u32, 3] {
-            let mut writer = BitWriter::new();
-            write_header(&mut writer, 1, 1, false);
-            writer.write_bits(1, 1).unwrap(); // transform_present
-            writer.write_bits(transform_type, 2).unwrap();
-            match transform_type {
-                1 => writer.write_bits(0, 3).unwrap(), // block_size_bits
-                3 => writer.write_bits(0, 8).unwrap(), // one palette entry
-                _ => unreachable!(),
-            }
-            // No transform subimage follows. This must still reject as
-            // unsupported rather than attempting to parse that payload.
-            assert_eq!(
-                decode_literal_only(&writer.into_bytes(), &limits())
-                    .unwrap_err()
-                    .kind(),
-                DecodeErrorKind::UnsupportedFeature
-            );
-        }
+    fn rejects_color_indexing_without_reading_its_palette_payload() {
+        let mut writer = BitWriter::new();
+        write_header(&mut writer, 1, 1, false);
+        writer.write_bits(1, 1).unwrap(); // transform_present
+        writer.write_bits(3, 2).unwrap(); // color indexing
+        writer.write_bits(0, 8).unwrap(); // one palette entry
+        // No palette subimage follows. This must reject as unsupported rather
+        // than attempting to parse a transform that this decoder cannot use.
+        assert_eq!(
+            decode_literal_only(&writer.into_bytes(), &limits())
+                .unwrap_err()
+                .kind(),
+            DecodeErrorKind::UnsupportedFeature
+        );
     }
 
     #[test]
@@ -1217,6 +1654,16 @@ mod tests {
                 error.kind(),
                 DecodeErrorKind::UnexpectedEof,
                 "subtract-green truncation length {length}"
+            );
+        }
+
+        let color_transformed = color_transform_stream(1, 1, 0, &[[0, 0, 1, 0]], [1, 2, 3, 4], &[]);
+        for length in 0..color_transformed.len() {
+            let error = decode_no_transform(&color_transformed[..length], &limits()).unwrap_err();
+            assert_eq!(
+                error.kind(),
+                DecodeErrorKind::UnexpectedEof,
+                "color-transform truncation length {length}"
             );
         }
     }
