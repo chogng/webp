@@ -15,6 +15,7 @@ mod quantization;
 
 use coefficients::{COEFFICIENT_DEFAULTS, COEFFICIENT_UPDATE_PROBABILITIES};
 use intra::B_MODE_PROBABILITIES;
+use loop_filter::{MacroblockFilter, filter_macroblock};
 use quantization::{AC as DEQUANT_AC, DC as DEQUANT_DC};
 
 pub use loop_filter::{
@@ -1792,8 +1793,8 @@ impl Vp8YuvImage {
 /// The VP8 payload and [`Vp8Header`] must originate from the same RIFF chunk.
 /// Mode data is consumed in raster order from partition zero; coefficient
 /// tokens select their partition using `macroblock_row & (count - 1)`, exactly
-/// as specified by VP8. Loop filtering remains a separate post-reconstruction
-/// stage.
+/// as specified by VP8. Each reconstructed row is loop-filtered before the
+/// next row consumes it as an intra-prediction boundary.
 pub fn decode_intra_frame(
     payload: &[u8],
     frame: &Vp8Header,
@@ -1828,6 +1829,8 @@ pub fn decode_intra_frame(
     let mut top_modes = vec![Intra4Mode::Dc; macroblock_width * 4];
     let mut top_contexts = vec![ResidualContext::default(); macroblock_width];
     let mut blocks = vec![empty_intra_macroblock(); macroblock_width];
+    let strengths = derive_loop_filter_strengths(&layout.header.filter, &layout.header.segments);
+    let mut row_filters = vec![(LoopFilterStrength::default(), false); macroblock_width];
     for macroblock_y in 0..macroblock_height {
         parse_intra_mode_row(&mut mode_bits, &layout.header, &mut top_modes, &mut blocks)?;
         let mut left_context = ResidualContext::default();
@@ -1860,6 +1863,26 @@ pub fn decode_intra_frame(
                 image.edges(macroblock_x, macroblock_y),
             )?;
             image.store_macroblock(macroblock_x, macroblock_y, pixels);
+            let strength = strengths[usize::from(block.segment)]
+                [usize::from(matches!(block.luma, LumaMode::FourByFour(_)))];
+            row_filters[macroblock_x] = (
+                strength,
+                strength.filters_inner(matches!(block.luma, LumaMode::FourByFour(_)), block.skip),
+            );
+        }
+        for (macroblock_x, &(strength, filters_inner)) in row_filters.iter().enumerate() {
+            filter_macroblock(MacroblockFilter {
+                y: &mut image.y,
+                u: &mut image.u,
+                v: &mut image.v,
+                y_stride: image.y_stride,
+                uv_stride: image.uv_stride,
+                macroblock_x,
+                macroblock_y,
+                simple: layout.header.filter.simple,
+                strength,
+                filters_inner,
+            });
         }
     }
     Ok(image)
@@ -2887,6 +2910,61 @@ mod tests {
         let mut inner = [100, 100, 100, 100, 110, 110, 110, 110];
         assert!(filter_normal_edge(&mut inner, 4, 1, smooth_strength, false));
         assert_eq!(inner, [100, 100, 102, 104, 106, 108, 110, 110]);
+    }
+
+    #[test]
+    fn row_filter_applies_luma_internal_edges_only_when_requested() {
+        let strength = LoopFilterStrength {
+            level: 10,
+            inner_limit: 10,
+            edge_limit: 25,
+            hev_threshold: 0,
+        };
+        let mut y = vec![0; 16 * 16];
+        for row in y.chunks_exact_mut(16) {
+            row[..4].fill(100);
+            row[4..].fill(110);
+        }
+        let mut u = vec![128; 8 * 8];
+        let mut v = vec![128; 8 * 8];
+        filter_macroblock(MacroblockFilter {
+            y: &mut y,
+            u: &mut u,
+            v: &mut v,
+            y_stride: 16,
+            uv_stride: 8,
+            macroblock_x: 0,
+            macroblock_y: 0,
+            simple: true,
+            strength,
+            filters_inner: true,
+        });
+        for row in y.chunks_exact(16) {
+            assert_eq!(&row[2..6], &[100, 102, 107, 110]);
+        }
+
+        let mut untouched = vec![0; 16 * 16];
+        for row in untouched.chunks_exact_mut(16) {
+            row[..4].fill(100);
+            row[4..].fill(110);
+        }
+        filter_macroblock(MacroblockFilter {
+            y: &mut untouched,
+            u: &mut u,
+            v: &mut v,
+            y_stride: 16,
+            uv_stride: 8,
+            macroblock_x: 0,
+            macroblock_y: 0,
+            simple: true,
+            strength,
+            filters_inner: false,
+        });
+        assert!(
+            untouched
+                .iter()
+                .all(|&sample| sample == 100 || sample == 110)
+        );
     }
 
     #[test]
