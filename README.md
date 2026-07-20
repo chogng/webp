@@ -37,3 +37,10 @@ dependencies change, regenerate the Bazel dependency lockfile before committing:
 ```sh
 CARGO_BAZEL_REPIN=1 bazel build //...
 ```
+
+## License
+
+Licensed under either of:
+
+- [Apache License, Version 2.0](LICENSE-APACHE)
+- [MIT License](LICENSE-MIT)
