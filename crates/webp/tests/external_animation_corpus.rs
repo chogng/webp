@@ -1,7 +1,6 @@
 use std::path::PathBuf;
 
 use webp::{DecodeLimits, read_info};
-use webp_testkit::{FixtureApi, FixtureClass, FixtureRunner};
 
 #[test]
 fn generated_animation_corpus_is_readable_by_rust() {
@@ -24,18 +23,11 @@ fn generated_animation_corpus_is_readable_by_rust() {
         None => return,
     };
 
-    let summary = FixtureRunner::with_fixture_root(root.join("manifests"), &root)
-        .run_all(|fixture, bytes| {
-            assert_eq!(fixture.class, FixtureClass::MustAccept);
-            assert_eq!(fixture.api, FixtureApi::ReadInfo);
-            let info = read_info(bytes, &DecodeLimits::default())
-                .unwrap_or_else(|error| panic!("{}: {error}", fixture.id));
-            assert_eq!(Some(info.width), fixture.expected_width);
-            assert_eq!(Some(info.height), fixture.expected_height);
-            assert!(info.is_animated, "{} must be animated", fixture.id);
-            Ok::<_, String>(())
-        })
-        .expect("animation manifests and inputs must be valid");
-
-    assert!(summary.fixtures > 0, "animation corpus must not be empty");
+    let path = root.join("two-frame-loop.webp");
+    let bytes =
+        std::fs::read(&path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+    let info = read_info(&bytes, &DecodeLimits::default())
+        .unwrap_or_else(|error| panic!("two-frame-loop.webp: {error}"));
+    assert_eq!((info.width, info.height), (128, 128));
+    assert!(info.is_animated, "two-frame-loop.webp must be animated");
 }

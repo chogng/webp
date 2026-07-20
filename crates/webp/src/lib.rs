@@ -243,10 +243,12 @@ pub fn read_metadata(data: &[u8], limits: &DecodeLimits) -> Result<Metadata, Dec
 
 #[cfg(test)]
 mod tests {
-    use std::path::PathBuf;
+    use std::{
+        fs,
+        path::{Path, PathBuf},
+    };
 
     use super::*;
-    use webp_testkit::{FixtureApi, FixtureClass, FixtureRunner, sha256_hex};
 
     fn test_data_root() -> PathBuf {
         if let Some(runfiles) = std::env::var_os("TEST_SRCDIR") {
@@ -264,72 +266,96 @@ mod tests {
         panic!("test fixtures are unavailable")
     }
 
-    #[test]
-    fn smoke_manifests_exercise_each_public_decode_entrypoint() {
-        let summary = FixtureRunner::new(test_data_root())
-            .run_all(|fixture, bytes| {
-                match fixture.class {
-                    FixtureClass::MustReject => {
-                        assert!(
-                            decode(bytes, &DecodeOptions::default()).is_err(),
-                            "{}: one-shot decode must reject",
-                            fixture.id
-                        );
-                        assert!(
-                            read_info(bytes, &DecodeLimits::default()).is_err(),
-                            "{}: read_info must reject",
-                            fixture.id
-                        );
-                        let mut incremental = IncrementalDecoder::new(DecodeOptions::default());
-                        incremental
-                            .push(bytes)
-                            .expect("input must fit default limit");
-                        assert!(
-                            incremental.finish().is_err(),
-                            "{}: incremental finish must reject",
-                            fixture.id
-                        );
-                    }
-                    FixtureClass::MustAccept => match fixture.api {
-                        FixtureApi::Decode => assert!(
-                            decode(bytes, &DecodeOptions::default()).is_ok(),
-                            "{} must decode",
-                            fixture.id
-                        ),
-                        FixtureApi::ReadInfo => assert!(
-                            read_info(bytes, &DecodeLimits::default()).is_ok(),
-                            "{}: read_info must accept",
-                            fixture.id
-                        ),
-                        FixtureApi::ReadMetadata => {
-                            let metadata = read_metadata(bytes, &DecodeLimits::default())
-                                .unwrap_or_else(|error| {
-                                    panic!("{}: read_metadata failed: {error}", fixture.id)
-                                });
-                            for (name, actual, expected) in [
-                                ("ICCP", metadata.iccp, &fixture.expected_iccp_sha256),
-                                ("EXIF", metadata.exif, &fixture.expected_exif_sha256),
-                                ("XMP", metadata.xmp, &fixture.expected_xmp_sha256),
-                            ] {
-                                match (actual, expected) {
-                                    (Some(actual), Some(expected)) => assert_eq!(
-                                        sha256_hex(&actual),
-                                        *expected,
-                                        "{}: {name} hash",
-                                        fixture.id
-                                    ),
-                                    (None, None) => {}
-                                    _ => panic!("{}: {name} presence mismatch", fixture.id),
-                                }
-                            }
-                        }
-                    },
-                    FixtureClass::CompatAccept | FixtureClass::ImplementationDefined => {}
-                }
-                Ok::<_, String>(())
+    fn fixture(relative_path: impl AsRef<Path>) -> Vec<u8> {
+        let path = test_data_root().join(relative_path);
+        fs::read(&path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()))
+    }
+
+    fn generated_fixtures() -> Vec<PathBuf> {
+        let root = test_data_root().join("fixtures/generated");
+        let mut fixtures = fs::read_dir(&root)
+            .unwrap_or_else(|error| panic!("read {}: {error}", root.display()))
+            .map(|entry| entry.expect("read generated fixture entry").path())
+            .filter(|path| {
+                path.extension()
+                    .is_some_and(|extension| extension == "webp")
             })
-            .expect("all smoke fixtures must run");
-        assert!(summary.fixtures > 0, "smoke corpus must not be empty");
+            .collect::<Vec<_>>();
+        fixtures.sort();
+        fixtures
+    }
+
+    fn metadata_case(name: &str) -> Option<(u8, usize)> {
+        let stem = name.strip_suffix(".webp")?;
+        let mut parts = stem.split('-');
+        if parts.next()? != "metadata" {
+            return None;
+        }
+        let mask = u8::from_str_radix(parts.next()?, 16).ok()?;
+        let length = parts.next()?.parse().ok()?;
+        matches!(parts.next()?, "before" | "after").then_some((mask, length))
+    }
+
+    fn assert_rejected(name: &str, bytes: &[u8]) {
+        assert!(
+            decode(bytes, &DecodeOptions::default()).is_err(),
+            "{name}: one-shot decode must reject"
+        );
+        assert!(
+            read_info(bytes, &DecodeLimits::default()).is_err(),
+            "{name}: read_info must reject"
+        );
+        let mut incremental = IncrementalDecoder::new(DecodeOptions::default());
+        incremental
+            .push(bytes)
+            .expect("fixture must fit the default input limit");
+        assert!(
+            incremental.finish().is_err(),
+            "{name}: incremental finish must reject"
+        );
+    }
+
+    #[test]
+    fn direct_fixtures_exercise_public_decode_entrypoints() {
+        let empty = fixture("fixtures/smoke/empty-input.webp");
+        assert_rejected("empty-input.webp", &empty);
+
+        for path in generated_fixtures() {
+            let name = path.file_name().and_then(|name| name.to_str()).unwrap();
+            if metadata_case(name).is_none() {
+                let bytes = fs::read(&path)
+                    .unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+                assert_rejected(name, &bytes);
+            }
+        }
+    }
+
+    #[test]
+    fn direct_metadata_fixtures_preserve_their_declared_payloads() {
+        for path in generated_fixtures() {
+            let name = path.file_name().and_then(|name| name.to_str()).unwrap();
+            let Some((mask, length)) = metadata_case(name) else {
+                continue;
+            };
+            let payload = (0..length)
+                .map(|index| (index as u8).wrapping_add(mask))
+                .collect::<Vec<_>>();
+            let bytes =
+                fs::read(&path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+            let metadata = read_metadata(&bytes, &DecodeLimits::default())
+                .unwrap_or_else(|error| panic!("{name}: read_metadata failed: {error}"));
+            for (label, actual, present) in [
+                ("ICCP", metadata.iccp, mask & 1 != 0),
+                ("EXIF", metadata.exif, mask & 2 != 0),
+                ("XMP", metadata.xmp, mask & 4 != 0),
+            ] {
+                assert_eq!(
+                    actual.as_deref(),
+                    present.then_some(payload.as_slice()),
+                    "{name}: {label} payload"
+                );
+            }
+        }
     }
 
     #[test]

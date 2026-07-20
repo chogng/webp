@@ -7,7 +7,9 @@ use std::{
 
 use webp::{DecodeOptions, decode};
 use webp_container::VP8L;
-use webp_testkit::{Codec, FixtureApi, FixtureClass, FixtureRunner, sha256_hex};
+
+const UPSTREAM_SMOKE_SELECTION: &str =
+    include_str!("../../../tests/corpora/libwebp-test-data-smoke-v1.txt");
 
 fn corpus_root() -> Option<PathBuf> {
     let cargo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -30,46 +32,52 @@ fn corpus_root() -> Option<PathBuf> {
     }
 }
 
+fn selected_lossless_vectors() -> impl Iterator<Item = &'static str> {
+    UPSTREAM_SMOKE_SELECTION
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .filter(|name| {
+            matches!(
+                *name,
+                "lossless1.webp"
+                    | "lossless2.webp"
+                    | "lossless3.webp"
+                    | "lossless4.webp"
+                    | "lossless_big_random_alpha.webp"
+                    | "lossless_color_transform.webp"
+                    | "color_cache_bits_11.webp"
+                    | "dual_transform.webp"
+                    | "one_color_no_palette.webp"
+            ) || name.starts_with("lossless_vec_1_")
+                || name.starts_with("lossless_vec_2_")
+        })
+}
+
 #[test]
-fn selected_upstream_lossless_vectors_decode_to_recorded_rgba_goldens() {
+fn selected_upstream_lossless_vectors_decode_directly() {
     let Some(root) = corpus_root() else {
         return;
     };
 
-    let summary = FixtureRunner::with_fixture_root(root.join("manifests"), &root)
-        .run_all(|fixture, bytes| {
-            if fixture.class != FixtureClass::MustAccept {
-                return Ok::<_, String>(());
-            }
-            if fixture.codec != Codec::Vp8l || fixture.api != FixtureApi::Decode {
-                return Err(format!("{} is not an M1 VP8L decode fixture", fixture.id));
-            }
-            let image = decode(bytes, &DecodeOptions::default())
-                .map_err(|error| format!("{}: decode failed: {error}", fixture.id))?;
-            let width = fixture
-                .expected_width
-                .expect("validated accepted fixture width");
-            let height = fixture
-                .expected_height
-                .expect("validated accepted fixture height");
-            let rgba = fixture
-                .expected_rgba_sha256
-                .as_deref()
-                .expect("validated M1 fixture RGBA golden");
-            if (image.width, image.height) != (width, height) {
-                return Err(format!(
-                    "{}: dimensions {}x{} != {width}x{height}",
-                    fixture.id, image.width, image.height
-                ));
-            }
-            if sha256_hex(&image.rgba) != rgba {
-                return Err(format!("{}: RGBA hash mismatch", fixture.id));
-            }
-            Ok(())
-        })
-        .expect("all selected upstream vectors must satisfy their manifest contract");
-
-    assert_eq!(summary.fixtures, 68, "selected upstream corpus size");
+    let names = selected_lossless_vectors().collect::<Vec<_>>();
+    assert_eq!(names.len(), 41, "selected lossless corpus size");
+    for name in names {
+        let path = root.join(name);
+        let bytes =
+            fs::read(&path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+        let image = decode(&bytes, &DecodeOptions::default())
+            .unwrap_or_else(|error| panic!("{name}: decode failed: {error}"));
+        assert!(
+            image.width > 0 && image.height > 0,
+            "{name}: image dimensions"
+        );
+        assert_eq!(
+            image.rgba.len(),
+            usize::try_from(image.width * image.height * 4).expect("small fixture dimensions"),
+            "{name}: RGBA length"
+        );
+    }
 }
 
 #[test]

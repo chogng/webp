@@ -67,9 +67,6 @@ bazel test --test_output=errors --test_tag_filters=external-corpus \
   //crates/webp:external_upstream_corpus_test
 ```
 
-The Bazel external-corpus target passed locally with Bazel 9.0.0. Its first
-build also exposed and corrected a stale `cargo-bazel-lock.json` that omitted
-the existing `webp-testkit` `serde_json` dependency. A second invocation
-without repinning passed from the regenerated lock. Scheduled CI additionally
+The Bazel external-corpus target passed locally with Bazel 9.0.0. Scheduled CI
 builds pinned `cwebp`/`dwebp`, reruns the release external-corpus test, and
 runs the same Bazel target.

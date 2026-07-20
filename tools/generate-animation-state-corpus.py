@@ -2,8 +2,6 @@
 """Generate animation state vectors with explicit mux frame controls."""
 from __future__ import annotations
 
-from hashlib import sha256
-import json
 from pathlib import Path
 import subprocess
 
@@ -16,19 +14,13 @@ WIDTH, HEIGHT = 128, 96
 def write_ppm(path: Path, width: int, height: int, color: tuple[int, int, int]) -> None:
     path.write_bytes(f"P6\n{width} {height}\n255\n".encode() + bytes(color) * (width * height))
 
-
-def toml_string(value: str) -> str:
-    return json.dumps(value)
-
-
 def main() -> None:
     cwebp = ORACLE / "build/cwebp"
     webpmux = ORACLE / "build/webpmux"
     if not (ORACLE / ".git").is_dir() or not cwebp.is_file() or not webpmux.is_file():
         raise SystemExit("build cwebp and webpmux in third_party/oracle/libwebp first")
-    revision = subprocess.check_output(["git", "-C", str(ORACLE), "rev-parse", "HEAD"], text=True).strip()
-    inputs, frames, manifests = (ROOT / name for name in ("state-inputs", "state-frames", "manifests"))
-    for directory in (inputs, frames, manifests):
+    inputs, frames = (ROOT / name for name in ("state-inputs", "state-frames"))
+    for directory in (inputs, frames):
         directory.mkdir(parents=True, exist_ok=True)
 
     source_specs = {
@@ -52,7 +44,6 @@ def main() -> None:
             ],
             "loop": 1,
             "background": "255,10,20,30",
-            "notes": "Opaque base followed by an offset blend frame; loop count is one.",
         },
         "animation-dispose-no-blend-loop-zero": {
             "frames": [
@@ -62,39 +53,18 @@ def main() -> None:
             ],
             "loop": 0,
             "background": "255,10,20,30",
-            "notes": "Offset patch disposes to background before the final no-blend frame; loop is infinite.",
         },
     }
 
     for name, variant in variants.items():
         output = ROOT / f"{name}.webp"
         command = [webpmux]
-        frame_args = []
         for frame, duration, x, y, dispose, blend in variant["frames"]:
             controls = f"+{duration}+{x}+{y}+{dispose}{blend}"
             command.extend(["-frame", encoded[frame], controls])
-            frame_args.extend(["-frame", f"{frame}.webp", controls])
         command.extend(["-loop", str(variant["loop"]), "-bgcolor", variant["background"], "-o", output])
         subprocess.run(command, check=True)
-        contents = [
-            f"id = {toml_string(f'oracle-{name}')}",
-            f"file = {toml_string(f'../{output.name}')}",
-            f"sha256 = {toml_string(sha256(output.read_bytes()).hexdigest())}",
-            'class = "MustAccept"',
-            'source = "libwebp main webpmux animation state matrix"',
-            'license = "BSD-3-Clause"',
-            'codec = "Mixed"',
-            'api = "ReadInfo"',
-            'features = ["animation", "state-matrix", "blend-dispose-loop"]',
-            f"expected_width = {WIDTH}",
-            f"expected_height = {HEIGHT}",
-            f"oracle_revision = {toml_string(revision)}",
-            "generator_args = [" + ", ".join(toml_string(argument) for argument in ["webpmux", *frame_args, "-loop", str(variant["loop"]), "-bgcolor", variant["background"]]) + "]",
-            f"notes = {toml_string(variant['notes'])}",
-            "",
-        ]
-        (manifests / f"{name}.toml").write_text("\n".join(contents))
-    print(f"generated {len(variants)} animation state vectors in {ROOT} ({revision})")
+    print(f"generated {len(variants)} animation state vectors in {ROOT}")
 
 
 if __name__ == "__main__":

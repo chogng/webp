@@ -37,7 +37,6 @@ jobs:
       - run: cmake -S third_party/oracle/libwebp -B third_party/oracle/libwebp/build -DWEBP_BUILD_DWEBP=ON
       - run: cmake --build third_party/oracle/libwebp/build --target dwebp cwebp --parallel 2
       - run: tools/verify-upstream-smoke.sh
-      - run: tools/index-upstream-smoke-corpus.sh
       - run: cargo test --release -p webp --test external_upstream_corpus
       - uses: bazelbuild/setup-bazelisk@v3
       - run: bash tools/check-module-bazel-lock.sh

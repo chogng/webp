@@ -2,7 +2,6 @@
 
 use std::{env, fs, path::Path};
 
-use sha2::{Digest, Sha256};
 use toml::{Table, Value};
 
 fn main() {
@@ -66,26 +65,6 @@ fn generate_metadata_fixtures() -> Result<(), String> {
                 let file = format!("metadata-{mask:01x}-{length:03}-{placement}.webp");
                 let bytes = riff_body(chunks.concat());
                 write_if_changed(&Path::new("tests/fixtures/generated").join(&file), &bytes)?;
-                let mut manifest = format!(
-                    "id = \"container-metadata-{mask:01x}-{length:03}-{placement}\"\nfile = \"../fixtures/generated/{file}\"\nsha256 = \"{:x}\"\nclass = \"MustAccept\"\nsource = \"generated: cargo xtask fixtures generate-metadata\"\nlicense = \"CC0-1.0\"\ncodec = \"Container\"\napi = \"ReadMetadata\"\nfeatures = [\"metadata\", \"{placement}\"]\n",
-                    Sha256::digest(&bytes)
-                );
-                for (present, field) in [
-                    (mask & 1 != 0, "iccp"),
-                    (mask & 2 != 0, "exif"),
-                    (mask & 4 != 0, "xmp"),
-                ] {
-                    if present {
-                        manifest.push_str(&format!(
-                            "expected_{field}_sha256 = \"{:x}\"\n",
-                            Sha256::digest(&payload)
-                        ));
-                    }
-                }
-                let manifest_path = Path::new("tests/manifests").join(format!(
-                    "container-metadata-{mask:01x}-{length:03}-{placement}.toml"
-                ));
-                write_if_changed(&manifest_path, manifest.as_bytes())?;
                 generated += 1;
             }
         }
@@ -109,11 +88,8 @@ fn metadata_chunks(mask: u8, payload: &[u8]) -> Vec<Vec<u8>> {
 }
 
 struct GeneratedFixture {
-    id: &'static str,
     file: &'static str,
     bytes: Vec<u8>,
-    feature: &'static str,
-    notes: &'static str,
 }
 
 fn generate_malformed_fixtures() -> Result<(), String> {
@@ -147,7 +123,6 @@ fn generate_malformed_fixtures() -> Result<(), String> {
 
     let fixtures = [
         GeneratedFixture {
-            id: "container-riff-declared-size-too-large-001",
             file: "riff-declared-size-too-large.webp",
             bytes: {
                 let mut bytes = b"RIFF".to_vec();
@@ -155,60 +130,36 @@ fn generate_malformed_fixtures() -> Result<(), String> {
                 bytes.extend_from_slice(b"WEBP");
                 bytes
             },
-            feature: "riff-declared-size",
-            notes: "Declared RIFF body length exceeds supplied bytes.",
         },
         GeneratedFixture {
-            id: "container-chunk-payload-truncated-001",
             file: "chunk-payload-truncated.webp",
             bytes: truncated_chunk,
-            feature: "chunk-payload-truncated",
-            notes: "RIFF ends immediately after a one-byte VP8 payload declaration.",
         },
         GeneratedFixture {
-            id: "container-riff-trailing-byte-001",
             file: "riff-trailing-byte.webp",
             bytes: trailing,
-            feature: "riff-trailing-bytes",
-            notes: "Strict parsing rejects data after the declared RIFF body.",
         },
         GeneratedFixture {
-            id: "container-non-zero-padding-001",
             file: "non-zero-padding.webp",
             bytes: riff_body(chunk(*b"VP8 ", &[0x00], Some(0xff))),
-            feature: "riff-non-zero-padding",
-            notes: "Strict parsing rejects the required odd-size padding byte when non-zero.",
         },
         GeneratedFixture {
-            id: "container-vp8x-reserved-bit-001",
             file: "vp8x-reserved-bit.webp",
             bytes: riff_body(chunk(*b"VP8X", &[0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0], None)),
-            feature: "vp8x-reserved-bit",
-            notes: "VP8X uses a reserved feature bit in the strict profile.",
         },
         GeneratedFixture {
-            id: "container-duplicate-vp8x-001",
             file: "duplicate-vp8x.webp",
             bytes: duplicate_vp8x,
-            feature: "duplicate-vp8x",
-            notes: "Strict parsing rejects duplicate VP8X singleton chunks.",
         },
         GeneratedFixture {
-            id: "animation-anmf-payload-truncated-001",
             file: "animation-anmf-payload-truncated.webp",
             bytes: truncated_anmf,
-            feature: "animation-anmf-payload-truncated",
-            notes: "ANMF declares 16 payload bytes but supplies only 10.",
         },
         GeneratedFixture {
-            id: "animation-anmf-non-zero-padding-001",
             file: "animation-anmf-non-zero-padding.webp",
             bytes: riff_body([animation_vp8x, chunk(*b"ANMF", &[0x00], Some(0xff))].concat()),
-            feature: "animation-anmf-non-zero-padding",
-            notes: "Strict parsing rejects non-zero alignment padding after ANMF.",
         },
         GeneratedFixture {
-            id: "container-duplicate-exif-001",
             file: "duplicate-exif.webp",
             bytes: riff_body(
                 [
@@ -219,18 +170,12 @@ fn generate_malformed_fixtures() -> Result<(), String> {
                 ]
                 .concat(),
             ),
-            feature: "duplicate-metadata",
-            notes: "Strict parsing rejects duplicate EXIF singleton chunks.",
         },
         GeneratedFixture {
-            id: "container-metadata-without-vp8x-001",
             file: "metadata-without-vp8x.webp",
             bytes: metadata_without_vp8x,
-            feature: "metadata-requires-vp8x",
-            notes: "Metadata chunks require a VP8X extended header.",
         },
         GeneratedFixture {
-            id: "container-vp8x-exif-flag-missing-001",
             file: "vp8x-exif-flag-missing.webp",
             bytes: riff_body(
                 [
@@ -240,25 +185,16 @@ fn generate_malformed_fixtures() -> Result<(), String> {
                 ]
                 .concat(),
             ),
-            feature: "vp8x-metadata-flag",
-            notes: "EXIF is present but its VP8X feature flag is clear.",
         },
         GeneratedFixture {
-            id: "container-vp8x-exif-flag-without-chunk-001",
             file: "vp8x-exif-flag-without-chunk.webp",
             bytes: riff_body([exif_vp8x.clone(), chunk(*b"VP8 ", &[0x00, 0x00], None)].concat()),
-            feature: "vp8x-metadata-flag",
-            notes: "The VP8X EXIF feature flag is set but no EXIF chunk is present.",
         },
         GeneratedFixture {
-            id: "container-vp8x-not-first-001",
             file: "vp8x-not-first.webp",
             bytes: riff_body([chunk(*b"VP8 ", &[0x00, 0x00], None), exif_vp8x].concat()),
-            feature: "vp8x-layout",
-            notes: "An extended header must be the first chunk in a strict container.",
         },
         GeneratedFixture {
-            id: "container-mixed-vp8-vp8l-001",
             file: "mixed-vp8-vp8l.webp",
             bytes: riff_body(
                 [
@@ -267,20 +203,11 @@ fn generate_malformed_fixtures() -> Result<(), String> {
                 ]
                 .concat(),
             ),
-            feature: "mixed-image-codecs",
-            notes: "A container cannot carry both a VP8 and a VP8L image chunk.",
         },
     ];
     for fixture in &fixtures {
         let fixture_path = Path::new("tests/fixtures/generated").join(fixture.file);
         write_if_changed(&fixture_path, &fixture.bytes)?;
-        let digest = Sha256::digest(&fixture.bytes);
-        let manifest = format!(
-            "id = \"{}\"\nfile = \"../fixtures/generated/{}\"\nsha256 = \"{digest:x}\"\nclass = \"MustReject\"\nsource = \"generated: cargo xtask fixtures generate-malformed\"\nlicense = \"CC0-1.0\"\ncodec = \"Container\"\nfeatures = [\"{}\", \"public-api\", \"no-panic\"]\nnotes = \"{}\"\n",
-            fixture.id, fixture.file, fixture.feature, fixture.notes
-        );
-        let manifest_path = Path::new("tests/manifests").join(format!("{}.toml", fixture.id));
-        write_if_changed(&manifest_path, manifest.as_bytes())?;
     }
     println!("generated {} malformed container fixtures", fixtures.len());
     Ok(())

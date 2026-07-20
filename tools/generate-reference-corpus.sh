@@ -1,5 +1,5 @@
 #!/bin/sh
-# Regenerate the current libwebp cwebp matrix and Rust-testkit sidecars.
+# Regenerate the current libwebp cwebp matrix for direct Rust API tests.
 set -eu
 
 root=${1:-third_party/corpus/reference-v1}
@@ -33,5 +33,4 @@ for quality in 0 25 50 75 100; do
     done
 done
 
-tools/index-reference-corpus.sh "$root" "$oracle"
 printf '%s\n' "generated 36 reference vectors in $root"

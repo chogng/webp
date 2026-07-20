@@ -5,10 +5,9 @@ does **not** claim that any WebP bitstream is decoded yet.
 
 ## What exists
 
-- `crates/webp-testkit`: safe-Rust manifest types, TOML parser, SHA-256
-  integrity verification, and deterministic sidecar discovery.
 - `tests/fixtures/smoke`: a committed minimal malformed-input seed.
-- `tests/manifests`: data-driven expected classifications and resource budgets.
+- `crates/webp` integration tests: direct fixture and corpus consumption through
+  the public Rust API.
 - `tools/corpus-lock.toml`: reviewed, immutable pins for the libwebp oracle and
   upstream conformance corpus. It records both Git revisions and archive
   checksums; it must never name a moving branch.
@@ -17,31 +16,17 @@ does **not** claim that any WebP bitstream is decoded yet.
 ## Adding a fixture
 
 1. Put fixture bytes in the appropriate corpus directory.
-2. Create one TOML manifest in `tests/manifests/` and calculate its SHA-256.
-3. State whether it must be accepted, rejected, accepted only by the
-   compatibility profile, or is implementation-defined.
-4. For accepted inputs, record dimensions, canonical RGBA hash when available,
-   resource budgets, source, and license.
-5. Wire the manifest into a public-path test using `FixtureRunner`; the test
-   callback selects the API and asserts the expected classification.
-
-The runner is rooted at `tests/`, recursively discovers manifests, validates
-their resolved paths remain under that root, and verifies bytes before invoking
-the callback.  This prevents an accidentally edited fixture from changing the
-meaning of a golden test without a manifest update.
+2. Add a direct public-API test in `crates/webp` that reads the fixture and
+   asserts the expected result.
+3. Keep any required dimensions, pixels, or error expectation alongside that
+   test so its contract is visible at the call site.
 
 ## Local verification
 
 From the repository root, run:
 
 ```text
-cargo test -p webp-testkit
-```
-
-Until the root workspace includes the testkit crate, it can be tested directly:
-
-```text
-cargo test --manifest-path crates/webp-testkit/Cargo.toml
+cargo test -p webp
 ```
 
 The complete `third_party/` directory is deliberately ignored by Git. It holds
@@ -85,13 +70,12 @@ Generate the committed structural-malformation corpus with:
 cargo run -p xtask -- fixtures generate-malformed
 ```
 
-The generator is idempotent and writes the corresponding SHA-256 manifests, so
-every deliberate malformed input remains reproducible and reviewable.
+The generator is idempotent; direct API tests classify each generated input.
 
 `[clic]` pins the benchmark data identity and its validation split. The actual
 images belong in the ignored `third_party/benchdata/clic/` directory and are
 used only after encoding/decoding benchmarks exist; they are not conformance
 fixtures or decoder golden outputs.
 
-The first decoder integration test should run the smoke manifest and call each
+Decoder integration tests read the smoke fixtures directly and call each
 selected public API (`read_info`, one-shot decode, and incremental finish).

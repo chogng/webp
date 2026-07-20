@@ -12,7 +12,6 @@ webp_rust_crate(
     ],
     test_compile_data = ["//:test_data"],
     test_data = ["//:test_data"],
-    test_deps = ["//crates/webp-testkit:webp_testkit"],
 )
 
 rust_test(
@@ -23,7 +22,6 @@ rust_test(
     data = ["//:external_corpus_data"],
     deps = [
         ":webp",
-        "//crates/webp-testkit:webp_testkit",
     ],
     tags = ["external-corpus", "manual"],
 )
@@ -37,7 +35,6 @@ rust_test(
     deps = [
         ":webp",
         "//crates/webp-container:webp_container",
-        "//crates/webp-testkit:webp_testkit",
     ],
     tags = ["external-corpus", "manual"],
 )

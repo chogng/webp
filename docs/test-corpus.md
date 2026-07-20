@@ -1,8 +1,8 @@
 # WebP test corpus contract
 
-The test corpus is deliberately split into five sources. A fixture's source,
-license, SHA-256, expected API outcome, and resource budget are recorded in a
-manifest; downloaded data never silently becomes a release artifact.
+The test corpus is deliberately split into five sources. Fixture expectations
+live beside the public API tests that consume them; downloaded data never
+silently becomes a release artifact.
 
 | Data class | Location | PR | Nightly | Release |
 | --- | --- | --- | --- | --- |
@@ -49,11 +49,10 @@ tools/verify-upstream-smoke.sh
 Review and commit the updated pin and checksum lock only after the external
 corpus test passes.
 
-Run `tools/index-upstream-smoke-corpus.sh` after fetching libwebp-test-data.
-It creates ignored, Rust-readable SHA-256 sidecars for the selected 68 vectors.
-The M1 VP8L lossless vectors are `MustAccept` entries with dimensions and a
-recorded-libwebp canonical RGBA SHA-256; remaining vectors stay
-`ImplementationDefined` until their public decoder path is implemented.
+`crates/webp/tests/external_upstream_corpus.rs` reads the versioned smoke
+selection directly. It promotes only the VP8L vectors supported by the public
+decoder; additional vectors are added to direct API tests when their codec path
+is implemented.
 
 The reference checkout is test-only. It supplies the upstream fuzz dictionary,
 future `cwebp` pairwise encoder vectors, `webpmux` metadata vectors, and
@@ -61,27 +60,24 @@ animation oracle outputs. It is not linked into the published Rust codec.
 
 Build `cwebp` from that checkout, then run
 `tools/generate-reference-corpus.sh`. It produces the 36-vector quality/method
-matrix outside Git and writes Rust-readable sidecars containing the resolved
-oracle revision, source-image SHA-256, and exact encoder arguments.
+matrix outside Git for direct Rust API tests.
 
 Run `python3 tools/generate-reference-edge-corpus.py` to add the separate
 66-vector RGB/RGBA edge matrix: 1×1, odd dimensions, a long row, alpha, lossy,
-lossless, and near-lossless settings. Each sidecar contains the oracle-decoded
-canonical RGBA SHA-256 for later pixel-golden promotion.
+lossless, and near-lossless settings for later direct pixel-golden tests.
 
 ## Generated fixtures
 
 Run `cargo run -p xtask -- fixtures generate-malformed` after changing the
-generator. It regenerates the committed minimal RIFF/VP8X hostile samples and
-their SHA-256 manifests. A discovered failure is minimized before being moved
-to `tests/fixtures/regressions/`, with its issue/source, expected result, and
-the API path that previously failed.
+generator. It regenerates the committed minimal RIFF/VP8X hostile samples. A
+discovered failure is minimized before being moved to
+`tests/fixtures/regressions/`, with its issue/source, expected result, and the
+API path that previously failed.
 
 Use `tools/promote-regression.sh <input.webp> <id> <issue-or-source> <license>`
-to create the fixture and its SHA-256 sidecar together. The first manifest is
-`MustReject`, so it immediately runs one-shot, `ReadInfo`, and incremental
-public API rejection checks; valid-image regressions must be upgraded with the
-appropriate accepted API and golden fields.
+to copy a fixture, then add its direct public API test. Rejection regressions
+should cover one-shot, `ReadInfo`, and incremental decoding; accepted-image
+regressions should assert their relevant dimensions or pixel goldens.
 
 Animation and metadata vectors must be generated from libwebp tools, retaining
 the resolved oracle commit, raw RGBA input, WebP output, per-frame composed RGBA hashes,
@@ -90,9 +86,9 @@ oracle revision, and generator arguments. Metadata generation covers ICCP,
 EXIF, XMP, their combinations, boundary payload lengths, chunk order/padding,
 duplicates, incorrect declared sizes, and truncation.
 
-`tools/generate-animation-corpus.sh` creates the initial two-frame loop and a
-Rust-readable `ReadInfo` sidecar. The animation test is deliberately separate
-from pixel decode until frame composition is exposed by the public API.
+`tools/generate-animation-corpus.sh` creates the initial two-frame loop. The
+animation test is deliberately separate from pixel decode until frame
+composition is exposed by the public API.
 
 `python3 tools/generate-animation-state-corpus.py` adds blend/dispose, offset,
 duration, loop-count, and background-color container states using `webpmux`.

@@ -87,7 +87,7 @@ webp-rs/
 │   ├── webp-vp8/                # VP8 key-frame 解码与编码
 │   ├── webp-anim/               # 帧模型与画布合成
 │   ├── webp-dsp/                # 标量 DSP；后续放 SIMD dispatch
-│   ├── webp-testkit/            # fixture builder、慢速参考模型、断言工具
+│   ├── tests/                   # fixtures、corpus selection 与集成测试数据
 │   ├── webp-oracle/             # 仅 dev/CI；固定版本 libwebp/libvpx FFI
 │   ├── webp-skia/               # 可选 Skia/CXX adapter
 │   └── webp-cli/                # 调试、语料处理、差分命令行
@@ -99,7 +99,6 @@ webp-rs/
 ├── tests/
 │   ├── fixtures/smoke/          # 小型、可提交、每次 PR 运行
 │   ├── fixtures/regressions/    # 所有历史 bug 的最小化输入
-│   ├── manifests/
 │   └── integration/
 ├── tools/
 │   ├── faults/                  # codec 专用人工故障补丁
@@ -109,7 +108,7 @@ webp-rs/
 └── docs/
 ```
 
-如果维护成本需要更低，可以先将 `webp-container`、`webp-anim` 和 `webp-dsp` 做成 `webp` 内部模块。但 `webp-oracle`、`webp-testkit` 和 fuzz crate 应始终与发布核心隔离。
+如果维护成本需要更低，可以先将 `webp-container`、`webp-anim` 和 `webp-dsp` 做成 `webp` 内部模块。但 `webp-oracle` 和 fuzz crate 应始终与发布核心隔离。
 
 ### 3.1 安全边界
 
@@ -341,11 +340,11 @@ ours VP8 bitstream -> libvpx decode YUV
 
 第二层是官方/上游 conformance corpus。至少固定 `libwebp-test-data` 的 commit。该仓库包含 VP8 comprehensive vectors、VP8L transform combinations、alpha filter/compression 组合、极小尺寸、历史 endian 和 palette bug 等测试数据。
 
-第三层是生成式 feature corpus。由 `webp-testkit` 的 builder 生成，目的不是模拟真实图片，而是精确控制 chunk order、Huffman tree、LZ77 距离、transform stack、动画矩形和错误位置。
+第三层是生成式 feature corpus。由 `xtask` 生成，目的不是模拟真实图片，而是精确控制 chunk order、Huffman tree、LZ77 距离、transform stack、动画矩形和错误位置。
 
 第四层是 security/regression corpus。所有 fuzz crash、生产失败、CVE 类故障和跨平台不一致都必须最小化并永久保存。
 
-### 7.2 每个 fixture 都必须有 manifest
+### 7.2 每个 fixture 都必须有明确测试契约
 
 示例：
 
@@ -366,11 +365,11 @@ max_alloc_bytes = 4096
 notes = "guards table sizing assumptions; CVE-2023-4863 fault class"
 ```
 
-Manifest 不是文档装饰。测试 runner 应读取它来决定应调用哪些 API、比较什么结果和施加哪些资源上限。
+测试契约不是文档装饰。直接消费 fixture 的测试应明确调用哪些 API、比较什么结果和施加哪些资源上限。
 
 ### 7.3 语料获取和可复现性
 
-建议提交完整 manifest、下载脚本和小型 smoke corpus。较大的上游和真实图像 corpus 通过：
+建议提交下载脚本和小型 smoke corpus。较大的上游和真实图像 corpus 通过：
 
 ```text
 cargo xtask corpus fetch
@@ -389,7 +388,7 @@ cargo xtask corpus index
 1. 保存原始输入、运行命令、git SHA、平台、toolchain 和 stack trace；
 2. 使用 fuzzer minimizer 和格式感知 reducer 最小化；
 3. 判断 root cause，不按 stack trace 数量机械去重；
-4. 为最小输入编写 manifest；
+4. 为最小输入编写直接调用公开 API 的测试；
 5. 在修复前确认新测试确实失败；
 6. 修复后将 fixture 放入 `tests/fixtures/regressions/`；
 7. 将 root cause 映射到一个 generic property 或 mutation fault，避免只记住单个字节串。
@@ -568,7 +567,7 @@ WebP lossless 有 14 种 predictor mode。每种 mode 都要测试：
 - averaging、clamped add/subtract 的所有分支；
 - scalar fast path 与逐像素慢速模型完全一致。
 
-建议在 `webp-testkit` 写不优化的 predictor reference model，以直观公式实现，每种 mode 单独函数。生产实现无论采用 packed `u32` 还是 SIMD，都与该模型差分。
+建议在测试模块中写不优化的 predictor reference model，以直观公式实现，每种 mode 单独函数。生产实现无论采用 packed `u32` 还是 SIMD，都与该模型差分。
 
 ### 10.4 color transform
 

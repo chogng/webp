@@ -16,6 +16,3 @@ webp-container = { path = "../webp-container" }
 webp-vp8 = { path = "../webp-vp8" }
 webp-vp8l = { path = "../webp-vp8l" }
 webp-vp8l-literal = { path = "../webp-vp8l-literal" }
-
-[dev-dependencies]
-webp-testkit = { path = "../webp-testkit" }
