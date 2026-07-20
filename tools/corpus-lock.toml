@@ -18,3 +18,8 @@ commit = "06ddd96e276c2c638a72d39d3c0f340afd61978c"
 source_url = "https://chromium.googlesource.com/webm/libwebp-test-data"
 source_sha256 = "6ec979ab445ab351e9a0e325cda44d92c19aed48b6b38def9f5e813783054cb1"
 purpose = "upstream conformance vectors"
+
+[clic]
+version = "tfds:clic:1.0.0"
+splits = ["validation"]
+purpose = "rate-distortion and performance benchmark"

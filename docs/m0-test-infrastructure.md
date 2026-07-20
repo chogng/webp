@@ -78,5 +78,10 @@ cargo run -p xtask -- fixtures generate-malformed
 The generator is idempotent and writes the corresponding SHA-256 manifests, so
 every deliberate malformed input remains reproducible and reviewable.
 
+`[clic]` pins the benchmark data identity and its validation split. The actual
+images belong in the ignored `third_party/benchdata/clic/` directory and are
+used only after encoding/decoding benchmarks exist; they are not conformance
+fixtures or decoder golden outputs.
+
 The first decoder integration test should run the smoke manifest and call each
 selected public API (`read_info`, one-shot decode, and incremental finish).

@@ -213,6 +213,11 @@ fn validate_corpus_lock(input: &str) -> Result<(), String> {
     require_https_url(vectors, "source_url")?;
     require_hex(vectors, "source_sha256", 64)?;
     require_text(vectors, "purpose")?;
+
+    let clic = required_table(&lock, "clic")?;
+    require_text(clic, "version")?;
+    require_string_array(clic, "splits")?;
+    require_text(clic, "purpose")?;
     Ok(())
 }
 
@@ -252,6 +257,23 @@ fn require_https_url(table: &Table, name: &str) -> Result<(), String> {
     let value = required_text(table, name)?;
     if !value.starts_with("https://") {
         return Err(format!("corpus lock: {name} must use https"));
+    }
+    Ok(())
+}
+
+fn require_string_array(table: &Table, name: &str) -> Result<(), String> {
+    let values = table
+        .get(name)
+        .and_then(Value::as_array)
+        .filter(|values| !values.is_empty())
+        .ok_or_else(|| format!("corpus lock: missing non-empty string array {name}"))?;
+    if values
+        .iter()
+        .any(|value| value.as_str().is_none_or(|value| value.trim().is_empty()))
+    {
+        return Err(format!(
+            "corpus lock: {name} must contain non-empty strings"
+        ));
     }
     Ok(())
 }
