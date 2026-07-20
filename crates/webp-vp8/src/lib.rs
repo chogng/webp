@@ -172,6 +172,80 @@ pub struct FilterHeader {
     pub mode_deltas: [i32; 4],
 }
 
+/// Precomputed VP8 loop-filter controls for one segment and luma mode class.
+///
+/// The values match the scalar controls used by VP8's simple and normal
+/// in-loop filters. `edge_limit == 0` disables filtering for this class.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct LoopFilterStrength {
+    pub level: u8,
+    pub inner_limit: u8,
+    pub edge_limit: u8,
+    pub hev_threshold: u8,
+}
+
+impl LoopFilterStrength {
+    /// Whether this macroblock needs filtering at its internal 4×4 edges.
+    #[must_use]
+    pub const fn filters_inner(self, is_i4x4: bool, skip: bool) -> bool {
+        self.edge_limit != 0 && (is_i4x4 || !skip)
+    }
+}
+
+/// Derives VP8 loop-filter strengths for four segments and both luma mode
+/// classes (`[segment][0 = 16×16, 1 = 4×4]`).
+///
+/// Segmentation and filter deltas use the same inheritance and clamping rules
+/// as libwebp's frame initialization. Reference delta zero is the only one
+/// applicable to WebP still-image key frames.
+#[must_use]
+pub fn derive_loop_filter_strengths(
+    filter: &FilterHeader,
+    segments: &SegmentHeader,
+) -> [[LoopFilterStrength; 2]; 4] {
+    std::array::from_fn(|segment| {
+        std::array::from_fn(|mode_class| {
+            let mut level = if segments.enabled {
+                if segments.absolute_delta {
+                    segments.filter_strength[segment]
+                } else {
+                    i32::from(filter.level) + segments.filter_strength[segment]
+                }
+            } else {
+                i32::from(filter.level)
+            };
+            if filter.use_deltas {
+                level += filter.ref_deltas[0];
+                if mode_class == 1 {
+                    level += filter.mode_deltas[0];
+                }
+            }
+            let level = level.clamp(0, 63) as u8;
+            if level == 0 {
+                return LoopFilterStrength::default();
+            }
+            let mut inner_limit = level;
+            if filter.sharpness > 0 {
+                inner_limit >>= if filter.sharpness > 4 { 2 } else { 1 };
+                inner_limit = inner_limit.min(9 - filter.sharpness);
+            }
+            inner_limit = inner_limit.max(1);
+            LoopFilterStrength {
+                level,
+                inner_limit,
+                edge_limit: level.saturating_mul(2).saturating_add(inner_limit),
+                hev_threshold: if level >= 40 {
+                    2
+                } else if level >= 15 {
+                    1
+                } else {
+                    0
+                },
+            }
+        })
+    })
+}
+
 /// Quantizer controls carried by the first VP8 partition.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct QuantizationHeader {
@@ -1787,8 +1861,8 @@ impl Vp8YuvImage {
 /// The VP8 payload and [`Vp8Header`] must originate from the same RIFF chunk.
 /// Mode data is consumed in raster order from partition zero; coefficient
 /// tokens select their partition using `macroblock_row & (count - 1)`, exactly
-/// as specified by VP8. Loop filtering and RGB conversion are intentionally
-/// separate stages.
+/// as specified by VP8. Loop filtering remains a separate post-reconstruction
+/// stage.
 pub fn decode_intra_frame(
     payload: &[u8],
     frame: &Vp8Header,
@@ -2781,6 +2855,64 @@ mod tests {
         assert_eq!(absolute[0].y1_ac, 4);
         assert_eq!(absolute[2].y1_ac, 284);
         assert_eq!(absolute[2].uv_dc, 132);
+    }
+
+    #[test]
+    fn derives_loop_filter_strengths_with_deltas_sharpness_and_segments() {
+        let filter = FilterHeader {
+            simple: false,
+            level: 17,
+            sharpness: 4,
+            use_deltas: true,
+            ref_deltas: [2, 0, 0, 0],
+            mode_deltas: [-1, 0, 0, 0],
+        };
+        let disabled_segments = SegmentHeader {
+            enabled: false,
+            update_map: false,
+            absolute_delta: true,
+            quantizer: [0; 4],
+            filter_strength: [0; 4],
+            probabilities: [255; 3],
+        };
+        let strengths = derive_loop_filter_strengths(&filter, &disabled_segments);
+        assert_eq!(
+            strengths[0][0],
+            LoopFilterStrength {
+                level: 19,
+                inner_limit: 5,
+                edge_limit: 43,
+                hev_threshold: 1,
+            }
+        );
+        assert_eq!(
+            strengths[0][1],
+            LoopFilterStrength {
+                level: 18,
+                inner_limit: 5,
+                edge_limit: 41,
+                hev_threshold: 1,
+            }
+        );
+        assert!(strengths[0][1].filters_inner(true, true));
+        assert!(strengths[0][0].filters_inner(false, false));
+        assert!(!strengths[0][0].filters_inner(false, true));
+
+        let segments = SegmentHeader {
+            enabled: true,
+            update_map: true,
+            absolute_delta: false,
+            quantizer: [0; 4],
+            filter_strength: [-30, 50, 0, 80],
+            probabilities: [0; 3],
+        };
+        let segmented = derive_loop_filter_strengths(&filter, &segments);
+        assert_eq!(segmented[0], [LoopFilterStrength::default(); 2]);
+        assert_eq!(segmented[1][0].level, 63);
+        assert_eq!(segmented[1][0].inner_limit, 5);
+        assert_eq!(segmented[1][0].edge_limit, 131);
+        assert_eq!(segmented[1][0].hev_threshold, 2);
+        assert_eq!(segmented[3][1].level, 63);
     }
 
     #[test]
