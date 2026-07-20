@@ -3,6 +3,7 @@
 use std::{env, fs, path::Path};
 
 use sha2::{Digest, Sha256};
+use toml::{Table, Value};
 
 fn main() {
     let Some(command) = env::args().nth(1) else {
@@ -188,16 +189,90 @@ fn feature_matrix(action: Option<&str>) -> Result<(), String> {
 fn verify_corpus_lock(path: &Path) -> Result<(), String> {
     let lock = fs::read_to_string(path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-    for field in ["commit", "source_sha256", "build_profile", "compiler"] {
-        if !lock.contains(field) {
-            return Err(format!(
-                "{} is missing required field {field}",
-                path.display()
-            ));
-        }
-    }
-    println!(
-        "corpus lock: schema verified (network fetch intentionally disabled during M1 groundwork)"
-    );
+    validate_corpus_lock(&lock)?;
+    println!("corpus lock: immutable pins verified");
     Ok(())
+}
+
+fn validate_corpus_lock(input: &str) -> Result<(), String> {
+    let lock: Table = toml::from_str(input).map_err(|error| format!("invalid TOML: {error}"))?;
+    if lock.get("schema_version").and_then(Value::as_integer) != Some(1) {
+        return Err("corpus lock: schema_version must be 1".to_owned());
+    }
+
+    let oracle = required_table(&lock, "libwebp")?;
+    require_hex(oracle, "commit", 40)?;
+    require_text(oracle, "tag")?;
+    require_https_url(oracle, "source_url")?;
+    require_hex(oracle, "source_sha256", 64)?;
+    require_text(oracle, "build_profile")?;
+    require_text(oracle, "compiler")?;
+
+    let vectors = required_table(&lock, "libwebp_test_data")?;
+    require_hex(vectors, "commit", 40)?;
+    require_https_url(vectors, "source_url")?;
+    require_hex(vectors, "source_sha256", 64)?;
+    require_text(vectors, "purpose")?;
+    Ok(())
+}
+
+fn required_table<'a>(lock: &'a Table, name: &str) -> Result<&'a Table, String> {
+    lock.get(name)
+        .and_then(Value::as_table)
+        .ok_or_else(|| format!("corpus lock: missing [{name}] table"))
+}
+
+fn required_text<'a>(table: &'a Table, name: &str) -> Result<&'a str, String> {
+    table
+        .get(name)
+        .and_then(Value::as_str)
+        .filter(|value| !value.trim().is_empty())
+        .ok_or_else(|| format!("corpus lock: missing non-empty {name}"))
+}
+
+fn require_text(table: &Table, name: &str) -> Result<(), String> {
+    let _ = required_text(table, name)?;
+    Ok(())
+}
+
+fn require_hex(table: &Table, name: &str, length: usize) -> Result<(), String> {
+    let value = required_text(table, name)?;
+    if value.len() != length
+        || !value.bytes().all(|byte| byte.is_ascii_hexdigit())
+        || value.bytes().all(|byte| byte == b'0')
+    {
+        return Err(format!(
+            "corpus lock: {name} must be a non-zero {length}-digit hexadecimal value"
+        ));
+    }
+    Ok(())
+}
+
+fn require_https_url(table: &Table, name: &str) -> Result<(), String> {
+    let value = required_text(table, name)?;
+    if !value.starts_with("https://") {
+        return Err(format!("corpus lock: {name} must use https"));
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::validate_corpus_lock;
+
+    const LOCK: &str = include_str!("../../tools/corpus-lock.toml");
+
+    #[test]
+    fn repository_lock_is_valid() {
+        assert!(validate_corpus_lock(LOCK).is_ok());
+    }
+
+    #[test]
+    fn rejects_zero_commit_pin() {
+        let invalid = LOCK.replace(
+            "commit = \"4fa21912338357f89e4fd51cf2368325b59e9bd9\"",
+            "commit = \"0000000000000000000000000000000000000000\"",
+        );
+        assert!(validate_corpus_lock(&invalid).is_err());
+    }
 }

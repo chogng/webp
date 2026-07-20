@@ -236,6 +236,7 @@ dependencies = [
  "webp-core",
  "webp-testkit",
  "webp-vp8l",
+ "webp-vp8l-literal",
 ]
 
 [[package]]
@@ -291,6 +292,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "webp-vp8l-indexing"
+version = "0.1.0"
+dependencies = [
+ "webp-vp8l-transform",
+]
+
+[[package]]
+name = "webp-vp8l-literal"
+version = "0.1.0"
+dependencies = [
+ "webp-core",
+ "webp-vp8l",
+ "webp-vp8l-huffman",
+]
+
+[[package]]
 name = "webp-vp8l-transform"
 version = "0.1.0"
 
@@ -306,3 +323,7 @@ dependencies = [
 [[package]]
 name = "xtask"
 version = "0.1.0"
+dependencies = [
+ "sha2",
+ "toml",
+]
