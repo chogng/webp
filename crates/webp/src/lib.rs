@@ -1,9 +1,9 @@
 #![forbid(unsafe_code)]
 //! Stable public API for the safe WebP implementation.
 //!
-//! M1 validates VP8L headers and exposes container information. A deliberately
-//! small no-transform, no-cache literal-only VP8L subset can already decode to
-//! canonical RGBA8; all remaining codec features fail explicitly.
+//! M1 decodes static VP8L images to canonical RGBA8 and exposes container
+//! information. VP8, animation, and incremental codec decoding remain outside
+//! this milestone.
 
 pub use webp_core::{CompatibilityProfile, DecodeError, DecodeErrorKind, DecodeLimits};
 
@@ -23,7 +23,7 @@ impl Default for DecodeOptions {
     }
 }
 
-/// Pixel image placeholder for the upcoming canonical straight-RGBA8 decoder.
+/// A decoded canonical straight-RGBA8 image.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Image {
     pub width: u32,
@@ -113,11 +113,11 @@ impl IncrementalDecoder {
     }
 }
 
-/// Decodes the currently supported WebP subset to straight RGBA8.
+/// Decodes a supported static WebP image to straight RGBA8.
 ///
-/// M1 supports static VP8L images with no transforms, color cache, meta-Huffman
-/// image, or backward references. Other valid WebP features return
-/// `UnsupportedFeature` rather than producing partial pixel output.
+/// M1 supports static VP8L images, including transforms, color cache,
+/// meta-Huffman groups, and backward references. VP8 and animated WebP remain
+/// unsupported rather than producing partial pixel output.
 ///
 /// # Errors
 ///
@@ -130,7 +130,7 @@ pub fn decode(data: &[u8], options: &DecodeOptions) -> Result<Image, DecodeError
         .iter()
         .find(|chunk| chunk.fourcc == webp_container::VP8L)
     {
-        let decoded = webp_vp8l_literal::decode_literal_only(chunk.payload, &options.limits)?;
+        let decoded = webp_vp8l_literal::decode_vp8l(chunk.payload, &options.limits)?;
         if let Some(vp8x) = container.vp8x()
             && (vp8x.canvas_width != decoded.header.width
                 || vp8x.canvas_height != decoded.header.height)

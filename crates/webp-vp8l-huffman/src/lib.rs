@@ -93,10 +93,10 @@ fn validate_simple_symbol(symbol: usize, alphabet_size: usize) -> Result<(), Dec
 ///
 /// `alphabet_size` is the number of symbols in the code that is being
 /// described.  The returned vector has exactly that many entries.  A normal
-/// header may use VP8L's `max_symbol` form to transmit only an initial prefix
-/// of those entries; the omitted suffix is zero-filled. Repeat symbols are
-/// checked before extending the transmitted prefix, so an attacker-controlled
-/// repeat can never grow it beyond its declared bound.
+/// header may use VP8L's `max_symbol` form to limit the number of encoded
+/// code-length symbols. A repeat is one encoded symbol even though it expands
+/// to several output entries. The omitted suffix is zero-filled, and expanded
+/// repeats are always bounded by the complete target alphabet.
 ///
 /// This routine parses only the normal representation.  The leading
 /// `simple_code_flag` belongs to the enclosing Huffman-code parser and must be
@@ -123,13 +123,12 @@ pub fn read_normal_code_lengths(
     // compact header cannot represent an over-subscribed or incomplete tree.
     let code_length_table = HuffmanTable::from_code_lengths(&code_length_lengths)?;
 
-    // VP8L can shorten a sparse code-length stream by explicitly declaring
-    // how many leading symbols it contains. The declaration is at least two,
-    // and uses 2, 4, ..., 16 bits according to the preceding selector.
-    //
-    // The full alphabet still matters to callers: all entries after
-    // `max_symbol` are implicit zero-length symbols.
-    let max_symbol = if bits.read_bit()? {
+    // VP8L can shorten a sparse code-length stream by explicitly limiting the
+    // number of code-length symbols read from the Huffman-coded stream. A
+    // repeat code consumes one of these symbols but may expand to several
+    // entries in the final alphabet. Entries left after the limit is reached
+    // are implicit zeros.
+    let max_code_length_symbols = if bits.read_bit()? {
         let length_nbits = 2 + 2 * bits.read_bits(3)? as u8;
         let max_symbol = usize::try_from(bits.read_bits(length_nbits)?)
             .map_err(|_| invalid("VP8L code-length max symbol does not fit usize"))?
@@ -152,8 +151,10 @@ pub fn read_normal_code_lengths(
         )
     })?;
     let mut previous_nonzero = None;
+    let mut code_length_symbols_remaining = max_code_length_symbols;
 
-    while lengths.len() < max_symbol {
+    while lengths.len() < alphabet_size && code_length_symbols_remaining != 0 {
+        code_length_symbols_remaining -= 1;
         let symbol = code_length_table.decode(bits)?;
         match symbol {
             0..=15 => {
@@ -170,19 +171,19 @@ pub fn read_normal_code_lengths(
                 // any nonzero length.  Keep the last nonzero value separately
                 // so leading zero runs do not change that default.
                 let value = previous_nonzero.unwrap_or(8);
-                extend_repeat(&mut lengths, max_symbol, value, repeat)?;
+                extend_repeat(&mut lengths, alphabet_size, value, repeat)?;
             }
             17 => {
                 let repeat = usize::try_from(bits.read_bits(3)?)
                     .map_err(|_| invalid("VP8L repeat-17 count does not fit usize"))?
                     + 3;
-                extend_repeat(&mut lengths, max_symbol, 0, repeat)?;
+                extend_repeat(&mut lengths, alphabet_size, 0, repeat)?;
             }
             18 => {
                 let repeat = usize::try_from(bits.read_bits(7)?)
                     .map_err(|_| invalid("VP8L repeat-18 count does not fit usize"))?
                     + 11;
-                extend_repeat(&mut lengths, max_symbol, 0, repeat)?;
+                extend_repeat(&mut lengths, alphabet_size, 0, repeat)?;
             }
             _ => return Err(invalid("VP8L code-length symbol is out of range")),
         }
@@ -619,6 +620,25 @@ mod tests {
     }
 
     #[test]
+    fn accepts_and_decodes_a_complete_tree_at_the_maximum_code_length() {
+        // 1/2 + 1/4 + ... + 1/2^14 + 2/2^15 == 1, so this is a
+        // complete, maximally unbalanced VP8L tree whose deepest codes use
+        // the format's full fifteen-bit limit.
+        let mut lengths = (1..MAX_CODE_LENGTH).collect::<Vec<_>>();
+        lengths.extend([MAX_CODE_LENGTH, MAX_CODE_LENGTH]);
+        let table = HuffmanTable::from_code_lengths(&lengths).unwrap();
+
+        assert_eq!(table.max_code_length, MAX_CODE_LENGTH);
+        assert_eq!(table.codes.len(), lengths.len());
+        let symbols = (0..lengths.len()).collect::<Vec<_>>();
+        let encoded = encoded_symbols(&lengths, &symbols);
+        let mut reader = BitReader::new(&encoded);
+        for symbol in symbols {
+            assert_eq!(table.decode(&mut reader), Ok(symbol));
+        }
+    }
+
+    #[test]
     fn truncation_is_reported_without_panic() {
         let table = HuffmanTable::from_code_lengths(&[1, 2, 3, 3]).unwrap();
         // Symbol 3 needs three one-bits, but only two remain after this cursor.
@@ -831,6 +851,23 @@ mod tests {
         assert_eq!(table.symbol_count(), 2);
         assert_eq!(table.decode(&mut input), Ok(1));
         assert_eq!(input.bit_position(), stream.bit_len());
+    }
+
+    #[test]
+    fn shortened_stream_counts_repeat_as_one_code_length_symbol() {
+        let mut stream = BitWriter::new();
+        write_normal_header(&mut stream, true);
+        stream.write_bits(1, 1).unwrap(); // use_length
+        stream.write_bits(0, 3).unwrap(); // length_nbits = 2
+        stream.write_bits(0, 2).unwrap(); // read two code-length symbols
+        write_code_length_symbol(&mut stream, true, 1);
+        write_code_length_symbol(&mut stream, true, 16);
+        stream.write_bits(0, 2).unwrap(); // repeat previous length three times
+
+        assert_eq!(
+            read_normal_code_lengths(&mut BitReader::new(stream.as_bytes()), 6).unwrap(),
+            [1, 1, 1, 1, 0, 0]
+        );
     }
 
     #[test]

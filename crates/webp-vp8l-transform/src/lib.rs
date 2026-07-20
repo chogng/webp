@@ -233,7 +233,8 @@ pub fn inverse_subtract_green(image: &mut RgbaImage) {
 /// At the top-left pixel this returns opaque black. On the remaining top row
 /// it returns the left pixel, and on the remaining left column it returns the
 /// top pixel, regardless of `mode`. On the right edge, `TopRight` is the
-/// leftmost pixel of the preceding row, as prescribed by VP8L.
+/// leftmost reconstructed pixel of the current row, as prescribed by VP8L's
+/// linear top-right extension.
 pub fn prediction_at(
     image: &RgbaImage,
     x: u32,
@@ -261,8 +262,11 @@ pub fn prediction_at(
     let left = image.pixels[image.offset_in_bounds(x - 1, y)];
     let top = image.pixels[image.offset_in_bounds(x, y - 1)];
     let top_left = image.pixels[image.offset_in_bounds(x - 1, y - 1)];
-    let top_right_x = if x + 1 == image.width { 0 } else { x + 1 };
-    let top_right = image.pixels[image.offset_in_bounds(top_right_x, y - 1)];
+    let top_right = if x + 1 == image.width {
+        image.pixels[image.offset_in_bounds(0, y)]
+    } else {
+        image.pixels[image.offset_in_bounds(x + 1, y - 1)]
+    };
     Ok(predict(mode, left, top, top_left, top_right))
 }
 
@@ -427,6 +431,27 @@ mod tests {
     const TOP_LEFT: Rgba = Rgba::new(100, 90, 100, 125);
     const TOP_RIGHT: Rgba = Rgba::new(18, 210, 60, 40);
 
+    fn reference_select(left: Rgba, top: Rgba, top_left: Rgba) -> Rgba {
+        let left = [left.red, left.green, left.blue, left.alpha];
+        let top = [top.red, top.green, top.blue, top.alpha];
+        let top_left = [top_left.red, top_left.green, top_left.blue, top_left.alpha];
+        let left_distance = top
+            .into_iter()
+            .zip(top_left)
+            .map(|(channel, corner)| u32::from(channel.abs_diff(corner)))
+            .sum::<u32>();
+        let top_distance = left
+            .into_iter()
+            .zip(top_left)
+            .map(|(channel, corner)| u32::from(channel.abs_diff(corner)))
+            .sum::<u32>();
+        if left_distance < top_distance {
+            Rgba::new(left[0], left[1], left[2], left[3])
+        } else {
+            Rgba::new(top[0], top[1], top[2], top[3])
+        }
+    }
+
     #[test]
     fn every_predictor_mode_matches_the_specification_table() {
         let cases = [
@@ -503,8 +528,70 @@ mod tests {
         }
         assert_eq!(
             prediction_at(&image, 2, 1, PredictorMode::TopRight).unwrap(),
-            Rgba::new(1, 2, 3, 4),
+            Rgba::new(13, 14, 15, 16),
         );
+    }
+
+    #[test]
+    fn image_accessors_and_interior_predictor_coordinates_use_row_major_layout() {
+        let pixels = (0..12)
+            .map(|value| Rgba::new(value, value + 20, value + 40, value + 60))
+            .collect::<Vec<_>>();
+        let image = RgbaImage::new(4, 3, pixels.clone()).unwrap();
+
+        assert_eq!(image.width(), 4);
+        assert_eq!(image.height(), 3);
+        for y in 0..3 {
+            for x in 0..4 {
+                assert_eq!(image.get(x, y), Some(pixels[(y * 4 + x) as usize]));
+            }
+        }
+        assert_eq!(image.get(4, 0), None);
+        assert_eq!(image.get(0, 3), None);
+        assert_eq!(image.get(4, 3), None);
+
+        assert_eq!(
+            prediction_at(&image, 2, 2, PredictorMode::TopLeft),
+            Ok(pixels[5])
+        );
+        assert_eq!(
+            prediction_at(&image, 1, 2, PredictorMode::TopRight),
+            Ok(pixels[6])
+        );
+    }
+
+    #[test]
+    fn select_predictor_matches_an_independent_distance_reference() {
+        let tie_left = Rgba::new(0, 0, 0, 0);
+        let tie_top = Rgba::new(2, 2, 2, 2);
+        let tie_corner = Rgba::new(1, 1, 1, 1);
+        assert_eq!(select(tie_left, tie_top, tie_corner), tie_top);
+
+        for seed in 0_u8..=u8::MAX {
+            let left = Rgba::new(
+                seed,
+                seed.wrapping_mul(17).wrapping_add(3),
+                seed.rotate_left(3),
+                !seed,
+            );
+            let top = Rgba::new(
+                seed.wrapping_mul(29).wrapping_add(7),
+                seed.rotate_right(2),
+                seed.wrapping_add(113),
+                seed.wrapping_mul(5),
+            );
+            let top_left = Rgba::new(
+                seed.wrapping_mul(11).wrapping_add(101),
+                !seed.rotate_left(1),
+                seed.wrapping_mul(43).wrapping_add(19),
+                seed.rotate_left(5),
+            );
+            assert_eq!(
+                select(left, top, top_left),
+                reference_select(left, top, top_left),
+                "seed={seed}"
+            );
+        }
     }
 
     #[test]
@@ -535,7 +622,7 @@ mod tests {
                 Rgba::new(13, 16, 19, 21),
                 Rgba::new(13, 15, 17, 18),
                 Rgba::new(8, 9, 10, 10),
-                Rgba::new(17, 19, 21, 22),
+                Rgba::new(29, 32, 35, 37),
             ]
         );
     }
@@ -609,5 +696,9 @@ mod tests {
             prediction_at(&image, 1, 0, PredictorMode::Left),
             Err(TransformError::CoordinateOutOfBounds { .. })
         ));
+        assert_eq!(
+            TransformError::InvalidPredictorMode(14).to_string(),
+            "invalid VP8L predictor mode 14"
+        );
     }
 }

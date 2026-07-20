@@ -1,12 +1,9 @@
 #![forbid(unsafe_code)]
-//! A deliberately small, bounded VP8L entropy decoder.
+//! A bounded decoder for static VP8L images.
 //!
-//! This crate is an integration seam for the first lossless decoder slice. It
-//! accepts a single Huffman group, VP8L's subtract-green, predictor, and
-//! color transforms, optional color cache, and literal/backward-reference
-//! entropy symbols. All other valid VP8L features receive an explicit
-//! [`DecodeErrorKind::UnsupportedFeature`] rather than being partially
-//! interpreted.  The output uses straight RGBA byte order.
+//! The decoder supports VP8L's four transforms, color cache, literal and
+//! backward-reference entropy symbols, and spatial meta-Huffman groups. The
+//! output uses straight RGBA byte order.
 
 use webp_core::{
     BitReader, DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget, checked_image_bytes,
@@ -37,29 +34,30 @@ pub struct LiteralImage {
     pub rgba: Vec<u8>,
 }
 
-/// Decodes a standalone VP8L stream limited to one entropy group.
+/// Decodes a standalone static VP8L stream to straight RGBA8.
 ///
-/// The input begins with the five-byte VP8L fixed header. A transform list may
-/// be empty or contain subtract-green, predictor, and color transforms; color
-/// cache, backward references, and literal entropy symbols are also supported.
-/// Meta-Huffman groups remain explicitly unsupported.
+/// The input begins with the five-byte VP8L fixed header.
+pub fn decode_vp8l(data: &[u8], limits: &DecodeLimits) -> Result<LiteralImage, DecodeError> {
+    decode_no_transform(data, limits)
+}
+
+/// Backwards-compatible name for [`decode_vp8l`].
 pub fn decode_literal_only(
     data: &[u8],
     limits: &DecodeLimits,
 ) -> Result<LiteralImage, DecodeError> {
-    decode_no_transform(data, limits)
+    decode_vp8l(data, limits)
 }
 
-/// Decodes a standalone VP8L stream with one Huffman group.
+/// Decodes a standalone static VP8L stream.
 ///
 /// Literal pixels, green-alphabet backward-reference symbols, and color-cache
 /// references are supported. The transform list may be empty or contain
-/// subtract-green, predictor, color, and color-indexing transforms. Transform subimages use
-/// the non-level-zero entropy syntax: they have no transform list and cannot
-/// use meta-Huffman groups. Color indexing and meta-Huffman groups remain
-/// explicitly unsupported. Internally decoded samples are packed as
-/// `0xAARRGGBB` until entropy expansion is complete, then inverse-transformed
-/// and emitted in RGBA byte order.
+/// subtract-green, predictor, color, and color-indexing transforms. Main
+/// images may use spatial meta-Huffman groups; transform subimages cannot.
+/// Internally decoded samples are packed as `0xAARRGGBB` until entropy
+/// expansion is complete, then inverse-transformed and emitted in RGBA byte
+/// order.
 pub fn decode_no_transform(
     data: &[u8],
     limits: &DecodeLimits,
@@ -139,11 +137,12 @@ pub fn decode_no_transform(
     Ok(LiteralImage { header, rgba })
 }
 
-/// Decodes VP8L's one-group entropy image syntax at either nesting level.
+/// Decodes VP8L's entropy image syntax at either nesting level.
 ///
-/// A main-level image carries the meta-Huffman presence flag (which this
-/// bounded decoder rejects). Predictor subimages are `is_level0 = false`, so
-/// their Huffman stream begins directly after the color-cache declaration.
+/// A main-level image may carry a spatial meta-Huffman image. Predictor and
+/// transform subimages are `is_level0 = false`, so their Huffman stream begins
+/// directly after the color-cache declaration and cannot recursively carry
+/// meta-Huffman data.
 #[allow(clippy::too_many_arguments)]
 fn decode_entropy_image(
     bits: &mut BitReader<'_>,
@@ -163,13 +162,6 @@ fn decode_entropy_image(
         None
     };
 
-    if is_level0 {
-        budget.consume(1)?;
-        if bits.read_bit()? {
-            return Err(unsupported("VP8L meta-Huffman groups are not implemented"));
-        }
-    }
-
     let color_cache_size = color_cache_size(color_cache_bits)?;
     let pixels = pixel_count(width, height)?;
     check_allocation_budget(
@@ -180,10 +172,29 @@ fn decode_entropy_image(
         limits.max_alloc_bytes,
     )?;
 
-    let codes = read_huffman_codes(bits, budget, color_cache_size)?;
+    let codes = if is_level0 {
+        budget.consume(1)?;
+        if bits.read_bit()? {
+            EntropyCodes::Meta(read_meta_huffman_codes(
+                bits,
+                width,
+                height,
+                color_cache_size,
+                budget,
+                limits,
+                retained_bytes,
+                final_rgba_bytes,
+            )?)
+        } else {
+            EntropyCodes::Single(read_huffman_codes(bits, budget, color_cache_size)?)
+        }
+    } else {
+        EntropyCodes::Single(read_huffman_codes(bits, budget, color_cache_size)?)
+    };
     let mut output = PixelOutput::new(color_cache_bits, pixels)?;
 
     while output.len() < pixels {
+        let codes = codes.for_pixel(output.len(), width)?;
         let green = decode_symbol(&codes.green, bits, budget)?;
         if green < CHANNEL_ALPHABET_SIZE {
             let red = decode_symbol(&codes.red, bits, budget)?;
@@ -1005,8 +1016,11 @@ fn inverse_predictor_argb(
                 let left = argb_to_rgba(pixels[offset - 1]);
                 let top = argb_to_rgba(pixels[offset - width]);
                 let top_left = argb_to_rgba(pixels[offset - width - 1]);
-                let top_right_x = if x + 1 == width { 0 } else { x + 1 };
-                let top_right = argb_to_rgba(pixels[(y - 1) * width + top_right_x]);
+                let top_right = if x + 1 == width {
+                    argb_to_rgba(pixels[y * width])
+                } else {
+                    argb_to_rgba(pixels[(y - 1) * width + x + 1])
+                };
                 predict(mode, left, top, top_left, top_right)
             };
             pixels[offset] = pack_argb(
@@ -1035,6 +1049,361 @@ struct HuffmanCodes {
     blue: HuffmanTable,
     alpha: HuffmanTable,
     distance: HuffmanTable,
+}
+
+/// The maximum number of prefix tables in one VP8L meta-prefix group.
+const HUFFMAN_TABLES_PER_GROUP: usize = 5;
+
+// `HuffmanTable` is intentionally opaque to this crate.  Reserve a
+// deliberately conservative amount for every possible wire symbol so the
+// allocation limit also covers the heap storage hidden behind its vectors.
+// The current representation is substantially smaller than this bound.
+const MAX_HUFFMAN_CODE_STORAGE_BYTES: usize = 64;
+
+enum EntropyCodes {
+    Single(HuffmanCodes),
+    Meta(MetaHuffmanCodes),
+}
+
+impl EntropyCodes {
+    fn for_pixel(&self, pixel: usize, image_width: u32) -> Result<&HuffmanCodes, DecodeError> {
+        match self {
+            Self::Single(codes) => Ok(codes),
+            Self::Meta(codes) => codes.for_pixel(pixel, image_width),
+        }
+    }
+}
+
+/// A decoded meta-prefix image and the prefix-code groups it references.
+///
+/// VP8L writes groups for every numeric id through the largest id in the
+/// entropy image.  We parse all of those groups to preserve stream alignment,
+/// but retain only the distinct ids that are actually selected by a pixel.
+/// This is important for valid streams with sparse, high-valued ids.
+struct MetaHuffmanCodes {
+    prefix_bits: u8,
+    prefix_image_width: usize,
+    group_map: Vec<u16>,
+    group_ids: Vec<u16>,
+    groups: Vec<HuffmanCodes>,
+}
+
+impl MetaHuffmanCodes {
+    fn for_pixel(&self, pixel: usize, image_width: u32) -> Result<&HuffmanCodes, DecodeError> {
+        let image_width = usize::try_from(image_width).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L image width does not fit usize",
+            )
+        })?;
+        let x = pixel % image_width;
+        let y = pixel / image_width;
+        let block_x = x >> self.prefix_bits;
+        let block_y = y >> self.prefix_bits;
+        let map_index = block_y
+            .checked_mul(self.prefix_image_width)
+            .and_then(|value| value.checked_add(block_x))
+            .ok_or_else(|| {
+                DecodeError::new(
+                    DecodeErrorKind::InvalidBitstream,
+                    None,
+                    "VP8L meta-prefix image index overflow",
+                )
+            })?;
+        let group_id = *self.group_map.get(map_index).ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::InvalidBitstream,
+                None,
+                "VP8L meta-prefix image does not cover output pixel",
+            )
+        })?;
+        let group_index = self.group_ids.binary_search(&group_id).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::InvalidBitstream,
+                None,
+                "VP8L meta-prefix group was not retained",
+            )
+        })?;
+        self.groups.get(group_index).ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::InvalidBitstream,
+                None,
+                "VP8L meta-prefix group table is missing",
+            )
+        })
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn read_meta_huffman_codes(
+    bits: &mut BitReader<'_>,
+    width: u32,
+    height: u32,
+    color_cache_size: usize,
+    budget: &mut WorkBudget,
+    limits: &DecodeLimits,
+    retained_bytes: usize,
+    final_rgba_bytes: usize,
+) -> Result<MetaHuffmanCodes, DecodeError> {
+    budget.consume(1)?;
+    let prefix_bits = bits.read_bits(3)? as u8 + 2;
+    let (prefix_image_width, prefix_image_height) =
+        prefix_image_dimensions(width, height, prefix_bits)?;
+    let entropy_image = decode_entropy_image(
+        bits,
+        prefix_image_width,
+        prefix_image_height,
+        false,
+        budget,
+        limits,
+        retained_bytes,
+        0,
+    )?;
+
+    let entropy_image_bytes = checked_transform_bytes(
+        entropy_image.len(),
+        size_of::<u32>(),
+        "VP8L meta-prefix entropy image byte size overflow",
+    )?;
+    let group_map_bytes = checked_transform_bytes(
+        entropy_image.len(),
+        size_of::<u16>(),
+        "VP8L meta-prefix group map byte size overflow",
+    )?;
+    check_meta_conversion_allocation(
+        retained_bytes,
+        entropy_image_bytes,
+        group_map_bytes,
+        limits.max_alloc_bytes,
+    )?;
+
+    let mut group_map = Vec::new();
+    group_map
+        .try_reserve_exact(entropy_image.len())
+        .map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::AllocationFailed,
+                None,
+                "VP8L meta-prefix group map allocation failed",
+            )
+        })?;
+    for pixel in entropy_image {
+        // VP8L stores the 16-bit id in the red and green bytes of the ARGB
+        // entropy-image pixel, with green as the low byte.
+        group_map.push(((pixel >> 8) & 0xffff) as u16);
+    }
+
+    check_meta_group_id_collection_allocation(
+        retained_bytes,
+        group_map_bytes,
+        limits.max_alloc_bytes,
+    )?;
+    let mut group_ids = Vec::new();
+    group_ids.try_reserve_exact(group_map.len()).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::AllocationFailed,
+            None,
+            "VP8L meta-prefix group id allocation failed",
+        )
+    })?;
+    group_ids.extend_from_slice(&group_map);
+    group_ids.sort_unstable();
+    group_ids.dedup();
+    let max_group_id = usize::from(*group_ids.last().ok_or_else(|| {
+        DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L meta-prefix image is empty",
+        )
+    })?);
+    let declared_groups = max_group_id.checked_add(1).ok_or_else(|| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L meta-prefix group count overflow",
+        )
+    })?;
+    let _declared_table_count = declared_groups
+        .checked_mul(HUFFMAN_TABLES_PER_GROUP)
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L meta-prefix table count overflow",
+            )
+        })?;
+
+    let group_storage = meta_group_storage_upper_bound(color_cache_size)?;
+    let retained_group_storage = group_storage.checked_mul(group_ids.len()).ok_or_else(|| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L meta-prefix retained table storage overflow",
+        )
+    })?;
+    // While an unused group is being parsed it still owns its five table
+    // vectors briefly.  Account for that transient allocation too.
+    let meta_retained = retained_bytes
+        .checked_add(group_map_bytes)
+        .and_then(|value| value.checked_add(group_map_bytes))
+        .and_then(|value| value.checked_add(retained_group_storage))
+        .and_then(|value| value.checked_add(group_storage))
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L meta-prefix storage accounting overflow",
+            )
+        })?;
+    let pixels = pixel_count(width, height)?;
+    check_allocation_budget(
+        pixels,
+        final_rgba_bytes,
+        color_cache_size,
+        meta_retained,
+        limits.max_alloc_bytes,
+    )?;
+
+    let mut groups = Vec::new();
+    groups.try_reserve_exact(group_ids.len()).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::AllocationFailed,
+            None,
+            "VP8L meta-prefix group storage allocation failed",
+        )
+    })?;
+    let mut next_used_group = 0_usize;
+    for group_id in 0..declared_groups {
+        let codes = read_huffman_codes(bits, budget, color_cache_size)?;
+        if group_ids
+            .get(next_used_group)
+            .is_some_and(|&id| usize::from(id) == group_id)
+        {
+            groups.push(codes);
+            next_used_group += 1;
+        }
+    }
+    debug_assert_eq!(next_used_group, group_ids.len());
+
+    Ok(MetaHuffmanCodes {
+        prefix_bits,
+        prefix_image_width: usize::try_from(prefix_image_width).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L meta-prefix image width does not fit usize",
+            )
+        })?,
+        group_map,
+        group_ids,
+        groups,
+    })
+}
+
+fn prefix_image_dimensions(
+    width: u32,
+    height: u32,
+    prefix_bits: u8,
+) -> Result<(u32, u32), DecodeError> {
+    if !(2..=9).contains(&prefix_bits) {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L meta-prefix bits must be in 2..=9",
+        ));
+    }
+    let block_size = 1_u32 << prefix_bits;
+    Ok((width.div_ceil(block_size), height.div_ceil(block_size)))
+}
+
+fn meta_group_storage_upper_bound(color_cache_size: usize) -> Result<usize, DecodeError> {
+    let green_alphabet = GREEN_ALPHABET_SIZE
+        .checked_add(color_cache_size)
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L meta-prefix green alphabet size overflow",
+            )
+        })?;
+    let symbol_count = green_alphabet
+        .checked_add(CHANNEL_ALPHABET_SIZE.checked_mul(3).ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L meta-prefix channel alphabet size overflow",
+            )
+        })?)
+        .and_then(|value| value.checked_add(DISTANCE_ALPHABET_SIZE))
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L meta-prefix symbol count overflow",
+            )
+        })?;
+    symbol_count
+        .checked_mul(MAX_HUFFMAN_CODE_STORAGE_BYTES)
+        .and_then(|value| value.checked_add(HUFFMAN_TABLES_PER_GROUP * size_of::<HuffmanTable>()))
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L meta-prefix group storage overflow",
+            )
+        })
+}
+
+fn check_meta_conversion_allocation(
+    retained_bytes: usize,
+    entropy_image_bytes: usize,
+    group_map_bytes: usize,
+    max_alloc_bytes: usize,
+) -> Result<(), DecodeError> {
+    let total = retained_bytes
+        .checked_add(entropy_image_bytes)
+        .and_then(|value| value.checked_add(group_map_bytes))
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L meta-prefix conversion allocation size overflow",
+            )
+        })?;
+    if total > max_alloc_bytes {
+        return Err(DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L meta-prefix conversion exceeds allocation limit",
+        ));
+    }
+    Ok(())
+}
+
+fn check_meta_group_id_collection_allocation(
+    retained_bytes: usize,
+    group_map_bytes: usize,
+    max_alloc_bytes: usize,
+) -> Result<(), DecodeError> {
+    let total = retained_bytes
+        .checked_add(group_map_bytes)
+        .and_then(|value| value.checked_add(group_map_bytes))
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L meta-prefix group id allocation size overflow",
+            )
+        })?;
+    if total > max_alloc_bytes {
+        return Err(DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L meta-prefix group id collection exceeds allocation limit",
+        ));
+    }
+    Ok(())
 }
 
 fn read_huffman_codes(
@@ -1160,10 +1529,6 @@ fn decode_symbol(
 ) -> Result<usize, DecodeError> {
     budget.consume(1)?;
     table.decode(bits)
-}
-
-fn unsupported(context: &'static str) -> DecodeError {
-    DecodeError::new(DecodeErrorKind::UnsupportedFeature, None, context)
 }
 
 #[cfg(test)]
@@ -1401,6 +1766,47 @@ mod tests {
                 write_symbol(writer, lengths, usize::from(pixel[3]));
             }
         }
+    }
+
+    fn meta_huffman_literal_stream(
+        width: u32,
+        height: u32,
+        prefix_bits_field: u8,
+        group_map: &[u16],
+        group_pixels: &[[u8; 4]],
+    ) -> Vec<u8> {
+        let prefix_bits = prefix_bits_field + 2;
+        let (map_width, map_height) = prefix_image_dimensions(width, height, prefix_bits).unwrap();
+        assert_eq!(
+            group_map.len(),
+            usize::try_from(map_width * map_height).unwrap()
+        );
+        let max_group = usize::from(*group_map.iter().max().unwrap());
+        assert_eq!(group_pixels.len(), max_group + 1);
+
+        let mut writer = BitWriter::new();
+        write_header(&mut writer, width, height, true);
+        writer.write_bits(0, 1).unwrap(); // transform-list terminator
+        writer.write_bits(0, 1).unwrap(); // color_cache_present
+        writer.write_bits(1, 1).unwrap(); // use_meta_huffman
+        writer.write_bits(u32::from(prefix_bits_field), 3).unwrap();
+        let entropy_pixels: Vec<[u8; 4]> = group_map
+            .iter()
+            .map(|&group| [(group >> 8) as u8, group as u8, 0, 0])
+            .collect();
+        // The entropy image is a non-level-zero image and therefore starts
+        // directly with its color-cache declaration.
+        write_entropy_image_pixels(&mut writer, &entropy_pixels);
+
+        // One fixed literal per group keeps the main data bit-free. The
+        // groups are nevertheless written for every id through max_group,
+        // including sparse group one below.
+        for &pixel in group_pixels {
+            for symbol in [pixel[1], pixel[0], pixel[2], pixel[3], 0] {
+                write_simple_code(&mut writer, symbol);
+            }
+        }
+        writer.into_bytes()
     }
 
     fn color_indexing_stream(
@@ -1773,13 +2179,67 @@ mod tests {
     }
 
     #[test]
-    fn rejects_meta_huffman_before_entropy_decode() {
-        let mut data = literal_stream(1, 1, [1, 2, 3, 4]);
-        let position = HEADER_LEN * 8 + 2;
-        data[position / 8] |= 1 << (position % 8);
+    fn decodes_meta_huffman_groups_with_round_up_and_sparse_ids() {
+        // prefix_bits = 2 produces a 3x2 entropy image for this 9x5 output.
+        // Group one appears only in the last column, while group two appears
+        // in other blocks, so decoding must parse and retain all three groups
+        // and must select them from the red/green 16-bit meta code.
+        let group_map = [0_u16, 2, 1, 1, 0, 2];
+        let group_pixels = [[1, 10, 100, 255], [2, 20, 110, 254], [3, 30, 120, 253]];
+        let image = decode_no_transform(
+            &meta_huffman_literal_stream(9, 5, 0, &group_map, &group_pixels),
+            &limits(),
+        )
+        .unwrap();
+
+        let mut expected = Vec::new();
+        for y in 0..5_usize {
+            for x in 0..9_usize {
+                let group = group_map[(y / 4) * 3 + x / 4];
+                expected.extend_from_slice(&group_pixels[usize::from(group)]);
+            }
+        }
+        assert_eq!(image.rgba, expected);
+    }
+
+    #[test]
+    fn meta_prefix_dimensions_round_up_for_every_prefix_bits_value() {
+        for field in 0..=7_u8 {
+            let bits = field + 2;
+            let (width, height) = prefix_image_dimensions(513, 1025, bits).unwrap();
+            let block = 1_u32 << bits;
+            assert_eq!(width, 513_u32.div_ceil(block));
+            assert_eq!(height, 1025_u32.div_ceil(block));
+        }
+    }
+
+    #[test]
+    fn meta_huffman_group_id_uses_both_red_and_green_bytes() {
+        // 0x0100 must select group 256, not group zero. The 256 preceding
+        // groups are still present in the bitstream and must be parsed before
+        // the selected group.
+        let mut group_pixels = vec![[0, 0, 0, 0]; 257];
+        group_pixels[256] = [9, 8, 7, 6];
+        let image = decode_no_transform(
+            &meta_huffman_literal_stream(1, 1, 0, &[0x0100], &group_pixels),
+            &limits(),
+        )
+        .unwrap();
+        assert_eq!(image.rgba, [9, 8, 7, 6]);
+    }
+
+    #[test]
+    fn meta_huffman_tables_and_maps_count_toward_allocation_limit() {
+        let data = meta_huffman_literal_stream(1, 1, 0, &[0], &[[1, 2, 3, 4]]);
+        let limited = DecodeLimits {
+            // The nested entropy image itself is tiny; this limit is crossed
+            // by the conservative retained/transient prefix-table accounting.
+            max_alloc_bytes: 16 * 1024,
+            ..limits()
+        };
         assert_eq!(
-            decode_literal_only(&data, &limits()).unwrap_err().kind(),
-            DecodeErrorKind::UnsupportedFeature
+            decode_no_transform(&data, &limited).unwrap_err().kind(),
+            DecodeErrorKind::LimitExceeded
         );
     }
 
