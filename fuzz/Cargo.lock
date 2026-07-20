@@ -144,6 +144,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "webp-vp8l-indexing"
+version = "0.1.0"
+dependencies = [
+ "webp-vp8l-transform",
+]
+
+[[package]]
 name = "webp-vp8l-literal"
 version = "0.1.0"
 dependencies = [
@@ -153,6 +160,7 @@ dependencies = [
  "webp-vp8l-color-transform",
  "webp-vp8l-entropy",
  "webp-vp8l-huffman",
+ "webp-vp8l-indexing",
  "webp-vp8l-transform",
 ]
 
