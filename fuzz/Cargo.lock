@@ -87,6 +87,7 @@ version = "0.1.0"
 dependencies = [
  "webp-container",
  "webp-core",
+ "webp-vp8",
  "webp-vp8l",
  "webp-vp8l-literal",
 ]
@@ -109,10 +110,18 @@ dependencies = [
  "libfuzzer-sys",
  "webp",
  "webp-core",
+ "webp-vp8",
  "webp-vp8l-color-transform",
  "webp-vp8l-huffman",
  "webp-vp8l-indexing",
  "webp-vp8l-transform",
+]
+
+[[package]]
+name = "webp-vp8"
+version = "0.1.0"
+dependencies = [
+ "webp-core",
 ]
 
 [[package]]

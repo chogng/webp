@@ -2,6 +2,7 @@
 members = [
     "crates/webp-core",
     "crates/webp-container",
+    "crates/webp-vp8",
     "crates/webp-vp8l",
     "crates/webp-vp8l-transform",
     "crates/webp-vp8l-entropy",

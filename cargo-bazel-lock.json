@@ -1,5 +1,5 @@
 {
-  "checksum": "2429cfc8e1e69013bb4b0a67d43bec0020f187c0c46da4718ba0f71afc9aa1a8",
+  "checksum": "1afc0d50e5224880e36366f1bd424d4c614ee99a8a34d2f1e42953a3293920a7",
   "crates": {
     "block-buffer 0.10.4": {
       "name": "block-buffer",
@@ -1871,6 +1871,40 @@
       ],
       "license_file": null
     },
+    "webp-vp8 0.1.0": {
+      "name": "webp-vp8",
+      "version": "0.1.0",
+      "package_url": "https://example.invalid/webp-rs",
+      "repository": null,
+      "targets": [
+        {
+          "Library": {
+            "crate_name": "webp_vp8",
+            "crate_root": "src/lib.rs",
+            "srcs": {
+              "allow_empty": true,
+              "include": [
+                "**/*.rs"
+              ]
+            }
+          }
+        }
+      ],
+      "library_target_name": "webp_vp8",
+      "common_attrs": {
+        "compile_data_glob": [
+          "**"
+        ],
+        "edition": "2024",
+        "version": "0.1.0"
+      },
+      "license": "MIT OR Apache-2.0",
+      "license_ids": [
+        "Apache-2.0",
+        "MIT"
+      ],
+      "license_file": null
+    },
     "webp-vp8l 0.1.0": {
       "name": "webp-vp8l",
       "version": "0.1.0",
@@ -2300,6 +2334,7 @@
     "webp-container 0.1.0": "crates/webp-container",
     "webp-core 0.1.0": "crates/webp-core",
     "webp-testkit 0.1.0": "crates/webp-testkit",
+    "webp-vp8 0.1.0": "crates/webp-vp8",
     "webp-vp8l 0.1.0": "crates/webp-vp8l",
     "webp-vp8l-color-cache 0.1.0": "crates/webp-vp8l-color-cache",
     "webp-vp8l-color-transform 0.1.0": "crates/webp-vp8l-color-transform",

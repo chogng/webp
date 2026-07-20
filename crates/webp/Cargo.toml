@@ -13,6 +13,7 @@ workspace = true
 [dependencies]
 webp-core = { path = "../webp-core" }
 webp-container = { path = "../webp-container" }
+webp-vp8 = { path = "../webp-vp8" }
 webp-vp8l = { path = "../webp-vp8l" }
 webp-vp8l-literal = { path = "../webp-vp8l-literal" }
 

@@ -254,6 +254,7 @@ dependencies = [
  "webp-container",
  "webp-core",
  "webp-testkit",
+ "webp-vp8",
  "webp-vp8l",
  "webp-vp8l-literal",
 ]
@@ -277,6 +278,13 @@ dependencies = [
  "serde_json",
  "sha2",
  "toml",
+]
+
+[[package]]
+name = "webp-vp8"
+version = "0.1.0"
+dependencies = [
+ "webp-core",
 ]
 
 [[package]]

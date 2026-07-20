@@ -6,6 +6,7 @@ webp_rust_crate(
     deps = [
         "//crates/webp-container:webp_container",
         "//crates/webp-core:webp_core",
+        "//crates/webp-vp8:webp_vp8",
         "//crates/webp-vp8l:webp_vp8l",
         "//crates/webp-vp8l-literal:webp_vp8l_literal",
     ],

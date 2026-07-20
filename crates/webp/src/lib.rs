@@ -1,9 +1,9 @@
 #![forbid(unsafe_code)]
 //! Stable public API for the safe WebP implementation.
 //!
-//! M1 decodes static VP8L images to canonical RGBA8 and exposes container
-//! information. VP8, animation, and incremental codec decoding remain outside
-//! this milestone.
+//! M1 decodes static VP8L images to canonical RGBA8. M2 adds validated VP8
+//! key-frame information; entropy decoding and pixel output are still pending.
+//! Animation and incremental codec decoding remain outside this milestone.
 
 pub use webp_core::{CompatibilityProfile, DecodeError, DecodeErrorKind, DecodeLimits};
 
@@ -116,8 +116,8 @@ impl IncrementalDecoder {
 /// Decodes a supported static WebP image to straight RGBA8.
 ///
 /// M1 supports static VP8L images, including transforms, color cache,
-/// meta-Huffman groups, and backward references. VP8 and animated WebP remain
-/// unsupported rather than producing partial pixel output.
+/// meta-Huffman groups, and backward references. M2 currently validates VP8
+/// headers but does not expose incomplete VP8 pixel output.
 ///
 /// # Errors
 ///
@@ -147,6 +147,21 @@ pub fn decode(data: &[u8], options: &DecodeOptions) -> Result<Image, DecodeError
             rgba: decoded.rgba,
         });
     }
+    if let Some(chunk) = container
+        .chunks()
+        .iter()
+        .find(|chunk| chunk.fourcc == webp_container::VP8)
+    {
+        let canvas = container
+            .vp8x()
+            .map(|header| (header.canvas_width, header.canvas_height));
+        webp_vp8::parse_riff_payload(chunk.payload, canvas, &options.limits)?;
+        return Err(DecodeError::at(
+            DecodeErrorKind::UnsupportedFeature,
+            chunk.offset,
+            "VP8 pixel decoding is not implemented yet",
+        ));
+    }
     Err(DecodeError::at(
         DecodeErrorKind::UnsupportedFeature,
         0,
@@ -156,13 +171,12 @@ pub fn decode(data: &[u8], options: &DecodeOptions) -> Result<Image, DecodeError
 
 /// Reads dimensions without pixel allocation.
 ///
-/// VP8L dimensions come from its fixed bitstream header and must agree with a
-/// present `VP8X` canvas. For VP8, M1 can only report dimensions from `VP8X`.
+/// VP8L and VP8 dimensions come from their fixed bitstream headers and must
+/// agree with a present `VP8X` canvas.
 ///
 /// # Errors
 ///
-/// Returns the container or VP8L-header failure, or `UnsupportedFeature` when
-/// an unextended VP8 frame requires the not-yet-implemented VP8 header parser.
+/// Returns the container or codec-header failure.
 pub fn read_info(data: &[u8], limits: &DecodeLimits) -> Result<ImageInfo, DecodeError> {
     let container = webp_container::parse(data, CompatibilityProfile::SpecStrict, limits)?;
     if let Some(chunk) = container
@@ -183,6 +197,22 @@ pub fn read_info(data: &[u8], limits: &DecodeLimits) -> Result<ImageInfo, Decode
             is_animated: container
                 .vp8x()
                 .is_some_and(|header| header.flags.animation()),
+        });
+    }
+    if let Some(chunk) = container
+        .chunks()
+        .iter()
+        .find(|chunk| chunk.fourcc == webp_container::VP8)
+    {
+        let canvas = container
+            .vp8x()
+            .map(|header| (header.canvas_width, header.canvas_height));
+        let header = webp_vp8::parse_riff_payload(chunk.payload, canvas, limits)?;
+        return Ok(ImageInfo {
+            width: header.width,
+            height: header.height,
+            has_alpha: container.vp8x().is_some_and(|vp8x| vp8x.flags.alpha()),
+            is_animated: container.vp8x().is_some_and(|vp8x| vp8x.flags.animation()),
         });
     }
     let vp8x = container.vp8x().ok_or_else(|| {
@@ -335,6 +365,31 @@ mod tests {
                 has_alpha: false,
                 is_animated: false,
             }
+        );
+    }
+
+    #[test]
+    fn read_info_accepts_an_unextended_vp8_key_frame_without_pixel_allocation() {
+        let payload = [0xf0, 0x00, 0x00, 0x9d, 0x01, 0x2a, 0x03, 0x00, 0x05, 0x00];
+        let mut bytes = b"RIFF".to_vec();
+        bytes.extend_from_slice(&22_u32.to_le_bytes());
+        bytes.extend_from_slice(b"WEBPVP8 ");
+        bytes.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&payload);
+        assert_eq!(
+            read_info(&bytes, &DecodeLimits::default()).unwrap(),
+            ImageInfo {
+                width: 3,
+                height: 5,
+                has_alpha: false,
+                is_animated: false,
+            }
+        );
+        assert_eq!(
+            decode(&bytes, &DecodeOptions::default())
+                .unwrap_err()
+                .kind(),
+            DecodeErrorKind::UnsupportedFeature,
         );
     }
 

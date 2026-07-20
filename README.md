@@ -1,10 +1,10 @@
 # webp-rs
 
 A safe-Rust WebP implementation, built from a test-first plan. The current
-milestone is M1 foundation work: hardened RIFF/WebP container parsing,
-resource limits, reproducible fixture infrastructure, and independently tested
-VP8L header/entropy/transform primitives. Full codec decoding is intentionally
-not yet implemented.
+milestone is M2 foundation work: the M1 VP8L decoder is complete, while the
+lossy VP8 path now has hardened key-frame/header validation and public image
+information. VP8 entropy, reconstruction, filtering, and pixel output are not
+yet implemented.
 
 ## Current guarantees
 
@@ -13,9 +13,15 @@ not yet implemented.
 - Strict and libwebp-compatible parsing policies are explicit.
 - Metadata can be inspected without allocating pixel buffers.
 - VP8L headers, canonical Huffman tables, LZ77 copy, and predictor primitives
-  are individually checked but are not yet connected to a public pixel decoder.
+  are connected to the static VP8L public pixel decoder.
+- VP8 frame tags, key-frame start codes, dimensions, VP8X canvas agreement,
+  and first-partition boundaries are checked before entropy-state allocation.
+- VP8 boolean entropy values and fixed-width literals have bounded,
+  deterministic decoding primitives plus a dedicated fuzz target.
+- VP8 `read_info` works for unextended still-image containers; VP8 `decode`
+  explicitly reports that pixel decoding is pending.
 
-Run the M0 test suite with:
+Run the workspace test suite with:
 
 ```sh
 cargo test --workspace
