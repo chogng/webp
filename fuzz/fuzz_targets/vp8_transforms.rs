@@ -3,8 +3,9 @@
 
 use libfuzzer_sys::fuzz_target;
 use webp_vp8::{
-    MacroblockPixels, MacroblockSpatialResidues, combine_macroblock_prediction, inverse_dct_4x4,
-    inverse_dct_4x4_i32, inverse_wht_4x4, inverse_wht_4x4_i32,
+    Intra4Mode, MacroblockPixels, MacroblockSpatialResidues, combine_macroblock_prediction,
+    inverse_dct_4x4, inverse_dct_4x4_i32, inverse_wht_4x4, inverse_wht_4x4_i32,
+    predict_intra4_block,
 };
 
 fuzz_target!(|input: &[u8]| {
@@ -31,4 +32,20 @@ fuzz_target!(|input: &[u8]| {
             v: [residue; 4],
         },
     );
+    let top = std::array::from_fn(|index| input.get(index).copied().unwrap_or(128));
+    let left = std::array::from_fn(|index| input.get(8 + index).copied().unwrap_or(128));
+    for mode in [
+        Intra4Mode::Dc,
+        Intra4Mode::TrueMotion,
+        Intra4Mode::Vertical,
+        Intra4Mode::Horizontal,
+        Intra4Mode::DiagonalDownRight,
+        Intra4Mode::VerticalRight,
+        Intra4Mode::DiagonalDownLeft,
+        Intra4Mode::VerticalLeft,
+        Intra4Mode::HorizontalDown,
+        Intra4Mode::HorizontalUp,
+    ] {
+        let _ = predict_intra4_block(mode, input.get(12).copied().unwrap_or(128), top, left);
+    }
 });

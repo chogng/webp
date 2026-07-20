@@ -1087,6 +1087,215 @@ fn required_edge<const SIZE: usize>(
     edge.ok_or_else(|| DecodeError::at(DecodeErrorKind::InvalidBitstream, 0, message))
 }
 
+/// Predicts one VP8 B_PRED luma 4×4 block from its already-reconstructed
+/// neighbours. `top` supplies the four direct and four top-right samples.
+#[must_use]
+pub fn predict_intra4_block(
+    mode: Intra4Mode,
+    top_left: u8,
+    top: [u8; 8],
+    left: [u8; 4],
+) -> [u8; 16] {
+    let mut out = [0_u8; 16];
+    let set = |out: &mut [u8; 16], x: usize, y: usize, value: u8| out[y * 4 + x] = value;
+    let a2 = |a: u8, b: u8| ((u16::from(a) + u16::from(b) + 1) >> 1) as u8;
+    let a3 =
+        |a: u8, b: u8, c: u8| ((u16::from(a) + 2 * u16::from(b) + u16::from(c) + 2) >> 2) as u8;
+    match mode {
+        Intra4Mode::Dc => {
+            let value = (top[..4]
+                .iter()
+                .chain(left.iter())
+                .map(|&value| u16::from(value))
+                .sum::<u16>()
+                + 4)
+                >> 3;
+            out.fill(value as u8);
+        }
+        Intra4Mode::TrueMotion => {
+            for (y, &left_value) in left.iter().enumerate() {
+                for (x, &top_value) in top[..4].iter().enumerate() {
+                    set(
+                        &mut out,
+                        x,
+                        y,
+                        (i32::from(left_value) + i32::from(top_value) - i32::from(top_left))
+                            .clamp(0, 255) as u8,
+                    );
+                }
+            }
+        }
+        Intra4Mode::Vertical => {
+            let row = [
+                a3(top_left, top[0], top[1]),
+                a3(top[0], top[1], top[2]),
+                a3(top[1], top[2], top[3]),
+                a3(top[2], top[3], top[4]),
+            ];
+            for y in 0..4 {
+                out[y * 4..y * 4 + 4].copy_from_slice(&row);
+            }
+        }
+        Intra4Mode::Horizontal => {
+            let rows = [
+                a3(top_left, left[0], left[1]),
+                a3(left[0], left[1], left[2]),
+                a3(left[1], left[2], left[3]),
+                a3(left[2], left[3], left[3]),
+            ];
+            for (y, value) in rows.into_iter().enumerate() {
+                out[y * 4..y * 4 + 4].fill(value);
+            }
+        }
+        Intra4Mode::DiagonalDownRight => {
+            set(&mut out, 0, 3, a3(left[1], left[2], left[3]));
+            for (x, y) in [(1, 3), (0, 2)] {
+                set(&mut out, x, y, a3(left[0], left[1], left[2]));
+            }
+            for (x, y) in [(2, 3), (1, 2), (0, 1)] {
+                set(&mut out, x, y, a3(top_left, left[0], left[1]));
+            }
+            for (x, y) in [(3, 3), (2, 2), (1, 1), (0, 0)] {
+                set(&mut out, x, y, a3(top[0], top_left, left[0]));
+            }
+            for (x, y) in [(3, 2), (2, 1), (1, 0)] {
+                set(&mut out, x, y, a3(top[1], top[0], top_left));
+            }
+            for (x, y) in [(3, 1), (2, 0)] {
+                set(&mut out, x, y, a3(top[2], top[1], top[0]));
+            }
+            set(&mut out, 3, 0, a3(top[3], top[2], top[1]));
+        }
+        Intra4Mode::DiagonalDownLeft => {
+            set(&mut out, 0, 0, a3(top[0], top[1], top[2]));
+            for (x, y) in [(1, 0), (0, 1)] {
+                set(&mut out, x, y, a3(top[1], top[2], top[3]));
+            }
+            for (x, y) in [(2, 0), (1, 1), (0, 2)] {
+                set(&mut out, x, y, a3(top[2], top[3], top[4]));
+            }
+            for (x, y) in [(3, 0), (2, 1), (1, 2), (0, 3)] {
+                set(&mut out, x, y, a3(top[3], top[4], top[5]));
+            }
+            for (x, y) in [(3, 1), (2, 2), (1, 3)] {
+                set(&mut out, x, y, a3(top[4], top[5], top[6]));
+            }
+            for (x, y) in [(3, 2), (2, 3)] {
+                set(&mut out, x, y, a3(top[5], top[6], top[7]));
+            }
+            set(&mut out, 3, 3, a3(top[6], top[7], top[7]));
+        }
+        Intra4Mode::VerticalRight => {
+            for (x, value) in [
+                a2(top_left, top[0]),
+                a2(top[0], top[1]),
+                a2(top[1], top[2]),
+                a2(top[2], top[3]),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                set(&mut out, x, 0, value);
+            }
+            set(&mut out, 0, 3, a3(left[2], left[1], left[0]));
+            set(&mut out, 0, 2, a3(left[1], left[0], top_left));
+            for (x, y) in [(0, 1), (1, 3)] {
+                set(&mut out, x, y, a3(left[0], top_left, top[0]));
+            }
+            for (x, y) in [(1, 1), (2, 3)] {
+                set(&mut out, x, y, a3(top_left, top[0], top[1]));
+            }
+            for (x, y) in [(2, 1), (3, 3)] {
+                set(&mut out, x, y, a3(top[0], top[1], top[2]));
+            }
+            set(&mut out, 3, 1, a3(top[1], top[2], top[3]));
+            for (x, y, value) in [
+                (1, 2, a2(top_left, top[0])),
+                (2, 2, a2(top[0], top[1])),
+                (3, 2, a2(top[1], top[2])),
+            ] {
+                set(&mut out, x, y, value);
+            }
+        }
+        Intra4Mode::VerticalLeft => {
+            for (x, value) in [
+                a2(top[0], top[1]),
+                a2(top[1], top[2]),
+                a2(top[2], top[3]),
+                a2(top[3], top[4]),
+            ]
+            .into_iter()
+            .enumerate()
+            {
+                set(&mut out, x, 0, value);
+            }
+            for (x, y, value) in [
+                (0, 2, a2(top[1], top[2])),
+                (1, 2, a2(top[2], top[3])),
+                (2, 2, a2(top[3], top[4])),
+            ] {
+                set(&mut out, x, y, value);
+            }
+            set(&mut out, 0, 1, a3(top[0], top[1], top[2]));
+            for (x, y) in [(1, 1), (0, 3)] {
+                set(&mut out, x, y, a3(top[1], top[2], top[3]));
+            }
+            for (x, y) in [(2, 1), (1, 3)] {
+                set(&mut out, x, y, a3(top[2], top[3], top[4]));
+            }
+            for (x, y) in [(3, 1), (2, 3)] {
+                set(&mut out, x, y, a3(top[3], top[4], top[5]));
+            }
+            set(&mut out, 3, 2, a3(top[4], top[5], top[6]));
+            set(&mut out, 3, 3, a3(top[5], top[6], top[7]));
+        }
+        Intra4Mode::HorizontalUp => {
+            set(&mut out, 0, 0, a2(left[0], left[1]));
+            for (x, y) in [(2, 0), (0, 1)] {
+                set(&mut out, x, y, a2(left[1], left[2]));
+            }
+            for (x, y) in [(2, 1), (0, 2)] {
+                set(&mut out, x, y, a2(left[2], left[3]));
+            }
+            set(&mut out, 1, 0, a3(left[0], left[1], left[2]));
+            for (x, y) in [(3, 0), (1, 1)] {
+                set(&mut out, x, y, a3(left[1], left[2], left[3]));
+            }
+            for (x, y) in [(3, 1), (1, 2)] {
+                set(&mut out, x, y, a3(left[2], left[3], left[3]));
+            }
+            for (x, y) in [(3, 2), (2, 2), (0, 3), (1, 3), (2, 3), (3, 3)] {
+                set(&mut out, x, y, left[3]);
+            }
+        }
+        Intra4Mode::HorizontalDown => {
+            for (x, y) in [(0, 0), (2, 1)] {
+                set(&mut out, x, y, a2(left[0], top_left));
+            }
+            for (x, y) in [(0, 1), (2, 2)] {
+                set(&mut out, x, y, a2(left[1], left[0]));
+            }
+            for (x, y) in [(0, 2), (2, 3)] {
+                set(&mut out, x, y, a2(left[2], left[1]));
+            }
+            set(&mut out, 0, 3, a2(left[3], left[2]));
+            set(&mut out, 3, 0, a3(top[0], top[1], top[2]));
+            set(&mut out, 2, 0, a3(top_left, top[0], top[1]));
+            for (x, y) in [(1, 0), (3, 1)] {
+                set(&mut out, x, y, a3(left[0], top_left, top[0]));
+            }
+            for (x, y) in [(1, 1), (3, 2)] {
+                set(&mut out, x, y, a3(left[1], left[0], top_left));
+            }
+            for (x, y) in [(1, 2), (3, 3)] {
+                set(&mut out, x, y, a3(left[2], left[1], left[0]));
+            }
+            set(&mut out, 1, 3, a3(left[3], left[2], left[1]));
+        }
+    }
+    out
+}
+
 fn combine_plane_blocks<const PIXELS: usize, const BLOCKS: usize>(
     plane: &mut [u8; PIXELS],
     stride: usize,
@@ -2248,6 +2457,45 @@ mod tests {
             .kind(),
             DecodeErrorKind::InvalidBitstream
         );
+    }
+
+    #[test]
+    fn intra4_prediction_covers_all_vp8_directional_modes() {
+        let top = [10, 20, 30, 40, 50, 60, 70, 80];
+        let left = [50, 60, 70, 80];
+        let dc = predict_intra4_block(Intra4Mode::Dc, 5, top, left);
+        assert_eq!(dc, [45; 16]);
+        let true_motion = predict_intra4_block(Intra4Mode::TrueMotion, 5, top, left);
+        assert_eq!(true_motion[0], 55);
+        assert_eq!(true_motion[15], 115);
+        assert_eq!(
+            predict_intra4_block(Intra4Mode::Vertical, 5, top, left),
+            [
+                11, 20, 30, 40, 11, 20, 30, 40, 11, 20, 30, 40, 11, 20, 30, 40
+            ]
+        );
+        assert_eq!(
+            predict_intra4_block(Intra4Mode::Horizontal, 5, top, left),
+            [
+                41, 41, 41, 41, 60, 60, 60, 60, 70, 70, 70, 70, 78, 78, 78, 78
+            ]
+        );
+        for mode in [
+            Intra4Mode::DiagonalDownRight,
+            Intra4Mode::VerticalRight,
+            Intra4Mode::DiagonalDownLeft,
+            Intra4Mode::VerticalLeft,
+            Intra4Mode::HorizontalDown,
+            Intra4Mode::HorizontalUp,
+        ] {
+            let prediction = predict_intra4_block(mode, 5, top, left);
+            assert_ne!(prediction, [128; 16], "{mode:?}");
+        }
+        let diagonal_left = predict_intra4_block(Intra4Mode::DiagonalDownLeft, 5, top, left);
+        assert_eq!(diagonal_left[0], 20);
+        assert_eq!(diagonal_left[15], 78);
+        let horizontal_up = predict_intra4_block(Intra4Mode::HorizontalUp, 5, top, left);
+        assert_eq!(horizontal_up[12..], [80; 4]);
     }
 
     #[test]
