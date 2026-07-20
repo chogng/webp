@@ -1,0 +1,78 @@
+# libwebp-test-data smoke selection, pinned by tools/corpus-lock.toml.
+# This list is intentionally a feature sample, not a quality benchmark.
+
+# Degenerate dimensions
+small_1x1.webp
+small_1x13.webp
+small_13x1.webp
+small_31x13.webp
+
+# ALPH filtering/compression, color cache, and no-compression paths
+alpha_filter_0_method_0.webp
+alpha_filter_0_method_1.webp
+alpha_filter_1_method_0.webp
+alpha_filter_1_method_1.webp
+alpha_filter_2_method_0.webp
+alpha_filter_2_method_1.webp
+alpha_filter_3_method_0.webp
+alpha_filter_3_method_1.webp
+alpha_color_cache.webp
+alpha_no_compression.webp
+
+# All sixteen lossless transform combinations, with and without alpha
+lossless_vec_1_0.webp
+lossless_vec_1_1.webp
+lossless_vec_1_2.webp
+lossless_vec_1_3.webp
+lossless_vec_1_4.webp
+lossless_vec_1_5.webp
+lossless_vec_1_6.webp
+lossless_vec_1_7.webp
+lossless_vec_1_8.webp
+lossless_vec_1_9.webp
+lossless_vec_1_10.webp
+lossless_vec_1_11.webp
+lossless_vec_1_12.webp
+lossless_vec_1_13.webp
+lossless_vec_1_14.webp
+lossless_vec_1_15.webp
+lossless_vec_2_0.webp
+lossless_vec_2_1.webp
+lossless_vec_2_2.webp
+lossless_vec_2_3.webp
+lossless_vec_2_4.webp
+lossless_vec_2_5.webp
+lossless_vec_2_6.webp
+lossless_vec_2_7.webp
+lossless_vec_2_8.webp
+lossless_vec_2_9.webp
+lossless_vec_2_10.webp
+lossless_vec_2_11.webp
+lossless_vec_2_12.webp
+lossless_vec_2_13.webp
+lossless_vec_2_14.webp
+lossless_vec_2_15.webp
+
+# Dedicated lossless implementation paths
+color_cache_bits_11.webp
+dual_transform.webp
+one_color_no_palette.webp
+lossless_color_transform.webp
+lossless_big_random_alpha.webp
+
+# Known malformed/historical inputs
+bad_palette_index.webp
+big_endian_bug_393.webp
+very_short.webp
+
+# VP8 feature sampling
+vp80-00-comprehensive-001.webp
+vp80-00-comprehensive-004.webp
+vp80-00-comprehensive-007.webp
+vp80-00-comprehensive-010.webp
+vp80-00-comprehensive-013.webp
+vp80-00-comprehensive-017.webp
+vp80-03-segmentation-1401.webp
+vp80-03-segmentation-1442.webp
+vp80-04-partitions-1404.webp
+vp80-05-sharpness-1443.webp

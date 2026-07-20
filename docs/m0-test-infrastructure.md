@@ -58,5 +58,16 @@ The script rejects an existing checkout with a different `origin` and confirms
 that its detached `HEAD` is the `libwebp_test_data.commit` in
 `tools/corpus-lock.toml`.
 
+The 64-file feature smoke selection is versioned separately from the downloaded
+binary corpus. Validate its completeness after fetching with:
+
+```text
+tools/verify-upstream-smoke.sh
+```
+
+It is the candidate PR vector list once the public decoder can accept valid
+VP8L and VP8 inputs; until then it remains a verified external corpus rather
+than a falsely passing decode test.
+
 The first decoder integration test should run the smoke manifest and call each
 selected public API (`read_info`, one-shot decode, and incremental finish).
