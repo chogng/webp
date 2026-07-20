@@ -8,6 +8,282 @@
 
 use webp_core::{BitReader, DecodeError, DecodeErrorKind, DecodeLimits, checked_chunk_end};
 
+/// The four reversible transforms defined by the VP8L lossless bitstream.
+///
+/// A transform may occur at most once in a main-level image.  The values are
+/// the two-bit wire values from the specification.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u8)]
+pub enum TransformType {
+    Predictor = 0,
+    Color = 1,
+    SubtractGreen = 2,
+    ColorIndexing = 3,
+}
+
+impl TryFrom<u8> for TransformType {
+    type Error = DecodeError;
+
+    fn try_from(value: u8) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(Self::Predictor),
+            1 => Ok(Self::Color),
+            2 => Ok(Self::SubtractGreen),
+            3 => Ok(Self::ColorIndexing),
+            _ => Err(DecodeError::new(
+                DecodeErrorKind::InvalidBitstream,
+                None,
+                "invalid VP8L transform type",
+            )),
+        }
+    }
+}
+
+/// The dimensions of a predictor or color-transform subimage.
+///
+/// The subimage has one pixel per square block of the main-level coded image.
+/// `block_size_bits` is the exponent after VP8L's mandatory `+ 2` adjustment.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct BlockTransformDescriptor {
+    /// Coded dimensions immediately before this transform is read.
+    pub image_width: u32,
+    pub image_height: u32,
+    /// `ReadBits(3) + 2`, hence always in `2..=9`.
+    pub block_size_bits: u8,
+    /// Width of the transform subimage, rounded up by block size.
+    pub transform_width: u32,
+    /// Height of the transform subimage, rounded up by block size.
+    pub transform_height: u32,
+}
+
+impl BlockTransformDescriptor {
+    /// Width and height of one square transform block in source pixels.
+    #[must_use]
+    pub const fn block_size(self) -> u32 {
+        1 << self.block_size_bits
+    }
+}
+
+/// Metadata needed to decode and invert a VP8L color-indexing transform.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct ColorIndexingDescriptor {
+    /// Coded width before palette-index packing is applied.
+    pub image_width_before: u32,
+    /// Coded height, which palette indexing never changes.
+    pub image_height: u32,
+    /// Number of ARGB entries in the separate, one-row color-table image.
+    pub color_table_size: u16,
+    /// `0..=3`: the number of width bits removed by palette index packing.
+    pub width_bits: u8,
+    /// Coded width after `ceil(image_width_before / 2^width_bits)`.
+    pub image_width_after: u32,
+}
+
+impl ColorIndexingDescriptor {
+    /// Width of the color-table subimage.
+    #[must_use]
+    pub const fn color_table_width(self) -> u32 {
+        self.color_table_size as u32
+    }
+
+    /// The color table is always a single row.
+    #[must_use]
+    pub const fn color_table_height(self) -> u32 {
+        1
+    }
+}
+
+/// One VP8L transform descriptor, in the order in which it appeared on wire.
+///
+/// Inverse transforms must be applied by the caller in reverse order.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum TransformDescriptor {
+    Predictor(BlockTransformDescriptor),
+    Color(BlockTransformDescriptor),
+    SubtractGreen,
+    ColorIndexing(ColorIndexingDescriptor),
+}
+
+impl TransformDescriptor {
+    /// The transform's two-bit VP8L type.
+    #[must_use]
+    pub const fn transform_type(self) -> TransformType {
+        match self {
+            Self::Predictor(_) => TransformType::Predictor,
+            Self::Color(_) => TransformType::Color,
+            Self::SubtractGreen => TransformType::SubtractGreen,
+            Self::ColorIndexing(_) => TransformType::ColorIndexing,
+        }
+    }
+}
+
+/// Stateful parser for VP8L's transform list.
+///
+/// Predictor, color, and color-indexing descriptors are followed by an image
+/// encoded with VP8L image coding.  Those subimages have no transform-list
+/// terminator of their own, so a caller must decode the subimage immediately
+/// after [`Self::read_next`] returns its descriptor and only then call this
+/// method again.  This stateful API prevents a descriptor parser from trying
+/// to guess where entropy-coded data ends.
+#[derive(Clone, Debug)]
+pub struct TransformListParser {
+    image_width: u32,
+    image_height: u32,
+    seen_types: u8,
+    finished: bool,
+}
+
+impl TransformListParser {
+    /// Starts parsing a main-level VP8L transform list.
+    ///
+    /// The supplied dimensions are checked before any nested transform image
+    /// may be decoded.  They normally come directly from [`Vp8lHeader`].
+    pub fn new(
+        image_width: u32,
+        image_height: u32,
+        limits: &DecodeLimits,
+    ) -> Result<Self, DecodeError> {
+        if image_width == 0 || image_height == 0 {
+            return Err(DecodeError::new(
+                DecodeErrorKind::InvalidParameter,
+                None,
+                "VP8L transform list requires nonzero image dimensions",
+            ));
+        }
+        limits.check_image(image_width, image_height)?;
+        Ok(Self {
+            image_width,
+            image_height,
+            seen_types: 0,
+            finished: false,
+        })
+    }
+
+    /// Current coded dimensions, after all previously read descriptors.
+    #[must_use]
+    pub const fn image_dimensions(&self) -> (u32, u32) {
+        (self.image_width, self.image_height)
+    }
+
+    /// Reads the next transform descriptor or the list's terminating zero bit.
+    ///
+    /// A second call after the terminator is an invalid parser use rather than
+    /// an attempt to consume unrelated entropy data.
+    pub fn read_next(
+        &mut self,
+        bits: &mut BitReader<'_>,
+        limits: &DecodeLimits,
+    ) -> Result<Option<TransformDescriptor>, DecodeError> {
+        if self.finished {
+            return Err(DecodeError::at(
+                DecodeErrorKind::InvalidParameter,
+                bits.bit_position() / 8,
+                "VP8L transform list has already ended",
+            ));
+        }
+
+        if !bits.read_bit()? {
+            self.finished = true;
+            return Ok(None);
+        }
+
+        let type_offset = bits.bit_position() / 8;
+        let transform_type = TransformType::try_from(bits.read_bits(2)? as u8).map_err(|_| {
+            DecodeError::at(
+                DecodeErrorKind::InvalidBitstream,
+                type_offset,
+                "invalid VP8L transform type",
+            )
+        })?;
+        let type_bit = 1_u8 << (transform_type as u8);
+        if self.seen_types & type_bit != 0 {
+            return Err(DecodeError::at(
+                DecodeErrorKind::InvalidBitstream,
+                type_offset,
+                "duplicate VP8L transform type",
+            ));
+        }
+        self.seen_types |= type_bit;
+
+        let descriptor = match transform_type {
+            TransformType::Predictor => {
+                TransformDescriptor::Predictor(self.read_block_descriptor(bits, limits)?)
+            }
+            TransformType::Color => {
+                TransformDescriptor::Color(self.read_block_descriptor(bits, limits)?)
+            }
+            TransformType::SubtractGreen => TransformDescriptor::SubtractGreen,
+            TransformType::ColorIndexing => TransformDescriptor::ColorIndexing(
+                self.read_color_indexing_descriptor(bits, limits)?,
+            ),
+        };
+        Ok(Some(descriptor))
+    }
+
+    fn read_block_descriptor(
+        &self,
+        bits: &mut BitReader<'_>,
+        limits: &DecodeLimits,
+    ) -> Result<BlockTransformDescriptor, DecodeError> {
+        let block_size_bits = bits.read_bits(3)? as u8 + 2;
+        let block_size = 1_u32 << block_size_bits;
+        let transform_width = div_round_up(self.image_width, block_size);
+        let transform_height = div_round_up(self.image_height, block_size);
+        limits.check_image(transform_width, transform_height)?;
+        Ok(BlockTransformDescriptor {
+            image_width: self.image_width,
+            image_height: self.image_height,
+            block_size_bits,
+            transform_width,
+            transform_height,
+        })
+    }
+
+    fn read_color_indexing_descriptor(
+        &mut self,
+        bits: &mut BitReader<'_>,
+        limits: &DecodeLimits,
+    ) -> Result<ColorIndexingDescriptor, DecodeError> {
+        let color_table_size = bits.read_bits(8)? as u16 + 1;
+        let width_bits = color_index_width_bits(color_table_size);
+        // The palette itself is a separately coded 1-row subimage.  Check it
+        // here so a restrictive caller limit rejects before its future decode
+        // can reserve a pixel buffer.
+        limits.check_image(u32::from(color_table_size), 1)?;
+        let image_width_before = self.image_width;
+        let image_width_after = div_round_up(image_width_before, 1 << width_bits);
+        self.image_width = image_width_after;
+        Ok(ColorIndexingDescriptor {
+            image_width_before,
+            image_height: self.image_height,
+            color_table_size,
+            width_bits,
+            image_width_after,
+        })
+    }
+}
+
+/// Returns VP8L's width-subsampling exponent for a color table size.
+#[must_use]
+pub const fn color_index_width_bits(color_table_size: u16) -> u8 {
+    match color_table_size {
+        1..=2 => 3,
+        3..=4 => 2,
+        5..=16 => 1,
+        _ => 0,
+    }
+}
+
+/// Computes `ceil(value / divisor)` without an addition that can overflow.
+const fn div_round_up(value: u32, divisor: u32) -> u32 {
+    let quotient = value / divisor;
+    if value % divisor == 0 {
+        quotient
+    } else {
+        quotient + 1
+    }
+}
+
 /// The byte value at the beginning of every VP8L bitstream.
 pub const SIGNATURE: u8 = 0x2f;
 
@@ -299,5 +575,162 @@ mod tests {
                 .kind(),
             DecodeErrorKind::InvalidContainer
         );
+    }
+
+    fn transform_parser(width: u32, height: u32) -> TransformListParser {
+        TransformListParser::new(width, height, &limits()).unwrap()
+    }
+
+    #[test]
+    fn transform_descriptors_round_up_their_subimages() {
+        let mut writer = BitWriter::new();
+        writer.write_bits(1, 1).unwrap(); // transform present
+        writer.write_bits(0, 2).unwrap(); // predictor
+        writer.write_bits(3, 3).unwrap(); // block_size_bits = 5 (32 pixels)
+        writer.write_bits(0, 1).unwrap(); // transform list terminator
+
+        let mut bits = BitReader::new(writer.as_bytes());
+        let mut parser = transform_parser(33, 65);
+        let descriptor = parser.read_next(&mut bits, &limits()).unwrap().unwrap();
+        assert_eq!(
+            descriptor,
+            TransformDescriptor::Predictor(BlockTransformDescriptor {
+                image_width: 33,
+                image_height: 65,
+                block_size_bits: 5,
+                transform_width: 2,
+                transform_height: 3,
+            })
+        );
+        assert_eq!(parser.read_next(&mut bits, &limits()).unwrap(), None);
+        assert_eq!(parser.image_dimensions(), (33, 65));
+    }
+
+    #[test]
+    fn palette_packing_changes_dimensions_for_later_descriptors() {
+        let mut writer = BitWriter::new();
+        writer.write_bits(1, 1).unwrap(); // transform present
+        writer.write_bits(3, 2).unwrap(); // color indexing
+        writer.write_bits(1, 8).unwrap(); // color_table_size = 2, width_bits = 3
+        writer.write_bits(1, 1).unwrap(); // transform present
+        writer.write_bits(1, 2).unwrap(); // color transform
+        writer.write_bits(0, 3).unwrap(); // block_size_bits = 2 (4 pixels)
+        writer.write_bits(0, 1).unwrap(); // transform list terminator
+
+        let mut bits = BitReader::new(writer.as_bytes());
+        let mut parser = transform_parser(17, 9);
+        assert_eq!(
+            parser.read_next(&mut bits, &limits()).unwrap(),
+            Some(TransformDescriptor::ColorIndexing(
+                ColorIndexingDescriptor {
+                    image_width_before: 17,
+                    image_height: 9,
+                    color_table_size: 2,
+                    width_bits: 3,
+                    image_width_after: 3,
+                }
+            ))
+        );
+        assert_eq!(parser.image_dimensions(), (3, 9));
+        assert_eq!(
+            parser.read_next(&mut bits, &limits()).unwrap(),
+            Some(TransformDescriptor::Color(BlockTransformDescriptor {
+                image_width: 3,
+                image_height: 9,
+                block_size_bits: 2,
+                transform_width: 1,
+                transform_height: 3,
+            }))
+        );
+        assert_eq!(parser.read_next(&mut bits, &limits()).unwrap(), None);
+    }
+
+    #[test]
+    fn each_transform_type_can_only_appear_once() {
+        let mut writer = BitWriter::new();
+        writer.write_bits(1, 1).unwrap(); // transform present
+        writer.write_bits(2, 2).unwrap(); // subtract green
+        writer.write_bits(1, 1).unwrap(); // transform present
+        writer.write_bits(2, 2).unwrap(); // duplicate subtract green
+
+        let mut bits = BitReader::new(writer.as_bytes());
+        let mut parser = transform_parser(1, 1);
+        assert_eq!(
+            parser.read_next(&mut bits, &limits()).unwrap(),
+            Some(TransformDescriptor::SubtractGreen)
+        );
+        let error = parser.read_next(&mut bits, &limits()).unwrap_err();
+        assert_eq!(error.kind(), DecodeErrorKind::InvalidBitstream);
+    }
+
+    #[test]
+    fn descriptor_truncation_reports_eof_without_advancing_past_input() {
+        let mut parser = transform_parser(1, 1);
+        let mut empty = BitReader::new(&[]);
+        assert_eq!(
+            parser.read_next(&mut empty, &limits()).unwrap_err().kind(),
+            DecodeErrorKind::UnexpectedEof
+        );
+
+        // The present flag and transform type fit in this byte, but a color
+        // table descriptor must then read eight more bits.
+        let mut truncated_color_table = BitReader::new(&[0b0000_0111]);
+        let mut parser = transform_parser(1, 1);
+        assert_eq!(
+            parser
+                .read_next(&mut truncated_color_table, &limits())
+                .unwrap_err()
+                .kind(),
+            DecodeErrorKind::UnexpectedEof
+        );
+    }
+
+    #[test]
+    fn palette_dimensions_and_main_dimensions_honor_limits() {
+        let constrained = DecodeLimits {
+            max_width: 16,
+            max_height: 16,
+            max_pixels: 256,
+            ..DecodeLimits::default()
+        };
+        assert_eq!(
+            TransformListParser::new(17, 1, &constrained)
+                .unwrap_err()
+                .kind(),
+            DecodeErrorKind::LimitExceeded
+        );
+
+        let mut writer = BitWriter::new();
+        writer.write_bits(1, 1).unwrap(); // transform present
+        writer.write_bits(3, 2).unwrap(); // color indexing
+        writer.write_bits(255, 8).unwrap(); // color_table_size = 256
+        let mut bits = BitReader::new(writer.as_bytes());
+        let mut parser = TransformListParser::new(1, 1, &constrained).unwrap();
+        assert_eq!(
+            parser
+                .read_next(&mut bits, &constrained)
+                .unwrap_err()
+                .kind(),
+            DecodeErrorKind::LimitExceeded
+        );
+
+        assert_eq!(
+            TransformListParser::new(0, 1, &limits())
+                .unwrap_err()
+                .kind(),
+            DecodeErrorKind::InvalidParameter
+        );
+    }
+
+    #[test]
+    fn palette_width_bits_follow_all_spec_ranges() {
+        assert_eq!(color_index_width_bits(1), 3);
+        assert_eq!(color_index_width_bits(2), 3);
+        assert_eq!(color_index_width_bits(3), 2);
+        assert_eq!(color_index_width_bits(4), 2);
+        assert_eq!(color_index_width_bits(5), 1);
+        assert_eq!(color_index_width_bits(16), 1);
+        assert_eq!(color_index_width_bits(17), 0);
+        assert_eq!(color_index_width_bits(256), 0);
     }
 }
