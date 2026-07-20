@@ -19,6 +19,25 @@ pub const CODE_LENGTH_CODE_ORDER: [usize; 19] = [
 
 const CODE_LENGTH_ALPHABET_SIZE: usize = CODE_LENGTH_CODE_ORDER.len();
 
+/// Reads a complete VP8L Huffman code header and builds its decoder table.
+///
+/// Each code begins with `simple_code_flag`.  A set flag selects the compact
+/// simple representation; a clear flag selects the normal code-length
+/// representation.  The flag is read before dispatching so a truncated header
+/// is always reported as [`DecodeErrorKind::UnexpectedEof`], rather than being
+/// mistaken for either representation.
+pub fn read_huffman_code(
+    bits: &mut BitReader<'_>,
+    alphabet_size: usize,
+) -> Result<HuffmanTable, DecodeError> {
+    if bits.read_bit()? {
+        read_simple_code(bits, alphabet_size)
+    } else {
+        let lengths = read_normal_code_lengths(bits, alphabet_size)?;
+        HuffmanTable::from_code_lengths(&lengths)
+    }
+}
+
 /// Reads a simple VP8L Huffman code and builds its decoder table.
 ///
 /// The enclosing Huffman-code parser must consume `simple_code_flag` before
@@ -683,6 +702,70 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn huffman_code_selects_the_simple_representation() {
+        let mut stream = BitWriter::new();
+        stream.write_bits(1, 1).unwrap(); // simple_code_flag
+        stream.write_bits(0, 1).unwrap(); // one symbol
+        stream.write_bits(0, 1).unwrap(); // first symbol uses one bit
+        stream.write_bits(1, 1).unwrap(); // symbol one
+
+        let mut input = BitReader::new(stream.as_bytes());
+        let table = read_huffman_code(&mut input, 2).unwrap();
+        assert_eq!(table.symbol_count(), 1);
+        assert_eq!(table.decode(&mut input), Ok(1));
+        assert_eq!(input.bit_position(), stream.bit_len());
+    }
+
+    #[test]
+    fn huffman_code_selects_the_normal_representation() {
+        let lengths = [1, 1];
+        let mut stream = BitWriter::new();
+        stream.write_bits(0, 1).unwrap(); // simple_code_flag
+        write_normal_header(&mut stream, true);
+        write_code_length_symbol(&mut stream, true, 1);
+        write_code_length_symbol(&mut stream, true, 1);
+        let (code, width) = wire_code(&lengths, 1);
+        stream.write_bits(code, width).unwrap();
+
+        let mut input = BitReader::new(stream.as_bytes());
+        let table = read_huffman_code(&mut input, lengths.len()).unwrap();
+        assert_eq!(table.symbol_count(), lengths.len());
+        assert_eq!(table.decode(&mut input), Ok(1));
+        assert_eq!(input.bit_position(), stream.bit_len());
+    }
+
+    #[test]
+    fn huffman_code_requires_a_complete_simple_code_flag() {
+        let error = read_huffman_code(&mut BitReader::new(&[]), 2).unwrap_err();
+        assert_eq!(error.kind(), DecodeErrorKind::UnexpectedEof);
+
+        // Position the reader so exactly one flag bit is available.  Its set
+        // value dispatches to the simple parser, which must then report the
+        // missing representation rather than silently accepting the flag.
+        let mut flag = BitWriter::new();
+        flag.write_bits(1, 1).unwrap();
+        let (prefix, start) = simple_prefix(&flag, 1);
+        let mut input = BitReader::with_bit_position(&prefix, start).unwrap();
+        let error = read_huffman_code(&mut input, 2).unwrap_err();
+        assert_eq!(error.kind(), DecodeErrorKind::UnexpectedEof);
+        assert_eq!(input.bit_position(), start + 1);
+    }
+
+    #[test]
+    fn huffman_code_preserves_normal_header_errors() {
+        let mut stream = BitWriter::new();
+        stream.write_bits(0, 1).unwrap(); // simple_code_flag
+        stream.write_bits(0, 4).unwrap();
+        for length in [1, 1, 1, 0] {
+            stream.write_bits(length, 3).unwrap();
+        }
+
+        let error = read_huffman_code(&mut BitReader::new(stream.as_bytes()), 1).unwrap_err();
+        assert_eq!(error.kind(), DecodeErrorKind::InvalidBitstream);
+        assert_eq!(error.context(), "VP8L Huffman tree is oversubscribed");
     }
 
     #[test]

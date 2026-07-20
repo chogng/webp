@@ -1,20 +1,16 @@
 [package]
-name = "webp"
+name = "webp-vp8l-literal"
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Public safe-Rust WebP API"
+description = "Bounded literal-only VP8L entropy decoder"
 
 [lints]
 workspace = true
 
 [dependencies]
 webp-core = { path = "../webp-core" }
-webp-container = { path = "../webp-container" }
 webp-vp8l = { path = "../webp-vp8l" }
-webp-vp8l-literal = { path = "../webp-vp8l-literal" }
-
-[dev-dependencies]
-webp-testkit = { path = "../webp-testkit" }
+webp-vp8l-huffman = { path = "../webp-vp8l-huffman" }

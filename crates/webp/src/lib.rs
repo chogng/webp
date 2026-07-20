@@ -1,9 +1,9 @@
 #![forbid(unsafe_code)]
 //! Stable public API for the safe WebP implementation.
 //!
-//! M1 validates VP8L headers and exposes container information. Pixel decoding
-//! will become available only after the entropy and transform stages are wired
-//! together, rather than returning invented pixels from an incomplete codec.
+//! M1 validates VP8L headers and exposes container information. A deliberately
+//! small no-transform, no-cache literal-only VP8L subset can already decode to
+//! canonical RGBA8; all remaining codec features fail explicitly.
 
 pub use webp_core::{CompatibilityProfile, DecodeError, DecodeErrorKind, DecodeLimits};
 
@@ -113,13 +113,44 @@ impl IncrementalDecoder {
     }
 }
 
-/// Parses and validates the container, but M0 does not decode VP8/VP8L pixels.
+/// Decodes the currently supported WebP subset to straight RGBA8.
+///
+/// M1 supports static VP8L images with no transforms, color cache, meta-Huffman
+/// image, or backward references. Other valid WebP features return
+/// `UnsupportedFeature` rather than producing partial pixel output.
+///
+/// # Errors
+///
+/// Returns container-validation, codec, resource-limit, or unsupported-feature
+/// errors. The function never substitutes an incomplete decode result.
 pub fn decode(data: &[u8], options: &DecodeOptions) -> Result<Image, DecodeError> {
-    let _ = webp_container::parse(data, options.compatibility, &options.limits)?;
+    let container = webp_container::parse(data, options.compatibility, &options.limits)?;
+    if let Some(chunk) = container
+        .chunks()
+        .iter()
+        .find(|chunk| chunk.fourcc == webp_container::VP8L)
+    {
+        let decoded = webp_vp8l_literal::decode_literal_only(chunk.payload, &options.limits)?;
+        if let Some(vp8x) = container.vp8x()
+            && (vp8x.canvas_width != decoded.header.width
+                || vp8x.canvas_height != decoded.header.height)
+        {
+            return Err(DecodeError::at(
+                DecodeErrorKind::InvalidContainer,
+                chunk.offset,
+                "VP8X canvas does not match VP8L dimensions",
+            ));
+        }
+        return Ok(Image {
+            width: decoded.header.width,
+            height: decoded.header.height,
+            rgba: decoded.rgba,
+        });
+    }
     Err(DecodeError::at(
         DecodeErrorKind::UnsupportedFeature,
         0,
-        "pixel decoding is not available before M1",
+        "this codec is not implemented by the M1 decoder",
     ))
 }
 
@@ -259,6 +290,45 @@ mod tests {
                 height: 1,
                 has_alpha: false,
                 is_animated: false,
+            }
+        );
+    }
+
+    #[test]
+    fn decode_returns_rgba_for_the_supported_literal_only_vp8l_subset() {
+        // A 1x1 lossless stream with no transforms/cache/meta groups and five
+        // one-symbol Huffman codes. Pixel channels are RGBA = 12,34,56,78.
+        use webp_core::BitWriter;
+
+        let mut writer = BitWriter::new();
+        writer.write_bits(0x2f, 8).unwrap();
+        writer.write_bits(0, 14).unwrap();
+        writer.write_bits(0, 14).unwrap();
+        writer.write_bits(1, 1).unwrap();
+        writer.write_bits(0, 3).unwrap();
+        writer.write_bits(0, 3).unwrap(); // transform/cache/meta flags
+        for channel in [0x34_u8, 0x12, 0x56, 0x78, 0] {
+            writer.write_bits(1, 1).unwrap(); // simple code
+            writer.write_bits(0, 1).unwrap(); // one symbol
+            writer.write_bits(1, 1).unwrap(); // 8-bit symbol id
+            writer.write_bits(u32::from(channel), 8).unwrap();
+        }
+        let payload = writer.into_bytes();
+        let mut body = b"WEBPVP8L".to_vec();
+        body.extend_from_slice(&(payload.len() as u32).to_le_bytes());
+        body.extend_from_slice(&payload);
+        if payload.len() % 2 == 1 {
+            body.push(0);
+        }
+        let mut bytes = b"RIFF".to_vec();
+        bytes.extend_from_slice(&(body.len() as u32).to_le_bytes());
+        bytes.extend_from_slice(&body);
+        assert_eq!(
+            decode(&bytes, &DecodeOptions::default()).unwrap(),
+            Image {
+                width: 1,
+                height: 1,
+                rgba: vec![0x12, 0x34, 0x56, 0x78],
             }
         );
     }
