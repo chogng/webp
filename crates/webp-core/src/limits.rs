@@ -99,6 +99,7 @@ impl WorkBudget {
         self.remaining
     }
 
+    #[inline]
     pub fn consume(&mut self, units: u64) -> Result<(), DecodeError> {
         self.remaining = self.remaining.checked_sub(units).ok_or_else(|| {
             DecodeError::new(

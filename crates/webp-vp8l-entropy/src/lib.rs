@@ -104,13 +104,18 @@ pub fn copy_lz77_pixels(
             "copy length does not fit work counter",
         )
     })?)?;
-    output.try_reserve(length).map_err(|_| {
-        DecodeError::new(
-            DecodeErrorKind::AllocationFailed,
-            None,
-            "LZ77 output allocation failed",
-        )
-    })?;
+    let available_capacity = output.capacity().saturating_sub(output.len());
+    if available_capacity < length {
+        output
+            .try_reserve(length - available_capacity)
+            .map_err(|_| {
+                DecodeError::new(
+                    DecodeErrorKind::AllocationFailed,
+                    None,
+                    "LZ77 output allocation failed",
+                )
+            })?;
+    }
 
     // Copy up to one distance at a time.  A later iteration reads the chunk
     // just appended, which realizes LZ77 overlap without aliasing references.

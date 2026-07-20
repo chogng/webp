@@ -426,6 +426,7 @@ impl HuffmanTable {
     }
 
     /// Decodes a single symbol from a least-significant-bit-first VP8L stream.
+    #[inline]
     pub fn decode(&self, bits: &mut BitReader<'_>) -> Result<usize, DecodeError> {
         if self.max_code_length == 0 {
             // Construction guarantees this is the VP8L single-symbol case.
@@ -464,6 +465,7 @@ impl HuffmanTable {
         Err(invalid("VP8L Huffman code does not exist in table"))
     }
 
+    #[inline]
     fn symbol_for_code(&self, wire_code: u16, length: u8) -> Option<usize> {
         let length = usize::from(length);
         let canonical_code = u32::from(reverse_code(wire_code, length as u8));

@@ -5,6 +5,7 @@ use crate::{DecodeError, DecodeErrorKind};
 pub struct BitReader<'a> {
     data: &'a [u8],
     bit_position: usize,
+    bit_len: usize,
 }
 
 impl<'a> BitReader<'a> {
@@ -13,6 +14,7 @@ impl<'a> BitReader<'a> {
         Self {
             data,
             bit_position: 0,
+            bit_len: data.len().saturating_mul(8),
         }
     }
 
@@ -32,7 +34,11 @@ impl<'a> BitReader<'a> {
                 "initial bit position is past input",
             ));
         }
-        Ok(Self { data, bit_position })
+        Ok(Self {
+            data,
+            bit_position,
+            bit_len: total_bits,
+        })
     }
 
     #[must_use]
@@ -41,13 +47,14 @@ impl<'a> BitReader<'a> {
     }
 
     #[must_use]
+    #[inline]
     pub fn remaining_bits(&self) -> usize {
-        self.data
-            .len()
-            .saturating_mul(8)
-            .saturating_sub(self.bit_position)
+        // Every constructor validates the cursor and the mutating operations
+        // advance it only after their bounds check succeeds.
+        self.bit_len - self.bit_position
     }
 
+    #[inline]
     pub fn read_bit(&mut self) -> Result<bool, DecodeError> {
         Ok(self.read_bits(1)? != 0)
     }
@@ -55,6 +62,7 @@ impl<'a> BitReader<'a> {
     /// Views up to 32 upcoming bits without advancing the cursor.
     ///
     /// As with [`Self::read_bits`], the first bit becomes bit 0 of the result.
+    #[inline]
     pub fn peek_bits(&self, count: u8) -> Result<u32, DecodeError> {
         self.bits_at(self.bit_position, count)
     }
@@ -62,6 +70,7 @@ impl<'a> BitReader<'a> {
     /// Advances over upcoming bits without returning their value.
     ///
     /// On failure the cursor is left unchanged.
+    #[inline]
     pub fn skip_bits(&mut self, count: u8) -> Result<(), DecodeError> {
         self.bit_position = self.end_position(self.bit_position, count)?;
         Ok(())
@@ -69,26 +78,44 @@ impl<'a> BitReader<'a> {
 
     /// Reads up to 32 bits, with the first bit becoming bit 0 of the result.
     /// On failure the cursor is left unchanged.
+    #[inline]
     pub fn read_bits(&mut self, count: u8) -> Result<u32, DecodeError> {
         let value = self.bits_at(self.bit_position, count)?;
         self.bit_position += usize::from(count);
         Ok(value)
     }
 
+    #[inline]
     fn bits_at(&self, position: usize, count: u8) -> Result<u32, DecodeError> {
         let end = self.end_position(position, count)?;
         let count = usize::from(count);
-
-        let mut value = 0_u32;
-        for output_bit in 0..count {
-            let bit_position = position + output_bit;
-            let bit = (self.data[bit_position / 8] >> (bit_position % 8)) & 1;
-            value |= u32::from(bit) << output_bit;
+        if count == 0 {
+            return Ok(0);
         }
-        debug_assert!(position + count == end);
-        Ok(value)
+
+        // A requested 32-bit field can start up to seven bits into a byte, so
+        // it spans at most five bytes. Assemble that small LSB-first window
+        // once instead of visiting every requested bit individually.
+        let byte_start = position / 8;
+        let bit_offset = position % 8;
+        let byte_count = (bit_offset + count).div_ceil(8);
+        let mut window = 0_u64;
+        for (index, &byte) in self.data[byte_start..byte_start + byte_count]
+            .iter()
+            .enumerate()
+        {
+            window |= u64::from(byte) << (index * 8);
+        }
+        let mask = if count == 32 {
+            u64::from(u32::MAX)
+        } else {
+            (1_u64 << count) - 1
+        };
+        debug_assert_eq!(position + count, end);
+        Ok(((window >> bit_offset) & mask) as u32)
     }
 
+    #[inline]
     fn end_position(&self, position: usize, count: u8) -> Result<usize, DecodeError> {
         if count > 32 {
             return Err(DecodeError::new(
@@ -105,8 +132,7 @@ impl<'a> BitReader<'a> {
                 "bit position overflow",
             )
         })?;
-        let total_bits = self.data.len().saturating_mul(8);
-        if end > total_bits {
+        if end > self.bit_len {
             return Err(DecodeError::new(
                 DecodeErrorKind::UnexpectedEof,
                 Some(position / 8),

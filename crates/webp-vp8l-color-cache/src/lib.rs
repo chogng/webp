@@ -129,13 +129,15 @@ impl ColorCacheOutput {
     }
 
     fn emit(&mut self, color: u32) -> Result<(), DecodeError> {
-        self.pixels.try_reserve(1).map_err(|_| {
-            DecodeError::new(
-                DecodeErrorKind::AllocationFailed,
-                None,
-                "VP8L output allocation failed",
-            )
-        })?;
+        if self.pixels.len() == self.pixels.capacity() {
+            self.pixels.try_reserve(1).map_err(|_| {
+                DecodeError::new(
+                    DecodeErrorKind::AllocationFailed,
+                    None,
+                    "VP8L output allocation failed",
+                )
+            })?;
+        }
         self.pixels.push(color);
         self.cache.insert(color);
         Ok(())

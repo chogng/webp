@@ -1503,13 +1503,9 @@ impl PixelOutput {
     fn emit_literal(&mut self, color: u32) -> Result<(), DecodeError> {
         match self {
             Self::Plain(pixels) => {
-                pixels.try_reserve(1).map_err(|_| {
-                    DecodeError::new(
-                        DecodeErrorKind::AllocationFailed,
-                        None,
-                        "packed VP8L output allocation failed",
-                    )
-                })?;
+                // `PixelOutput::new` reserved the complete, already
+                // validated image size. The enclosing entropy loop cannot
+                // emit past that size, so this push never grows the vector.
                 pixels.push(color);
                 Ok(())
             }
