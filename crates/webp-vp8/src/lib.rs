@@ -873,6 +873,17 @@ pub struct MacroblockSpatialResidues {
     pub v: [[i32; 16]; 4],
 }
 
+/// Reconstructed YUV samples for one VP8 16×16 macroblock.
+///
+/// Luma is stored as a 16×16 row-major plane; U and V are 8×8 row-major
+/// planes, following WebP's mandated 4:2:0 sampling.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MacroblockPixels {
+    pub y: [u8; 256],
+    pub u: [u8; 64],
+    pub v: [u8; 64],
+}
+
 /// Applies one segment's VP8 dequantization matrix to a macroblock.
 ///
 /// For a 16×16-predicted luma macroblock, this also inverse-transforms the
@@ -913,6 +924,44 @@ pub fn inverse_transform_macroblock(
         u: coefficients.u.map(inverse_dct_4x4_i32),
         v: coefficients.v.map(inverse_dct_4x4_i32),
     }
+}
+
+/// Adds inverse-transform residues to a predicted macroblock and clips YUV
+/// samples to the valid `0..=255` range.
+#[must_use]
+pub fn combine_macroblock_prediction(
+    mut prediction: MacroblockPixels,
+    residues: MacroblockSpatialResidues,
+) -> MacroblockPixels {
+    combine_plane_blocks(&mut prediction.y, 16, 4, residues.luma);
+    combine_plane_blocks(&mut prediction.u, 8, 2, residues.u);
+    combine_plane_blocks(&mut prediction.v, 8, 2, residues.v);
+    prediction
+}
+
+fn combine_plane_blocks<const PIXELS: usize, const BLOCKS: usize>(
+    plane: &mut [u8; PIXELS],
+    stride: usize,
+    blocks_per_row: usize,
+    blocks: [[i32; 16]; BLOCKS],
+) {
+    for (block_index, block) in blocks.into_iter().enumerate() {
+        let block_x = (block_index % blocks_per_row) * 4;
+        let block_y = (block_index / blocks_per_row) * 4;
+        for row in 0..4 {
+            for column in 0..4 {
+                let destination = (block_y + row) * stride + block_x + column;
+                plane[destination] =
+                    add_residue_and_clip(plane[destination], block[row * 4 + column]);
+            }
+        }
+    }
+}
+
+/// Adds one signed VP8 residue to a prediction sample with saturating clip.
+#[must_use]
+pub fn add_residue_and_clip(prediction: u8, residue: i32) -> u8 {
+    (i32::from(prediction) + residue).clamp(0, 255) as u8
 }
 
 fn dequantize_block(values: [i16; 16], dc: u16, ac: u16) -> [i32; 16] {
@@ -1976,6 +2025,33 @@ mod tests {
         assert_eq!(dequantized.u[0][1], -14);
         let spatial = inverse_transform_macroblock(dequantized);
         assert_eq!(spatial.luma[0], inverse_dct_4x4_i32(dequantized.luma[0]));
+    }
+
+    #[test]
+    fn macroblock_sample_composition_maps_blocks_and_clips_edges() {
+        let mut residues = MacroblockSpatialResidues {
+            luma: [[0; 16]; 16],
+            u: [[0; 16]; 4],
+            v: [[0; 16]; 4],
+        };
+        residues.luma[0][0] = 2;
+        residues.luma[5][6] = -3;
+        residues.u[3][15] = 200;
+        residues.v[0][0] = -200;
+        let pixels = combine_macroblock_prediction(
+            MacroblockPixels {
+                y: [128; 256],
+                u: [128; 64],
+                v: [128; 64],
+            },
+            residues,
+        );
+        assert_eq!(pixels.y[0], 130);
+        assert_eq!(pixels.y[5 * 16 + 6], 125);
+        assert_eq!(pixels.u[7 * 8 + 7], 255);
+        assert_eq!(pixels.v[0], 0);
+        assert_eq!(add_residue_and_clip(0, -1), 0);
+        assert_eq!(add_residue_and_clip(255, 1), 255);
     }
 
     #[test]

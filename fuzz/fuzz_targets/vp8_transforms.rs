@@ -3,7 +3,8 @@
 
 use libfuzzer_sys::fuzz_target;
 use webp_vp8::{
-    inverse_dct_4x4, inverse_dct_4x4_i32, inverse_wht_4x4, inverse_wht_4x4_i32,
+    MacroblockPixels, MacroblockSpatialResidues, combine_macroblock_prediction, inverse_dct_4x4,
+    inverse_dct_4x4_i32, inverse_wht_4x4, inverse_wht_4x4_i32,
 };
 
 fuzz_target!(|input: &[u8]| {
@@ -16,6 +17,18 @@ fuzz_target!(|input: &[u8]| {
     let _ = inverse_dct_4x4(coefficients);
     let _ = inverse_wht_4x4(coefficients);
     let widened = coefficients.map(i32::from);
-    let _ = inverse_dct_4x4_i32(widened);
+    let residue = inverse_dct_4x4_i32(widened);
     let _ = inverse_wht_4x4_i32(widened);
+    let _ = combine_macroblock_prediction(
+        MacroblockPixels {
+            y: [128; 256],
+            u: [128; 64],
+            v: [128; 64],
+        },
+        MacroblockSpatialResidues {
+            luma: [residue; 16],
+            u: [residue; 4],
+            v: [residue; 4],
+        },
+    );
 });
