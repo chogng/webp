@@ -1206,6 +1206,7 @@ mod tests {
         for length in [0_u32, 0, 1, 1] {
             writer.write_bits(length, 3).unwrap();
         }
+        writer.write_bits(0, 1).unwrap(); // use_length = false
         for symbol in 0..alphabet_size {
             writer
                 .write_bits(
@@ -1259,6 +1260,7 @@ mod tests {
         for length in [0_u32, 0, 2, 2, 2, 2] {
             writer.write_bits(length, 3).unwrap();
         }
+        writer.write_bits(0, 1).unwrap(); // use_length = false
         let code_length_lengths = [2_u8; 4];
         for &length in &lengths {
             let (code, width) = wire_code(&code_length_lengths, usize::from(length));
