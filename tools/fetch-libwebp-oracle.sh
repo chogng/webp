@@ -1,9 +1,9 @@
 #!/bin/sh
-# Fetch the test-only libwebp oracle at the immutable revision in corpus-lock.
+# Fetch the current test-only libwebp oracle without adding it to Git.
 set -eu
 
 repository='https://chromium.googlesource.com/webm/libwebp'
-revision='4fa21912338357f89e4fd51cf2368325b59e9bd9'
+branch='main'
 destination=${1:-third_party/oracle/libwebp}
 
 if [ -e "$destination" ]; then
@@ -21,13 +21,8 @@ else
     git clone --no-checkout "$repository" "$destination"
 fi
 
-git -C "$destination" fetch --depth=1 origin "$revision"
-git -C "$destination" checkout --detach "$revision"
+git -C "$destination" fetch --depth=1 origin "$branch"
+git -C "$destination" checkout --detach "origin/$branch"
 head=$(git -C "$destination" rev-parse HEAD)
-if [ "$head" != "$revision" ]; then
-    printf '%s\n' "error: resolved $head, expected $revision" >&2
-    exit 1
-fi
-
 test -f "$destination/tests/fuzzer/fuzz.dict"
-printf '%s\n' "libwebp oracle ready at $destination ($revision)"
+printf '%s\n' "libwebp oracle ready at $destination ($branch -> $head)"

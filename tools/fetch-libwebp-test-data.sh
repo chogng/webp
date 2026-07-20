@@ -1,9 +1,9 @@
 #!/bin/sh
-# Fetch the immutable upstream WebP conformance corpus without adding it to Git.
+# Fetch the current upstream WebP conformance corpus without adding it to Git.
 set -eu
 
 repository='https://chromium.googlesource.com/webm/libwebp-test-data'
-revision='06ddd96e276c2c638a72d39d3c0f340afd61978c'
+branch='main'
 destination=${1:-third_party/corpus/libwebp-test-data}
 
 if [ -e "$destination" ]; then
@@ -21,12 +21,7 @@ else
     git clone --no-checkout "$repository" "$destination"
 fi
 
-git -C "$destination" fetch --depth=1 origin "$revision"
-git -C "$destination" checkout --detach "$revision"
+git -C "$destination" fetch --depth=1 origin "$branch"
+git -C "$destination" checkout --detach "origin/$branch"
 head=$(git -C "$destination" rev-parse HEAD)
-if [ "$head" != "$revision" ]; then
-    printf '%s\n' "error: resolved $head, expected $revision" >&2
-    exit 1
-fi
-
-printf '%s\n' "libwebp-test-data ready at $destination ($revision)"
+printf '%s\n' "libwebp-test-data ready at $destination ($branch -> $head)"

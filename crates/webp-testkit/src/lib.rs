@@ -10,6 +10,6 @@
 pub mod fixture;
 
 pub use fixture::{
-    Codec, FixtureApi, FixtureClass, FixtureManifest, FixtureRunner, ManifestError, RunError,
-    RunSummary, parse_manifest, sha256_hex,
+    parse_manifest, sha256_hex, Codec, FixtureApi, FixtureClass, FixtureManifest, FixtureRunner,
+    ManifestError, RunError, RunSummary,
 };

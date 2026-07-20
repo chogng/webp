@@ -1,22 +1,20 @@
-# Schema for reproducible external test corpora and C/C++ oracle builds.
+# Schema for externally fetched test corpora and C/C++ oracle builds.
 #
-# Every external input is fixed to a reviewed Git revision and the SHA-256 of
-# its upstream archive.  CI must never resolve a branch name or "latest"
-# revision from this file.
-schema_version = 1
+# These sources intentionally follow their upstream default branch. Fetchers
+# print the resolved commit for each run; generated sidecars retain that commit
+# as provenance. A release can retain its run log when it needs a replayable
+# snapshot, without preventing routine corpus refreshes.
+schema_version = 2
 
 [libwebp]
-commit = "4fa21912338357f89e4fd51cf2368325b59e9bd9"
-tag = "v1.6.0"
 source_url = "https://chromium.googlesource.com/webm/libwebp"
-source_sha256 = "8181631079ea257e53465541971caf2734d7134531706777ddfac48bff4f46f4"
+branch = "main"
 build_profile = "scalar-canonical-v1"
-compiler = "clang-pinned-major"
+compiler = "system-clang-or-gcc"
 
 [libwebp_test_data]
-commit = "06ddd96e276c2c638a72d39d3c0f340afd61978c"
 source_url = "https://chromium.googlesource.com/webm/libwebp-test-data"
-source_sha256 = "6ec979ab445ab351e9a0e325cda44d92c19aed48b6b38def9f5e813783054cb1"
+branch = "main"
 purpose = "upstream conformance vectors"
 
 [clic]

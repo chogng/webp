@@ -27,7 +27,7 @@ fn main() {
 fn print_usage() {
     eprintln!(
         "usage: cargo run -p xtask -- <corpus verify|fixtures generate-malformed|feature-matrix check>\n\
-         `corpus fetch` and `corpus index` are reserved for the pinned upstream corpus workflow."
+         External corpus fetch/index commands live in tools/ and follow the configured upstream branches."
     );
 }
 
@@ -262,28 +262,25 @@ fn verify_corpus_lock(path: &Path) -> Result<(), String> {
     let lock = fs::read_to_string(path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
     validate_corpus_lock(&lock)?;
-    println!("corpus lock: immutable pins verified");
+    println!("corpus sources: rolling upstream configuration verified");
     Ok(())
 }
 
 fn validate_corpus_lock(input: &str) -> Result<(), String> {
     let lock: Table = toml::from_str(input).map_err(|error| format!("invalid TOML: {error}"))?;
-    if lock.get("schema_version").and_then(Value::as_integer) != Some(1) {
-        return Err("corpus lock: schema_version must be 1".to_owned());
+    if lock.get("schema_version").and_then(Value::as_integer) != Some(2) {
+        return Err("corpus lock: schema_version must be 2".to_owned());
     }
 
     let oracle = required_table(&lock, "libwebp")?;
-    require_hex(oracle, "commit", 40)?;
-    require_text(oracle, "tag")?;
     require_https_url(oracle, "source_url")?;
-    require_hex(oracle, "source_sha256", 64)?;
+    require_text(oracle, "branch")?;
     require_text(oracle, "build_profile")?;
     require_text(oracle, "compiler")?;
 
     let vectors = required_table(&lock, "libwebp_test_data")?;
-    require_hex(vectors, "commit", 40)?;
     require_https_url(vectors, "source_url")?;
-    require_hex(vectors, "source_sha256", 64)?;
+    require_text(vectors, "branch")?;
     require_text(vectors, "purpose")?;
 
     let clic = required_table(&lock, "clic")?;
@@ -309,19 +306,6 @@ fn required_text<'a>(table: &'a Table, name: &str) -> Result<&'a str, String> {
 
 fn require_text(table: &Table, name: &str) -> Result<(), String> {
     let _ = required_text(table, name)?;
-    Ok(())
-}
-
-fn require_hex(table: &Table, name: &str, length: usize) -> Result<(), String> {
-    let value = required_text(table, name)?;
-    if value.len() != length
-        || !value.bytes().all(|byte| byte.is_ascii_hexdigit())
-        || value.bytes().all(|byte| byte == b'0')
-    {
-        return Err(format!(
-            "corpus lock: {name} must be a non-zero {length}-digit hexadecimal value"
-        ));
-    }
     Ok(())
 }
 
@@ -362,11 +346,8 @@ mod tests {
     }
 
     #[test]
-    fn rejects_zero_commit_pin() {
-        let invalid = LOCK.replace(
-            "commit = \"4fa21912338357f89e4fd51cf2368325b59e9bd9\"",
-            "commit = \"0000000000000000000000000000000000000000\"",
-        );
+    fn rejects_missing_rolling_branch() {
+        let invalid = LOCK.replace("branch = \"main\"", "branch = \"\"");
         assert!(validate_corpus_lock(&invalid).is_err());
     }
 }
