@@ -3,7 +3,7 @@
 //!
 //! This crate is an integration seam for the first lossless decoder slice. It
 //! accepts only a single Huffman group, no transforms, no color cache and
-//! literal green symbols.  All other valid VP8L features receive an explicit
+//! literal/backward-reference entropy symbols.  All other valid VP8L features receive an explicit
 //! [`DecodeErrorKind::UnsupportedFeature`] rather than being partially
 //! interpreted.  The output uses straight RGBA byte order.
 
@@ -11,6 +11,9 @@ use webp_core::{
     BitReader, DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget, checked_image_bytes,
 };
 use webp_vp8l::{HEADER_LEN, Vp8lHeader, parse_header};
+use webp_vp8l_entropy::{
+    copy_lz77_pixels, decode_distance, decode_length, distance_code_to_distance,
+};
 use webp_vp8l_huffman::{HuffmanTable, read_huffman_code};
 
 const GREEN_ALPHABET_SIZE: usize = 256 + 24;
@@ -29,10 +32,24 @@ pub struct LiteralImage {
 /// Decodes a standalone VP8L stream limited to its literal-only subset.
 ///
 /// The input begins with the five-byte VP8L fixed header.  `transform`, color
-/// cache, meta-Huffman groups, and backward references are intentionally not
-/// implemented in this stage.  The entropy syntax still contains all five
-/// Huffman codes required by VP8L: green, red, blue, alpha, and distance.
+/// cache, and meta-Huffman groups are intentionally not implemented in this
+/// stage.  For compatibility with the initial decoder slice this function
+/// delegates to [`decode_no_transform`], which additionally supports VP8L
+/// backward references.
 pub fn decode_literal_only(
+    data: &[u8],
+    limits: &DecodeLimits,
+) -> Result<LiteralImage, DecodeError> {
+    decode_no_transform(data, limits)
+}
+
+/// Decodes a standalone VP8L stream with one Huffman group and no transforms.
+///
+/// Literal pixels and green-alphabet backward-reference symbols are supported.
+/// Color cache, transforms, and meta-Huffman groups remain explicitly
+/// unsupported.  Internally decoded samples are packed as `0xAARRGGBB` until
+/// entropy expansion is complete, then emitted in RGBA byte order.
+pub fn decode_no_transform(
     data: &[u8],
     limits: &DecodeLimits,
 ) -> Result<LiteralImage, DecodeError> {
@@ -73,6 +90,49 @@ pub fn decode_literal_only(
                 "image pixel count does not fit platform usize",
             )
         })?;
+    let mut packed = Vec::new();
+    packed.try_reserve_exact(pixels).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::AllocationFailed,
+            None,
+            "packed VP8L output allocation failed",
+        )
+    })?;
+
+    while packed.len() < pixels {
+        let green = decode_symbol(&codes.green, &mut bits, &mut budget)?;
+        if green < CHANNEL_ALPHABET_SIZE {
+            let red = decode_symbol(&codes.red, &mut bits, &mut budget)?;
+            let blue = decode_symbol(&codes.blue, &mut bits, &mut budget)?;
+            let alpha = decode_symbol(&codes.alpha, &mut bits, &mut budget)?;
+            debug_assert!(red < CHANNEL_ALPHABET_SIZE);
+            debug_assert!(blue < CHANNEL_ALPHABET_SIZE);
+            debug_assert!(alpha < CHANNEL_ALPHABET_SIZE);
+            packed.push(pack_argb(red as u8, green as u8, blue as u8, alpha as u8));
+            continue;
+        }
+
+        let length_prefix = u8::try_from(green - CHANNEL_ALPHABET_SIZE).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::InvalidBitstream,
+                None,
+                "VP8L length prefix does not fit u8",
+            )
+        })?;
+        let length = decode_length(&mut bits, &mut budget, length_prefix)?;
+        let distance_prefix = decode_symbol(&codes.distance, &mut bits, &mut budget)?;
+        let distance_prefix = u8::try_from(distance_prefix).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::InvalidBitstream,
+                None,
+                "VP8L distance prefix does not fit u8",
+            )
+        })?;
+        let distance_code = decode_distance(&mut bits, &mut budget, distance_prefix)?;
+        let distance = distance_code_to_distance(distance_code, header.width)?;
+        copy_lz77_pixels(&mut packed, length, distance, pixels, &mut budget)?;
+    }
+
     let mut rgba = Vec::new();
     rgba.try_reserve_exact(rgba_len).map_err(|_| {
         DecodeError::new(
@@ -81,22 +141,24 @@ pub fn decode_literal_only(
             "RGBA output allocation failed",
         )
     })?;
-
-    for _ in 0..pixels {
-        let green = decode_symbol(&codes.green, &mut bits, &mut budget)?;
-        if green >= CHANNEL_ALPHABET_SIZE {
-            return Err(unsupported("VP8L backward references are not implemented"));
-        }
-        let red = decode_symbol(&codes.red, &mut bits, &mut budget)?;
-        let blue = decode_symbol(&codes.blue, &mut bits, &mut budget)?;
-        let alpha = decode_symbol(&codes.alpha, &mut bits, &mut budget)?;
-        debug_assert!(red < CHANNEL_ALPHABET_SIZE);
-        debug_assert!(blue < CHANNEL_ALPHABET_SIZE);
-        debug_assert!(alpha < CHANNEL_ALPHABET_SIZE);
-        rgba.extend_from_slice(&[red as u8, green as u8, blue as u8, alpha as u8]);
+    for pixel in packed {
+        rgba.extend_from_slice(&unpack_rgba(pixel));
     }
 
     Ok(LiteralImage { header, rgba })
+}
+
+const fn pack_argb(red: u8, green: u8, blue: u8, alpha: u8) -> u32 {
+    ((alpha as u32) << 24) | ((red as u32) << 16) | ((green as u32) << 8) | (blue as u32)
+}
+
+const fn unpack_rgba(pixel: u32) -> [u8; 4] {
+    [
+        (pixel >> 16) as u8,
+        (pixel >> 8) as u8,
+        pixel as u8,
+        (pixel >> 24) as u8,
+    ]
 }
 
 struct HuffmanCodes {
@@ -104,9 +166,7 @@ struct HuffmanCodes {
     red: HuffmanTable,
     blue: HuffmanTable,
     alpha: HuffmanTable,
-    // This is required even in literal-only data. Keeping it parsed ensures a
-    // caller cannot accidentally accept a truncated fifth table.
-    _distance: HuffmanTable,
+    distance: HuffmanTable,
 }
 
 fn read_huffman_codes(
@@ -118,7 +178,7 @@ fn read_huffman_codes(
         red: read_table(bits, budget, CHANNEL_ALPHABET_SIZE)?,
         blue: read_table(bits, budget, CHANNEL_ALPHABET_SIZE)?,
         alpha: read_table(bits, budget, CHANNEL_ALPHABET_SIZE)?,
-        _distance: read_table(bits, budget, DISTANCE_ALPHABET_SIZE)?,
+        distance: read_table(bits, budget, DISTANCE_ALPHABET_SIZE)?,
     })
 }
 
@@ -169,6 +229,31 @@ mod tests {
         writer.write_bits(u32::from(symbol), 8).unwrap();
     }
 
+    fn write_two_symbol_normal_code(
+        writer: &mut BitWriter,
+        alphabet_size: usize,
+        first_symbol: usize,
+        second_symbol: usize,
+    ) {
+        assert!(first_symbol < second_symbol);
+        assert!(second_symbol < alphabet_size);
+        writer.write_bits(0, 1).unwrap(); // normal_code_flag
+        writer.write_bits(0, 4).unwrap(); // four code-length alphabet entries
+        // Wire order is 17, 18, 0, 1. Symbols zero and one form a complete
+        // code-length tree, so the following code lengths use one bit each.
+        for length in [0_u32, 0, 1, 1] {
+            writer.write_bits(length, 3).unwrap();
+        }
+        for symbol in 0..alphabet_size {
+            writer
+                .write_bits(
+                    u32::from(symbol == first_symbol || symbol == second_symbol),
+                    1,
+                )
+                .unwrap();
+        }
+    }
+
     fn literal_stream(width: u32, height: u32, pixel: [u8; 4]) -> Vec<u8> {
         let mut writer = BitWriter::new();
         write_header(&mut writer, width, height, pixel[3] != 255);
@@ -178,6 +263,22 @@ mod tests {
         for symbol in [pixel[1], pixel[0], pixel[2], pixel[3], 0] {
             write_simple_code(&mut writer, symbol);
         }
+        writer.into_bytes()
+    }
+
+    fn repeated_lz77_stream(width: u32, height: u32) -> Vec<u8> {
+        let mut writer = BitWriter::new();
+        write_header(&mut writer, width, height, false);
+        writer.write_bits(0, 3).unwrap(); // no deferred features
+        // Green symbol 2 is a literal. Green symbol 258 is length prefix 2,
+        // which expands to a three-pixel copy.
+        write_two_symbol_normal_code(&mut writer, GREEN_ALPHABET_SIZE, 2, 258);
+        for symbol in [0, 0, 0] {
+            write_simple_code(&mut writer, symbol);
+        }
+        write_simple_code(&mut writer, 0); // distance prefix 0 => code 1
+        writer.write_bits(0, 1).unwrap(); // green literal symbol 2
+        writer.write_bits(1, 1).unwrap(); // green copy symbol 258
         writer.into_bytes()
     }
 
@@ -210,34 +311,29 @@ mod tests {
     }
 
     #[test]
-    fn rejects_a_literal_stream_with_a_backward_reference_symbol() {
-        let mut writer = BitWriter::new();
-        write_header(&mut writer, 1, 1, false);
-        writer.write_bits(0, 3).unwrap();
-        writer.write_bits(0, 1).unwrap(); // green normal_code_flag
-        writer.write_bits(0, 4).unwrap(); // four code-length alphabet entries
-        // Wire order is 17, 18, 0, 1.  Symbols 0 and 1 form a complete tree.
-        for length in [0_u32, 0, 1, 1] {
-            writer.write_bits(length, 3).unwrap();
-        }
-        // Emit 256 zero lengths, a length-one code for green symbol 256, then
-        // the remaining 23 zero lengths. In the tiny code-length table, wire
-        // code zero means symbol zero and wire code one means symbol one.
-        for _ in 0..256 {
-            writer.write_bits(0, 1).unwrap();
-        }
-        writer.write_bits(1, 1).unwrap();
-        for _ in 0..23 {
-            writer.write_bits(0, 1).unwrap();
-        }
-        for symbol in [0, 0, 0, 0] {
-            write_simple_code(&mut writer, symbol);
-        }
+    fn decodes_overlapping_lz77_copy_with_distance_one() {
+        let data = repeated_lz77_stream(1, 4);
+        let image = decode_literal_only(&data, &limits()).unwrap();
+        assert_eq!(image.rgba, [0, 2, 0, 0].repeat(4));
+    }
+
+    #[test]
+    fn rejects_lz77_distance_before_produced_pixels() {
+        // Distance code one means one scanline. At width two, it points back
+        // two pixels although only the initial literal has been produced.
+        let data = repeated_lz77_stream(2, 2);
         assert_eq!(
-            decode_literal_only(&writer.into_bytes(), &limits())
-                .unwrap_err()
-                .kind(),
-            DecodeErrorKind::UnsupportedFeature
+            decode_no_transform(&data, &limits()).unwrap_err().kind(),
+            DecodeErrorKind::InvalidBitstream
+        );
+    }
+
+    #[test]
+    fn rejects_lz77_copy_that_exceeds_image_output() {
+        let data = repeated_lz77_stream(1, 3);
+        assert_eq!(
+            decode_no_transform(&data, &limits()).unwrap_err().kind(),
+            DecodeErrorKind::InvalidBitstream
         );
     }
 
@@ -280,6 +376,26 @@ mod tests {
         };
         assert_eq!(
             decode_literal_only(&data, &exhausted).unwrap_err().kind(),
+            DecodeErrorKind::LimitExceeded
+        );
+    }
+
+    #[test]
+    fn work_budget_covers_lz77_symbol_expansion_and_copy() {
+        let data = repeated_lz77_stream(1, 4);
+        let limited = DecodeLimits {
+            // 3 flags + 5 tables + 4 literal symbols + 1 copy symbol +
+            // length expansion + distance symbol + distance expansion + copy.
+            max_work_units: 19,
+            ..limits()
+        };
+        assert!(decode_no_transform(&data, &limited).is_ok());
+        let exhausted = DecodeLimits {
+            max_work_units: 18,
+            ..limits()
+        };
+        assert_eq!(
+            decode_no_transform(&data, &exhausted).unwrap_err().kind(),
             DecodeErrorKind::LimitExceeded
         );
     }

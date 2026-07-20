@@ -271,6 +271,7 @@ name = "webp-vp8l-color-cache"
 version = "0.1.0"
 dependencies = [
  "webp-core",
+ "webp-vp8l-entropy",
 ]
 
 [[package]]
@@ -304,6 +305,7 @@ version = "0.1.0"
 dependencies = [
  "webp-core",
  "webp-vp8l",
+ "webp-vp8l-entropy",
  "webp-vp8l-huffman",
 ]
 

@@ -12,3 +12,4 @@ workspace = true
 
 [dependencies]
 webp-core = { path = "../webp-core" }
+webp-vp8l-entropy = { path = "../webp-vp8l-entropy" }

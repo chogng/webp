@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Bounded literal-only VP8L entropy decoder"
+description = "Bounded no-transform VP8L entropy decoder"
 
 [lints]
 workspace = true
@@ -14,3 +14,4 @@ workspace = true
 webp-core = { path = "../webp-core" }
 webp-vp8l = { path = "../webp-vp8l" }
 webp-vp8l-huffman = { path = "../webp-vp8l-huffman" }
+webp-vp8l-entropy = { path = "../webp-vp8l-entropy" }
