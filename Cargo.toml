@@ -9,6 +9,7 @@ members = [
     "crates/webp-vp8l-color-cache",
     "crates/webp-vp8l-color-transform",
     "crates/webp-vp8l-literal",
+    "crates/webp-vp8l-indexing",
     "crates/webp-testkit",
     "crates/webp",
     "xtask",
