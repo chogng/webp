@@ -44,9 +44,10 @@ Until the root workspace includes the testkit crate, it can be tested directly:
 cargo test --manifest-path crates/webp-testkit/Cargo.toml
 ```
 
-The upstream test data and the oracle are deliberately ignored by Git. Fetch
-them only at their locked revisions under `third_party/`; committed PR smoke
-fixtures must stay small and independently licensed.
+The complete `third_party/` directory is deliberately ignored by Git. It holds
+only downloaded test data, the optional libwebp oracle, and benchmarks. Fetch
+the libwebp test data only at its locked revision; committed PR smoke fixtures
+must stay small and independently licensed.
 
 To fetch the upstream conformance vectors, run:
 

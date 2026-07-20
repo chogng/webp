@@ -355,25 +355,23 @@ fn verify_corpus_lock(path: &Path) -> Result<(), String> {
     let lock = fs::read_to_string(path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
     validate_corpus_lock(&lock)?;
-    println!("corpus sources: rolling upstream configuration verified");
+    println!("corpus sources: pinned configuration verified");
     Ok(())
 }
 
 fn validate_corpus_lock(input: &str) -> Result<(), String> {
     let lock: Table = toml::from_str(input).map_err(|error| format!("invalid TOML: {error}"))?;
-    if lock.get("schema_version").and_then(Value::as_integer) != Some(2) {
-        return Err("corpus lock: schema_version must be 2".to_owned());
-    }
-
     let oracle = required_table(&lock, "libwebp")?;
     require_https_url(oracle, "source_url")?;
-    require_text(oracle, "branch")?;
+    require_text(oracle, "commit")?;
+    require_text(oracle, "tracking_branch")?;
     require_text(oracle, "build_profile")?;
     require_text(oracle, "compiler")?;
 
     let vectors = required_table(&lock, "libwebp_test_data")?;
     require_https_url(vectors, "source_url")?;
-    require_text(vectors, "branch")?;
+    require_text(vectors, "commit")?;
+    require_text(vectors, "tracking_branch")?;
     require_text(vectors, "purpose")?;
 
     let clic = required_table(&lock, "clic")?;
@@ -439,8 +437,8 @@ mod tests {
     }
 
     #[test]
-    fn rejects_missing_rolling_branch() {
-        let invalid = LOCK.replace("branch = \"main\"", "branch = \"\"");
+    fn rejects_missing_tracking_branch() {
+        let invalid = LOCK.replace("tracking_branch = \"main\"", "tracking_branch = \"\"");
         assert!(validate_corpus_lock(&invalid).is_err());
     }
 }

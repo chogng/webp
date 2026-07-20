@@ -6,16 +6,17 @@ manifest; downloaded data never silently becomes a release artifact.
 
 | Data class | Location | PR | Nightly | Release |
 | --- | --- | --- | --- | --- |
-| Upstream conformance vectors | `third_party/corpus/libwebp-test-data` | 64-file selected list once supported | all `.webp` vectors | all vectors × public API matrix |
+| Upstream conformance vectors | `third_party/corpus/libwebp-test-data` | 68-file selected list | pinned selected vectors | supported vectors × public API matrix |
 | libwebp reference output | `third_party/oracle/libwebp` and generated outputs | selected supported features | pairwise encoder set and differential output | all supported encoder options |
 | Real-image benchmark | `third_party/benchdata/clic` | none | CLIC validation | CLIC validation plus approved larger splits |
 | Structured hostile input | `tests/fixtures/generated` | all committed fixtures | generated matrix plus fuzz corpus | all fixtures under normal and tight limits |
 | Historical regressions | `tests/fixtures/regressions` | all | all | all |
 
-## Rolling upstream inputs
+## Pinned upstream inputs
 
-`tools/corpus-lock.toml` names the allowed upstream URLs and branches. Fetch
-only through:
+`tools/corpus-lock.toml` names the allowed upstream URLs and immutable commits.
+The `tracking_branch` is used only by the manual update scripts; ordinary CI
+and release builds fetch the reviewed commit. Fetch only through:
 
 ```text
 tools/fetch-libwebp-test-data.sh
@@ -23,15 +24,36 @@ tools/fetch-libwebp-oracle.sh
 tools/verify-upstream-smoke.sh
 ```
 
-Each invocation fetches the current `main`, checks out its resolved commit, and
-prints that commit. The reference-index script writes the resolved oracle
-commit into every generated sidecar. Preserve this output in a release run log
-when a replayable snapshot is required.
+Each invocation checks out the pinned commit and verifies it after checkout.
+`tests/corpora/libwebp-test-data-smoke-v1.sha256` records the selected vector
+hashes for that commit, so a changed upstream file is visible in review. The
+repository does not automatically track upstream changes: maintainers check
+and advance the pin deliberately, never changing the data consumed by normal
+CI in place.
+
+When an update is wanted, first check whether the tracking branch has advanced:
+
+```sh
+sh tools/check-libwebp-test-data-update.sh
+```
+
+Then make the change deliberately:
+
+```sh
+sh tools/update-libwebp-test-data-lock.sh
+tools/fetch-libwebp-test-data.sh
+sh tools/update-upstream-smoke-lock.sh
+tools/verify-upstream-smoke.sh
+```
+
+Review and commit the updated pin and checksum lock only after the external
+corpus test passes.
 
 Run `tools/index-upstream-smoke-corpus.sh` after fetching libwebp-test-data.
-It creates ignored, Rust-readable SHA-256 sidecars for the selected 64 vectors.
-They begin as `ImplementationDefined` integrity checks and are promoted to
-accepted/pixel-golden tests feature by feature as public decoder support lands.
+It creates ignored, Rust-readable SHA-256 sidecars for the selected 68 vectors.
+The M1 VP8L lossless vectors are `MustAccept` entries with dimensions and a
+recorded-libwebp canonical RGBA SHA-256; remaining vectors stay
+`ImplementationDefined` until their public decoder path is implemented.
 
 The reference checkout is test-only. It supplies the upstream fuzz dictionary,
 future `cwebp` pairwise encoder vectors, `webpmux` metadata vectors, and

@@ -54,6 +54,10 @@ lossless_vec_2_14.webp
 lossless_vec_2_15.webp
 
 # Dedicated lossless implementation paths
+lossless1.webp
+lossless2.webp
+lossless3.webp
+lossless4.webp
 color_cache_bits_11.webp
 dual_transform.webp
 one_color_no_palette.webp

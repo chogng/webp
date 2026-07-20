@@ -1,20 +1,19 @@
 # Schema for externally fetched test corpora and C/C++ oracle builds.
 #
-# These sources intentionally follow their upstream default branch. Fetchers
-# print the resolved commit for each run; generated sidecars retain that commit
-# as provenance. A release can retain its run log when it needs a replayable
-# snapshot, without preventing routine corpus refreshes.
-schema_version = 2
-
+# Each fetched source is pinned to an immutable commit. Maintainers check for
+# upstream commits and advance a pin deliberately. Ordinary CI and releases
+# never consume an unreviewed upstream tip.
 [libwebp]
 source_url = "https://chromium.googlesource.com/webm/libwebp"
-branch = "main"
+commit = "733c91e461c18cf1127c9ed0a80dccbcfed599d3"
+tracking_branch = "main" # used only by manual update tooling
 build_profile = "scalar-canonical-v1"
 compiler = "system-clang-or-gcc"
 
 [libwebp_test_data]
 source_url = "https://chromium.googlesource.com/webm/libwebp-test-data"
-branch = "main"
+commit = "06ddd96e276c2c638a72d39d3c0f340afd61978c"
+tracking_branch = "main" # used by the manual check and update scripts
 purpose = "upstream conformance vectors"
 
 [clic]

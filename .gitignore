@@ -4,9 +4,11 @@
 /fuzz/artifacts/
 /fuzz/corpus/
 /fuzz/target/
-/third_party/corpus/
-/third_party/oracle/
-/third_party/benchdata/
+# Local cargo-mutants reports and rotated reports.
+/mutants.out/
+/mutants.out.old/
+# Downloaded test corpora, libwebp oracle checkouts, and benchmarks.
+/third_party/
 
 # Bazel output-tree convenience symlinks and local overrides.
 /.bazelrc.user

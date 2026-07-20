@@ -1,9 +1,32 @@
 #!/bin/sh
-# Fetch the current upstream WebP conformance corpus without adding it to Git.
+# Fetch the pinned upstream WebP conformance corpus without adding it to Git.
 set -eu
 
-repository='https://chromium.googlesource.com/webm/libwebp-test-data'
-branch='main'
+repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+lockfile="$repo_root/tools/corpus-lock.toml"
+
+lock_value() {
+    section=$1
+    key=$2
+    awk -F ' = ' -v section="$section" -v key="$key" '
+        $0 == "[" section "]" { in_section = 1; next }
+        /^\[/ { in_section = 0 }
+        in_section && $1 == key {
+            value = $2
+            gsub(/^"|"$/, "", value)
+            print value
+            exit
+        }
+    ' "$lockfile"
+}
+
+repository=$(lock_value libwebp_test_data source_url)
+commit=$(lock_value libwebp_test_data commit)
+if [ -z "$repository" ] || [ -z "$commit" ]; then
+    printf '%s\n' "error: libwebp_test_data source_url or commit is missing from $lockfile" >&2
+    exit 1
+fi
+
 destination=${1:-third_party/corpus/libwebp-test-data}
 
 if [ -e "$destination" ]; then
@@ -21,7 +44,11 @@ else
     git clone --no-checkout "$repository" "$destination"
 fi
 
-git -C "$destination" fetch --depth=1 origin "$branch"
-git -C "$destination" checkout --detach "origin/$branch"
+git -C "$destination" fetch --depth=1 origin "$commit"
+git -C "$destination" checkout --detach "$commit"
 head=$(git -C "$destination" rev-parse HEAD)
-printf '%s\n' "libwebp-test-data ready at $destination ($branch -> $head)"
+if [ "$head" != "$commit" ]; then
+    printf '%s\n' "error: expected $commit but checked out $head" >&2
+    exit 1
+fi
+printf '%s\n' "libwebp-test-data ready at $destination ($head)"
