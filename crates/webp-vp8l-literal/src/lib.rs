@@ -6,20 +6,20 @@
 //! output uses straight RGBA byte order.
 
 use webp_core::{
-    BitReader, DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget, checked_image_bytes,
+    checked_image_bytes, BitReader, DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget,
 };
 use webp_vp8l::{
-    BlockTransformDescriptor, HEADER_LEN, TransformDescriptor, TransformListParser, Vp8lHeader,
-    parse_header,
+    parse_header, BlockTransformDescriptor, TransformDescriptor, TransformListParser, Vp8lHeader,
+    HEADER_LEN,
 };
 use webp_vp8l_color_cache::{ColorCacheOutput, MAX_COLOR_CACHE_BITS, MIN_COLOR_CACHE_BITS};
 use webp_vp8l_color_transform::ColorTransformMultipliers;
 use webp_vp8l_entropy::{
     copy_lz77_pixels, decode_distance, decode_length, distance_code_to_distance,
 };
-use webp_vp8l_huffman::{HuffmanTable, ROOT_TABLE_STORAGE_BYTES, read_huffman_code};
+use webp_vp8l_huffman::{read_huffman_code, HuffmanTable, ROOT_TABLE_STORAGE_BYTES};
 use webp_vp8l_indexing::{Palette, TRANSPARENT_BLACK};
-use webp_vp8l_transform::{PredictorMode, Rgba, predict};
+use webp_vp8l_transform::{predict, PredictorMode, Rgba};
 
 const GREEN_ALPHABET_SIZE: usize = 256 + 24;
 const CHANNEL_ALPHABET_SIZE: usize = 256;
@@ -1598,6 +1598,7 @@ mod tests {
         assert!(second_symbol < alphabet_size);
         writer.write_bits(0, 1).unwrap(); // normal_code_flag
         writer.write_bits(0, 4).unwrap(); // four code-length alphabet entries
+
         // Wire order is 17, 18, 0, 1. Symbols zero and one form a complete
         // code-length tree, so the following code lengths use one bit each.
         for length in [0_u32, 0, 1, 1] {
@@ -1651,6 +1652,7 @@ mod tests {
         }
 
         writer.write_bits(0, 1).unwrap(); // normal_code_flag
+
         // Code-length symbols 0, 1, 2 and 3 all have two-bit codes. This
         // lets the fixture express the small complete trees used below.
         writer.write_bits(2, 4).unwrap(); // 4 + 2 == 6 entries
@@ -1891,6 +1893,7 @@ mod tests {
         write_entropy_image_pixels(&mut writer, &[[0, 32, 0, 0]]);
 
         writer.write_bits(0, 1).unwrap(); // transform-list terminator
+
         // Two one-bit palette indices, both zero, packed in green's low bits.
         write_entropy_image_pixels_at_level(&mut writer, &[[0, 0, 0, 0]], true);
         writer.into_bytes()
@@ -1933,12 +1936,14 @@ mod tests {
         writer.write_bits(1, 1).unwrap(); // transform_present
         writer.write_bits(0, 2).unwrap(); // predictor transform
         writer.write_bits(0, 3).unwrap(); // 2 + 0 => four-pixel blocks
+
         // The predictor subimage is 1 by 1. It is a non-level-zero entropy
         // image, so this starts directly with color_cache_present; there is no
         // transform-list terminator or meta-Huffman flag here. Mode one is
         // carried in the green byte.
         write_flat_entropy_image(&mut writer, [0, mode, 0, 255], false);
         writer.write_bits(0, 1).unwrap(); // main transform-list terminator
+
         // All four residual samples are 1,1,1,0. Boundary rules reconstruct
         // the first row/column, while the lower-right pixel proves mode one
         // (left) is selected from the predictor subimage.
@@ -1966,6 +1971,7 @@ mod tests {
         let mut writer = BitWriter::new();
         write_header(&mut writer, width, height, false);
         writer.write_bits(0, 3).unwrap(); // no deferred features
+
         // Green symbol 2 is a literal. Green symbol 258 is length prefix 2,
         // which expands to a three-pixel copy.
         write_two_symbol_normal_code(&mut writer, GREEN_ALPHABET_SIZE, 2, 258);
