@@ -1,8 +1,8 @@
 #![forbid(unsafe_code)]
 //! Stable public API for the safe WebP implementation.
 //!
-//! M1 decodes static VP8L images to canonical RGBA8. M2 adds validated VP8
-//! key-frame information; entropy decoding and pixel output are still pending.
+//! M1 decodes static VP8L images to canonical RGBA8. M2 decodes opaque VP8
+//! key frames to canonical RGBA8.
 //! Animation and incremental codec decoding remain outside this milestone.
 
 pub use webp_core::{CompatibilityProfile, DecodeError, DecodeErrorKind, DecodeLimits};
@@ -116,8 +116,8 @@ impl IncrementalDecoder {
 /// Decodes a supported static WebP image to straight RGBA8.
 ///
 /// M1 supports static VP8L images, including transforms, color cache,
-/// meta-Huffman groups, and backward references. M2 currently validates VP8
-/// headers but does not expose incomplete VP8 pixel output.
+/// meta-Huffman groups, and backward references. M2 supports opaque VP8 key
+/// frames; alpha, animation, and incremental codec state remain unavailable.
 ///
 /// # Errors
 ///
@@ -155,12 +155,25 @@ pub fn decode(data: &[u8], options: &DecodeOptions) -> Result<Image, DecodeError
         let canvas = container
             .vp8x()
             .map(|header| (header.canvas_width, header.canvas_height));
-        webp_vp8::parse_riff_payload(chunk.payload, canvas, &options.limits)?;
-        return Err(DecodeError::at(
-            DecodeErrorKind::UnsupportedFeature,
-            chunk.offset,
-            "VP8 pixel decoding is not implemented yet",
-        ));
+        if container.vp8x().is_some_and(|header| header.flags.alpha())
+            || container
+                .chunks()
+                .iter()
+                .any(|candidate| candidate.fourcc == webp_container::ALPH)
+        {
+            return Err(DecodeError::at(
+                DecodeErrorKind::UnsupportedFeature,
+                chunk.offset,
+                "VP8 alpha decoding is not implemented yet",
+            ));
+        }
+        let header = webp_vp8::parse_riff_payload(chunk.payload, canvas, &options.limits)?;
+        let yuv = webp_vp8::decode_intra_frame(chunk.payload, &header, &options.limits)?;
+        return Ok(Image {
+            width: header.width,
+            height: header.height,
+            rgba: yuv.to_rgba(&options.limits)?,
+        });
     }
     Err(DecodeError::at(
         DecodeErrorKind::UnsupportedFeature,
@@ -396,7 +409,7 @@ mod tests {
 
     #[test]
     fn read_info_accepts_an_unextended_vp8_key_frame_without_pixel_allocation() {
-        let payload = [0xf0, 0x00, 0x00, 0x9d, 0x01, 0x2a, 0x03, 0x00, 0x05, 0x00];
+        let payload = [0x10, 0x00, 0x00, 0x9d, 0x01, 0x2a, 0x03, 0x00, 0x05, 0x00];
         let mut bytes = b"RIFF".to_vec();
         bytes.extend_from_slice(&22_u32.to_le_bytes());
         bytes.extend_from_slice(b"WEBPVP8 ");
@@ -415,7 +428,7 @@ mod tests {
             decode(&bytes, &DecodeOptions::default())
                 .unwrap_err()
                 .kind(),
-            DecodeErrorKind::UnsupportedFeature,
+            DecodeErrorKind::UnexpectedEof,
         );
     }
 

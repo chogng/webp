@@ -961,14 +961,15 @@ pub fn combine_macroblock_prediction(
 
 /// Builds a 16×16-luma/8×8-chroma VP8 intra prediction for non-B_PRED luma.
 ///
-/// DC prediction follows VP8's specified edge fallbacks. Vertical,
-/// horizontal, and true-motion modes require their corresponding reconstructed
-/// neighbours; a stream selecting an unavailable edge mode is rejected.
+/// VP8 initializes unavailable top and left neighbours to its 127 and 129
+/// sentinel values, respectively. DC prediction retains its separate edge
+/// averaging rules.
+#[must_use]
 pub fn predict_intra16_macroblock(
     luma_mode: Intra16Mode,
     chroma_mode: ChromaMode,
     edges: MacroblockPredictionEdges,
-) -> Result<MacroblockPixels, DecodeError> {
+) -> MacroblockPixels {
     let mut prediction = MacroblockPixels {
         y: [0; 256],
         u: [0; 64],
@@ -980,22 +981,22 @@ pub fn predict_intra16_macroblock(
         edges.top_y,
         edges.left_y,
         edges.top_left_y,
-    )?;
+    );
     predict_plane(
         &mut prediction.u,
         chroma_mode.into(),
         edges.top_u,
         edges.left_u,
         edges.top_left_u,
-    )?;
+    );
     predict_plane(
         &mut prediction.v,
         chroma_mode.into(),
         edges.top_v,
         edges.left_v,
         edges.top_left_v,
-    )?;
-    Ok(prediction)
+    );
+    prediction
 }
 
 /// Builds the luma prediction plane for one VP8 B_PRED macroblock.
@@ -1074,9 +1075,9 @@ pub fn reconstruct_intra_macroblock(
 ) -> Result<MacroblockPixels, DecodeError> {
     let spatial = inverse_transform_macroblock(dequantize_macroblock(residuals, matrix));
     let prediction = match block.luma {
-        LumaMode::Sixteen(mode) => predict_intra16_macroblock(mode, block.chroma, edges)?,
+        LumaMode::Sixteen(mode) => predict_intra16_macroblock(mode, block.chroma, edges),
         LumaMode::FourByFour(modes) => {
-            let mut prediction = predict_intra16_macroblock(Intra16Mode::Dc, block.chroma, edges)?;
+            let mut prediction = predict_intra16_macroblock(Intra16Mode::Dc, block.chroma, edges);
             prediction.y = predict_intra4_macroblock(modes, edges);
             prediction
         }
@@ -1120,7 +1121,7 @@ fn predict_plane<const SIZE: usize>(
     top: Option<[u8; SIZE]>,
     left: Option<[u8; SIZE]>,
     top_left: u8,
-) -> Result<(), DecodeError> {
+) {
     debug_assert_eq!(output.len(), SIZE * SIZE);
     match mode {
         PlanePredictionMode::Dc => {
@@ -1143,20 +1144,25 @@ fn predict_plane<const SIZE: usize>(
             output.fill(value);
         }
         PlanePredictionMode::Vertical => {
-            let top = required_edge(top, "vertical VP8 prediction requires top samples")?;
+            let top = top.unwrap_or([127; SIZE]);
             for row in output.chunks_exact_mut(SIZE) {
                 row.copy_from_slice(&top);
             }
         }
         PlanePredictionMode::Horizontal => {
-            let left = required_edge(left, "horizontal VP8 prediction requires left samples")?;
+            let left = left.unwrap_or([129; SIZE]);
             for (row, &value) in output.chunks_exact_mut(SIZE).zip(left.iter()) {
                 row.fill(value);
             }
         }
         PlanePredictionMode::TrueMotion => {
-            let top = required_edge(top, "true-motion VP8 prediction requires top samples")?;
-            let left = required_edge(left, "true-motion VP8 prediction requires left samples")?;
+            let top_left = match (top, left) {
+                (None, _) => 127,
+                (Some(_), None) => 129,
+                (Some(_), Some(_)) => top_left,
+            };
+            let top = top.unwrap_or([127; SIZE]);
+            let left = left.unwrap_or([129; SIZE]);
             for (row, &left_value) in output.chunks_exact_mut(SIZE).zip(left.iter()) {
                 for (sample, &top_value) in row.iter_mut().zip(top.iter()) {
                     *sample = (i32::from(left_value) + i32::from(top_value) - i32::from(top_left))
@@ -1165,14 +1171,6 @@ fn predict_plane<const SIZE: usize>(
             }
         }
     }
-    Ok(())
-}
-
-fn required_edge<const SIZE: usize>(
-    edge: Option<[u8; SIZE]>,
-    message: &'static str,
-) -> Result<[u8; SIZE], DecodeError> {
-    edge.ok_or_else(|| DecodeError::at(DecodeErrorKind::InvalidBitstream, 0, message))
 }
 
 /// Predicts one VP8 B_PRED luma 4×4 block from its already-reconstructed
@@ -1473,7 +1471,7 @@ fn parse_partition_layout_with_mode_decoder<'a>(
     limits: &DecodeLimits,
 ) -> Result<(PartitionLayout<'a>, BoolDecoder<'a>), DecodeError> {
     limits.check_input_len(payload.len())?;
-    let first_partition_end = FRAME_TAG_LEN
+    let first_partition_end = KEY_FRAME_HEADER_LEN
         .checked_add(frame.first_partition_len)
         .ok_or_else(|| {
             DecodeError::at(
@@ -1482,7 +1480,7 @@ fn parse_partition_layout_with_mode_decoder<'a>(
                 "VP8 first partition end overflows",
             )
         })?;
-    if first_partition_end > payload.len() || first_partition_end < KEY_FRAME_HEADER_LEN {
+    if first_partition_end > payload.len() {
         return Err(DecodeError::at(
             DecodeErrorKind::UnexpectedEof,
             FRAME_TAG_LEN,
@@ -1597,6 +1595,66 @@ impl Vp8YuvImage {
     #[must_use]
     pub fn padded_uv_height(&self) -> usize {
         self.u.len() / self.uv_stride
+    }
+
+    /// Converts the visible YUV 4:2:0 rectangle to opaque, straight RGBA8.
+    ///
+    /// Conversion uses VP8's fixed-point BT.601 coefficients and nearest
+    /// chroma sampling, matching libwebp's scalar row sampler. Macroblock
+    /// padding is never exposed in the returned buffer.
+    pub fn to_rgba(&self, limits: &DecodeLimits) -> Result<Vec<u8>, DecodeError> {
+        let width = usize::try_from(self.width).map_err(|_| allocation_size_error())?;
+        let height = usize::try_from(self.height).map_err(|_| allocation_size_error())?;
+        let uv_width = width.checked_add(1).ok_or_else(allocation_size_error)? / 2;
+        let uv_height = height.checked_add(1).ok_or_else(allocation_size_error)? / 2;
+        let y_required = self
+            .y_stride
+            .checked_mul(height)
+            .ok_or_else(allocation_size_error)?;
+        let uv_required = self
+            .uv_stride
+            .checked_mul(uv_height)
+            .ok_or_else(allocation_size_error)?;
+        if self.y_stride < width
+            || self.uv_stride < uv_width
+            || self.y.len() < y_required
+            || self.u.len() < uv_required
+            || self.v.len() < uv_required
+        {
+            return Err(DecodeError::new(
+                DecodeErrorKind::InvalidParameter,
+                None,
+                "VP8 YUV planes do not contain the visible image rectangle",
+            ));
+        }
+        let rgba_len = checked_image_bytes(self.width, self.height, 4)?;
+        if rgba_len > limits.max_alloc_bytes {
+            return Err(DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8 RGBA output exceeds configured allocation limit",
+            ));
+        }
+        let mut rgba = Vec::new();
+        rgba.try_reserve_exact(rgba_len).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::AllocationFailed,
+                None,
+                "cannot allocate VP8 RGBA output",
+            )
+        })?;
+        for y in 0..height {
+            let y_row = y * self.y_stride;
+            let uv_row = (y / 2) * self.uv_stride;
+            for x in 0..width {
+                let luma = self.y[y_row + x];
+                let chroma_u = self.u[uv_row + x / 2];
+                let chroma_v = self.v[uv_row + x / 2];
+                let [red, green, blue] = vp8_yuv_to_rgb(luma, chroma_u, chroma_v);
+                rgba.extend_from_slice(&[red, green, blue, 255]);
+            }
+        }
+        Ok(rgba)
     }
 
     fn new(frame: &Vp8Header, limits: &DecodeLimits) -> Result<Self, DecodeError> {
@@ -1843,6 +1901,24 @@ fn empty_macroblock_residuals() -> MacroblockResiduals {
     }
 }
 
+fn vp8_yuv_to_rgb(y: u8, u: u8, v: u8) -> [u8; 3] {
+    let multiply_high = |value: u8, coefficient: i32| (i32::from(value) * coefficient) >> 8;
+    let clip = |value: i32| {
+        if (0..(256 << 6)).contains(&value) {
+            (value >> 6) as u8
+        } else if value < 0 {
+            0
+        } else {
+            255
+        }
+    };
+    [
+        clip(multiply_high(y, 19_077) + multiply_high(v, 26_149) - 14_234),
+        clip(multiply_high(y, 19_077) - multiply_high(u, 6_419) - multiply_high(v, 13_320) + 8_708),
+        clip(multiply_high(y, 19_077) + multiply_high(u, 33_050) - 17_685),
+    ]
+}
+
 fn parse_segment_header(bits: &mut BoolDecoder<'_>) -> Result<SegmentHeader, DecodeError> {
     let enabled = bits.read_bool(128)?;
     if !enabled {
@@ -1964,8 +2040,8 @@ fn parse_coefficient_probabilities(
 
 /// Parsed VP8 frame tag and the fixed portion of a key-frame header.
 ///
-/// `first_partition_len` counts bytes immediately following the three-byte
-/// frame tag.  Its end is validated against the supplied VP8 payload but its
+/// `first_partition_len` counts bytes after the key frame's fixed ten-byte
+/// header. Its end is validated against the supplied VP8 payload but its
 /// compressed header is parsed by the entropy stage.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Vp8Header {
@@ -2028,7 +2104,7 @@ pub fn parse_riff_payload(
             "VP8 first partition length does not fit usize",
         )
     })?;
-    if first_partition_len > payload.len() - FRAME_TAG_LEN {
+    if first_partition_len > payload.len() - KEY_FRAME_HEADER_LEN {
         return Err(DecodeError::at(
             DecodeErrorKind::UnexpectedEof,
             FRAME_TAG_LEN,
@@ -2281,19 +2357,19 @@ mod tests {
 
     #[test]
     fn parses_key_frame_dimensions_tag_and_scale_bits() {
-        let payload = key_frame(0x800d, 0xc009, 3, true, 7);
+        let payload = key_frame(0x800d, 0xc009, 3, true, 0);
         let header = parse_riff_payload(&payload, Some((13, 9)), &DecodeLimits::default()).unwrap();
         assert_eq!(header.width, 13);
         assert_eq!(header.height, 9);
         assert_eq!(header.version, 3);
-        assert_eq!(header.first_partition_len, 7);
+        assert_eq!(header.first_partition_len, 0);
         assert_eq!(header.horizontal_scale, 2);
         assert_eq!(header.vertical_scale, 3);
     }
 
     #[test]
     fn rejects_all_fixed_header_truncations() {
-        let payload = key_frame(1, 1, 0, true, 7);
+        let payload = key_frame(1, 1, 0, true, 0);
         for end in 0..KEY_FRAME_HEADER_LEN {
             assert_eq!(
                 parse_riff_payload(&payload[..end], None, &DecodeLimits::default())
@@ -2308,7 +2384,7 @@ mod tests {
     #[test]
     fn rejects_invalid_tag_signature_dimensions_partition_and_canvas() {
         let limits = DecodeLimits::default();
-        let mut inter = key_frame(1, 1, 0, true, 7);
+        let mut inter = key_frame(1, 1, 0, true, 0);
         inter[0] |= 1;
         assert_eq!(
             parse_riff_payload(&inter, None, &limits)
@@ -2317,7 +2393,7 @@ mod tests {
             DecodeErrorKind::UnsupportedFeature
         );
 
-        let invisible = key_frame(1, 1, 0, false, 7);
+        let invisible = key_frame(1, 1, 0, false, 0);
         assert_eq!(
             parse_riff_payload(&invisible, None, &limits)
                 .unwrap_err()
@@ -2325,7 +2401,7 @@ mod tests {
             DecodeErrorKind::InvalidBitstream
         );
 
-        let unsupported_version = key_frame(1, 1, 4, true, 7);
+        let unsupported_version = key_frame(1, 1, 4, true, 0);
         assert_eq!(
             parse_riff_payload(&unsupported_version, None, &limits)
                 .unwrap_err()
@@ -2333,7 +2409,7 @@ mod tests {
             DecodeErrorKind::InvalidBitstream
         );
 
-        let mut bad_signature = key_frame(1, 1, 0, true, 7);
+        let mut bad_signature = key_frame(1, 1, 0, true, 0);
         bad_signature[5] ^= 1;
         assert_eq!(
             parse_riff_payload(&bad_signature, None, &limits)
@@ -2342,7 +2418,7 @@ mod tests {
             DecodeErrorKind::InvalidBitstream
         );
 
-        let zero_width = key_frame(0, 1, 0, true, 7);
+        let zero_width = key_frame(0, 1, 0, true, 0);
         assert_eq!(
             parse_riff_payload(&zero_width, None, &limits)
                 .unwrap_err()
@@ -2350,7 +2426,7 @@ mod tests {
             DecodeErrorKind::InvalidBitstream
         );
 
-        let partition_past_end = key_frame(1, 1, 0, true, 8);
+        let partition_past_end = key_frame(1, 1, 0, true, 1);
         assert_eq!(
             parse_riff_payload(&partition_past_end, None, &limits)
                 .unwrap_err()
@@ -2358,7 +2434,7 @@ mod tests {
             DecodeErrorKind::UnexpectedEof
         );
 
-        let valid = key_frame(1, 1, 0, true, 7);
+        let valid = key_frame(1, 1, 0, true, 0);
         assert_eq!(
             parse_riff_payload(&valid, Some((2, 1)), &limits)
                 .unwrap_err()
@@ -2369,7 +2445,7 @@ mod tests {
 
     #[test]
     fn enforces_image_limits_before_decoder_state_is_created() {
-        let payload = key_frame(8, 1, 0, true, 7);
+        let payload = key_frame(8, 1, 0, true, 0);
         let limits = DecodeLimits {
             max_width: 7,
             ..DecodeLimits::default()
@@ -2507,7 +2583,7 @@ mod tests {
         let mut partition_zero = writer.finish();
         partition_zero.extend_from_slice(&[0; 8]);
 
-        let mut payload = key_frame(3, 5, 0, true, 7 + partition_zero.len() as u32).to_vec();
+        let mut payload = key_frame(3, 5, 0, true, partition_zero.len() as u32).to_vec();
         payload.extend_from_slice(&partition_zero);
         payload.extend_from_slice(&[1, 0, 0, 2, 0, 0, 0, 0, 0]);
         payload.extend_from_slice(&[0xaa, 0xbb, 0xcc, 0xdd]);
@@ -2566,7 +2642,7 @@ mod tests {
         write_coefficient_updates(&mut writer, &[], false, 0);
         pad_first_partition(&mut writer);
         let partition_zero = writer.finish();
-        let mut payload = key_frame(1, 1, 0, true, 7 + partition_zero.len() as u32).to_vec();
+        let mut payload = key_frame(1, 1, 0, true, partition_zero.len() as u32).to_vec();
         payload.extend_from_slice(&partition_zero);
         let frame = parse_riff_payload(&payload, None, &DecodeLimits::default()).unwrap();
         assert_eq!(
@@ -2602,7 +2678,7 @@ mod tests {
             pad_first_partition(&mut writer);
             let partition_zero = writer.finish();
             let partition_count = 1_usize << partition_bits;
-            let mut payload = key_frame(1, 1, 0, true, 7 + partition_zero.len() as u32).to_vec();
+            let mut payload = key_frame(1, 1, 0, true, partition_zero.len() as u32).to_vec();
             payload.extend_from_slice(&partition_zero);
             payload.resize(payload.len() + 3 * (partition_count - 1), 0);
             payload.push(0);
@@ -2811,15 +2887,13 @@ mod tests {
             top_left_v: 30,
         };
         let prediction =
-            predict_intra16_macroblock(Intra16Mode::Vertical, ChromaMode::Horizontal, edges)
-                .unwrap();
+            predict_intra16_macroblock(Intra16Mode::Vertical, ChromaMode::Horizontal, edges);
         assert_eq!(prediction.y, [10; 256]);
         assert_eq!(prediction.u, [70; 64]);
         assert_eq!(prediction.v, [90; 64]);
 
         let true_motion =
-            predict_intra16_macroblock(Intra16Mode::TrueMotion, ChromaMode::TrueMotion, edges)
-                .unwrap();
+            predict_intra16_macroblock(Intra16Mode::TrueMotion, ChromaMode::TrueMotion, edges);
         assert_eq!(true_motion.y, [35; 256]);
         assert_eq!(true_motion.u, [100; 64]);
         assert_eq!(true_motion.v, [140; 64]);
@@ -2828,21 +2902,17 @@ mod tests {
             Intra16Mode::Dc,
             ChromaMode::Dc,
             MacroblockPredictionEdges::default(),
-        )
-        .unwrap();
+        );
         assert_eq!(dc.y, [128; 256]);
         assert_eq!(dc.u, [128; 64]);
         assert_eq!(dc.v, [128; 64]);
-        assert_eq!(
-            predict_intra16_macroblock(
-                Intra16Mode::Vertical,
-                ChromaMode::Dc,
-                MacroblockPredictionEdges::default(),
-            )
-            .unwrap_err()
-            .kind(),
-            DecodeErrorKind::InvalidBitstream
+        let sentinel = predict_intra16_macroblock(
+            Intra16Mode::Vertical,
+            ChromaMode::Horizontal,
+            MacroblockPredictionEdges::default(),
         );
+        assert_eq!(sentinel.y, [127; 256]);
+        assert_eq!(sentinel.u, [129; 64]);
     }
 
     #[test]
@@ -3175,7 +3245,7 @@ mod tests {
         writer.write_bool(false, 163);
         writer.write_bool(false, 142); // DC chroma
         let partition_zero = writer.finish();
-        let mut payload = key_frame(1, 1, 0, true, 7 + partition_zero.len() as u32).to_vec();
+        let mut payload = key_frame(1, 1, 0, true, partition_zero.len() as u32).to_vec();
         payload.extend_from_slice(&partition_zero);
         payload.push(0); // Non-empty final token partition, never consumed by skip.
 
@@ -3246,6 +3316,42 @@ mod tests {
         assert_eq!(
             Vp8YuvImage::new(&frame, &limits).unwrap_err().kind(),
             DecodeErrorKind::LimitExceeded
+        );
+    }
+
+    #[test]
+    fn yuv_image_converts_visible_rectangle_to_vp8_rgba() {
+        let image = Vp8YuvImage {
+            width: 2,
+            height: 2,
+            y_stride: 2,
+            uv_stride: 1,
+            y: vec![16, 235, 81, 145],
+            u: vec![128],
+            v: vec![128],
+        };
+        assert_eq!(
+            image.to_rgba(&DecodeLimits::default()).unwrap(),
+            vec![
+                0, 0, 0, 255, 255, 255, 255, 255, 76, 76, 76, 255, 150, 150, 150, 255
+            ]
+        );
+    }
+
+    #[test]
+    fn yuv_image_rejects_short_visible_plane() {
+        let image = Vp8YuvImage {
+            width: 2,
+            height: 2,
+            y_stride: 2,
+            uv_stride: 1,
+            y: vec![0; 3],
+            u: vec![128],
+            v: vec![128],
+        };
+        assert_eq!(
+            image.to_rgba(&DecodeLimits::default()).unwrap_err().kind(),
+            DecodeErrorKind::InvalidParameter
         );
     }
 
