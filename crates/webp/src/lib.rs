@@ -186,23 +186,45 @@ mod tests {
     use webp_testkit::{FixtureClass, FixtureRunner};
 
     #[test]
-    fn smoke_manifests_enter_the_public_api() {
-        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures/smoke");
-        FixtureRunner::new(root)
+    fn smoke_manifests_exercise_each_public_decode_entrypoint() {
+        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests");
+        let summary = FixtureRunner::new(root)
             .run_all(|fixture, bytes| {
-                let result = decode(bytes, &DecodeOptions::default());
                 match fixture.class {
                     FixtureClass::MustReject => {
-                        assert!(result.is_err(), "{} must reject", fixture.id)
+                        assert!(
+                            decode(bytes, &DecodeOptions::default()).is_err(),
+                            "{}: one-shot decode must reject",
+                            fixture.id
+                        );
+                        assert!(
+                            read_info(bytes, &DecodeLimits::default()).is_err(),
+                            "{}: read_info must reject",
+                            fixture.id
+                        );
+                        let mut incremental = IncrementalDecoder::new(DecodeOptions::default());
+                        incremental
+                            .push(bytes)
+                            .expect("input must fit default limit");
+                        assert!(
+                            incremental.finish().is_err(),
+                            "{}: incremental finish must reject",
+                            fixture.id
+                        );
                     }
                     FixtureClass::MustAccept => {
-                        assert!(result.is_ok(), "{} must accept", fixture.id)
+                        assert!(
+                            decode(bytes, &DecodeOptions::default()).is_ok(),
+                            "{} must accept",
+                            fixture.id
+                        );
                     }
                     FixtureClass::CompatAccept | FixtureClass::ImplementationDefined => {}
                 }
                 Ok::<_, String>(())
             })
             .expect("all smoke fixtures must run");
+        assert!(summary.fixtures > 0, "smoke corpus must not be empty");
     }
 
     #[test]
