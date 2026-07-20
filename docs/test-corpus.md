@@ -54,3 +54,8 @@ decode time, PSNR/Y-PSNR, SSIM/MS-SSIM, peak memory, and thread scaling. It is
 not a bitstream-conformance or pixel-golden corpus. The lock intentionally
 starts with the validation split; download it outside Git only when the encoder
 benchmark harness lands.
+
+Fetch and normalize the locked validation split with
+`python3 tools/fetch-clic-validation.py`. It writes ignored PNG inputs plus a
+SHA-256/geometry manifest for the Rust benchmark harness; no CLIC image enters
+the release crate or conformance fixture set.
