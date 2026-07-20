@@ -28,6 +28,11 @@ prints that commit. The reference-index script writes the resolved oracle
 commit into every generated sidecar. Preserve this output in a release run log
 when a replayable snapshot is required.
 
+Run `tools/index-upstream-smoke-corpus.sh` after fetching libwebp-test-data.
+It creates ignored, Rust-readable SHA-256 sidecars for the selected 64 vectors.
+They begin as `ImplementationDefined` integrity checks and are promoted to
+accepted/pixel-golden tests feature by feature as public decoder support lands.
+
 The reference checkout is test-only. It supplies the upstream fuzz dictionary,
 future `cwebp` pairwise encoder vectors, `webpmux` metadata vectors, and
 animation oracle outputs. It is not linked into the published Rust codec.
