@@ -58,6 +58,15 @@ The script rejects an existing checkout with a different `origin` and confirms
 that its detached `HEAD` is the `libwebp_test_data.commit` in
 `tools/corpus-lock.toml`.
 
+Fetch the pinned, test-only libwebp oracle with:
+
+```text
+tools/fetch-libwebp-oracle.sh
+```
+
+The overall five-source corpus policy and profile gates are in
+`docs/test-corpus.md`.
+
 The 64-file feature smoke selection is versioned separately from the downloaded
 binary corpus. Validate its completeness after fetching with:
 
