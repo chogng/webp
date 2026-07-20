@@ -309,6 +309,7 @@ dependencies = [
  "webp-vp8l-color-transform",
  "webp-vp8l-entropy",
  "webp-vp8l-huffman",
+ "webp-vp8l-indexing",
  "webp-vp8l-transform",
 ]
 

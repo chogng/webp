@@ -17,4 +17,5 @@ webp-vp8l-huffman = { path = "../webp-vp8l-huffman" }
 webp-vp8l-entropy = { path = "../webp-vp8l-entropy" }
 webp-vp8l-color-cache = { path = "../webp-vp8l-color-cache" }
 webp-vp8l-color-transform = { path = "../webp-vp8l-color-transform" }
+webp-vp8l-indexing = { path = "../webp-vp8l-indexing" }
 webp-vp8l-transform = { path = "../webp-vp8l-transform" }

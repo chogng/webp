@@ -21,6 +21,7 @@ use webp_vp8l_entropy::{
     copy_lz77_pixels, decode_distance, decode_length, distance_code_to_distance,
 };
 use webp_vp8l_huffman::{HuffmanTable, read_huffman_code};
+use webp_vp8l_indexing::{Palette, TRANSPARENT_BLACK};
 use webp_vp8l_transform::{PredictorMode, Rgba, predict};
 
 const GREEN_ALPHABET_SIZE: usize = 256 + 24;
@@ -41,7 +42,7 @@ pub struct LiteralImage {
 /// The input begins with the five-byte VP8L fixed header. A transform list may
 /// be empty or contain subtract-green, predictor, and color transforms; color
 /// cache, backward references, and literal entropy symbols are also supported.
-/// Color indexing and meta-Huffman groups remain explicitly unsupported.
+/// Meta-Huffman groups remain explicitly unsupported.
 pub fn decode_literal_only(
     data: &[u8],
     limits: &DecodeLimits,
@@ -53,7 +54,7 @@ pub fn decode_literal_only(
 ///
 /// Literal pixels, green-alphabet backward-reference symbols, and color-cache
 /// references are supported. The transform list may be empty or contain
-/// subtract-green, predictor, and color transforms. Transform subimages use
+/// subtract-green, predictor, color, and color-indexing transforms. Transform subimages use
 /// the non-level-zero entropy syntax: they have no transform list and cannot
 /// use meta-Huffman groups. Color indexing and meta-Huffman groups remain
 /// explicitly unsupported. Internally decoded samples are packed as
@@ -77,7 +78,7 @@ pub fn decode_no_transform(
     let mut budget = limits.work_budget();
 
     let mut retained_transform_bytes = 0_usize;
-    let transforms = read_supported_transforms(
+    let decoded_transforms = read_supported_transforms(
         &mut bits,
         &mut budget,
         &header,
@@ -86,8 +87,8 @@ pub fn decode_no_transform(
     )?;
     let mut output = decode_entropy_image(
         &mut bits,
-        header.width,
-        header.height,
+        decoded_transforms.coded_width,
+        decoded_transforms.coded_height,
         true,
         &mut budget,
         limits,
@@ -95,7 +96,7 @@ pub fn decode_no_transform(
         rgba_len,
     )?;
 
-    for transform in transforms.iter().rev() {
+    for transform in decoded_transforms.transforms.iter().rev() {
         match transform {
             DecodedTransform::SubtractGreen => inverse_subtract_green_argb(&mut output),
             DecodedTransform::Predictor {
@@ -108,9 +109,20 @@ pub fn decode_no_transform(
                 descriptor,
                 multipliers,
             } => inverse_color_argb(&mut output, *descriptor, multipliers)?,
+            DecodedTransform::ColorIndexing {
+                descriptor,
+                palette,
+            } => inverse_color_indexing_argb(
+                &mut output,
+                *descriptor,
+                palette,
+                retained_transform_bytes,
+                rgba_len,
+                limits.max_alloc_bytes,
+            )?,
         }
     }
-    drop(transforms);
+    drop(decoded_transforms);
 
     let mut rgba = Vec::new();
     rgba.try_reserve_exact(rgba_len).map_err(|_| {
@@ -230,7 +242,17 @@ enum DecodedTransform {
         descriptor: BlockTransformDescriptor,
         multipliers: Vec<ColorTransformMultipliers>,
     },
+    ColorIndexing {
+        descriptor: webp_vp8l::ColorIndexingDescriptor,
+        palette: Palette,
+    },
     SubtractGreen,
+}
+
+struct DecodedTransforms {
+    transforms: Vec<DecodedTransform>,
+    coded_width: u32,
+    coded_height: u32,
 }
 
 /// Reads the main-level transform list and decodes supported transform
@@ -245,7 +267,7 @@ fn read_supported_transforms(
     header: &Vp8lHeader,
     limits: &DecodeLimits,
     retained_bytes: &mut usize,
-) -> Result<Vec<DecodedTransform>, DecodeError> {
+) -> Result<DecodedTransforms, DecodeError> {
     let mut parser = TransformListParser::new(header.width, header.height, limits)?;
     let mut transforms = Vec::new();
 
@@ -255,7 +277,14 @@ fn read_supported_transforms(
         // original one-unit stream-flag accounting.
         budget.consume(1)?;
         match parser.read_next(bits, limits)? {
-            None => return Ok(transforms),
+            None => {
+                let (coded_width, coded_height) = parser.image_dimensions();
+                return Ok(DecodedTransforms {
+                    transforms,
+                    coded_width,
+                    coded_height,
+                });
+            }
             Some(TransformDescriptor::SubtractGreen) => {
                 transforms.push(DecodedTransform::SubtractGreen)
             }
@@ -317,11 +346,95 @@ fn read_supported_transforms(
                     multipliers,
                 });
             }
-            Some(TransformDescriptor::ColorIndexing(_)) => {
-                return Err(unsupported("VP8L color indexing is not implemented"));
+            Some(TransformDescriptor::ColorIndexing(descriptor)) => {
+                let palette =
+                    decode_color_palette(bits, budget, descriptor, limits, *retained_bytes)?;
+                let palette_bytes = checked_transform_bytes(
+                    palette.len(),
+                    size_of::<Rgba>(),
+                    "VP8L color-indexing palette byte size overflow",
+                )?;
+                *retained_bytes = retained_bytes.checked_add(palette_bytes).ok_or_else(|| {
+                    DecodeError::new(
+                        DecodeErrorKind::LimitExceeded,
+                        None,
+                        "VP8L retained transform byte size overflow",
+                    )
+                })?;
+                transforms.push(DecodedTransform::ColorIndexing {
+                    descriptor,
+                    palette,
+                });
             }
         }
     }
+}
+
+/// Decodes VP8L's one-row, delta-coded color table immediately following a
+/// color-indexing descriptor. Keeping the table as [`Palette`] preserves its
+/// specified wrapping delta arithmetic and transparent-black handling for
+/// out-of-range packed indices.
+fn decode_color_palette(
+    bits: &mut BitReader<'_>,
+    budget: &mut WorkBudget,
+    descriptor: webp_vp8l::ColorIndexingDescriptor,
+    limits: &DecodeLimits,
+    retained_bytes: usize,
+) -> Result<Palette, DecodeError> {
+    let palette_pixels = decode_entropy_image(
+        bits,
+        descriptor.color_table_width(),
+        descriptor.color_table_height(),
+        false,
+        budget,
+        limits,
+        retained_bytes,
+        0,
+    )?;
+    let packed_bytes = checked_transform_bytes(
+        palette_pixels.len(),
+        size_of::<u32>(),
+        "VP8L color-indexing packed palette byte size overflow",
+    )?;
+    let palette_bytes = checked_transform_bytes(
+        palette_pixels.len(),
+        size_of::<Rgba>(),
+        "VP8L color-indexing palette byte size overflow",
+    )?;
+    check_transient_indexing_palette_allocation(
+        retained_bytes,
+        packed_bytes,
+        palette_bytes,
+        limits.max_alloc_bytes,
+    )?;
+    budget.consume(u64::try_from(palette_pixels.len()).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-indexing palette length exceeds work counter",
+        )
+    })?)?;
+
+    let mut entries = Vec::new();
+    entries
+        .try_reserve_exact(palette_pixels.len())
+        .map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::AllocationFailed,
+                None,
+                "VP8L color-indexing palette allocation failed",
+            )
+        })?;
+    for pixel in palette_pixels {
+        entries.push(argb_to_rgba(pixel));
+    }
+    Palette::from_deltas(entries).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L color-indexing palette is invalid",
+        )
+    })
 }
 
 /// Decodes and converts a VP8L color-transform subimage to its three-byte
@@ -477,6 +590,34 @@ fn check_transient_transform_allocation(
     Ok(())
 }
 
+/// Bounds the brief overlap while a decoded packed palette becomes the
+/// retained [`Palette`] representation.
+fn check_transient_indexing_palette_allocation(
+    retained_bytes: usize,
+    packed_bytes: usize,
+    palette_bytes: usize,
+    max_alloc_bytes: usize,
+) -> Result<(), DecodeError> {
+    let total = retained_bytes
+        .checked_add(packed_bytes)
+        .and_then(|value| value.checked_add(palette_bytes))
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L color-indexing palette conversion allocation size overflow",
+            )
+        })?;
+    if total > max_alloc_bytes {
+        return Err(DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-indexing palette conversion exceeds allocation limit",
+        ));
+    }
+    Ok(())
+}
+
 fn pixel_count(width: u32, height: u32) -> Result<usize, DecodeError> {
     usize::try_from(u64::from(width) * u64::from(height)).map_err(|_| {
         DecodeError::new(
@@ -527,6 +668,125 @@ const fn unpack_rgba(pixel: u32) -> [u8; 4] {
         pixel as u8,
         (pixel >> 24) as u8,
     ]
+}
+
+/// Reverses VP8L color indexing in packed ARGB form.  The decoder keeps the
+/// narrow entropy output alive until the expanded row-major output is fully
+/// initialized, so this explicitly accounts for both buffers plus the final
+/// RGBA allocation and all retained transform tables.
+fn inverse_color_indexing_argb(
+    pixels: &mut Vec<u32>,
+    descriptor: webp_vp8l::ColorIndexingDescriptor,
+    palette: &Palette,
+    retained_bytes: usize,
+    final_rgba_bytes: usize,
+    max_alloc_bytes: usize,
+) -> Result<(), DecodeError> {
+    let packing = palette.packing();
+    let indices_per_pixel = usize::from(packing.indices_per_pixel());
+    let expected_bundle = 1_usize << descriptor.width_bits;
+    if indices_per_pixel != expected_bundle {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L color-indexing descriptor does not match palette packing",
+        ));
+    }
+    if descriptor.image_width_after
+        != palette
+            .packing()
+            .packed_width(descriptor.image_width_before)
+            .map_err(|_| {
+                DecodeError::new(
+                    DecodeErrorKind::InvalidBitstream,
+                    None,
+                    "VP8L color-indexing packed width is invalid",
+                )
+            })?
+    {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L color-indexing packed width does not match descriptor",
+        ));
+    }
+
+    let packed_pixels = pixel_count(descriptor.image_width_after, descriptor.image_height)?;
+    if pixels.len() != packed_pixels {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L color-indexing output length does not match packed dimensions",
+        ));
+    }
+    let expanded_pixels = pixel_count(descriptor.image_width_before, descriptor.image_height)?;
+    let packed_bytes = checked_transform_bytes(
+        packed_pixels,
+        size_of::<u32>(),
+        "VP8L color-indexing packed image byte size overflow",
+    )?;
+    let expanded_bytes = checked_transform_bytes(
+        expanded_pixels,
+        size_of::<u32>(),
+        "VP8L color-indexing expanded image byte size overflow",
+    )?;
+    let total = retained_bytes
+        .checked_add(packed_bytes)
+        .and_then(|value| value.checked_add(expanded_bytes))
+        .and_then(|value| value.checked_add(final_rgba_bytes))
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L color-indexing expansion allocation size overflow",
+            )
+        })?;
+    if total > max_alloc_bytes {
+        return Err(DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-indexing expansion exceeds allocation limit",
+        ));
+    }
+
+    let width_before = usize::try_from(descriptor.image_width_before).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-indexing image width does not fit usize",
+        )
+    })?;
+    let width_after = usize::try_from(descriptor.image_width_after).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L color-indexing packed width does not fit usize",
+        )
+    })?;
+    let bits_per_index = u32::from(packing.bits_per_index());
+    let mask = (1_u16 << bits_per_index) - 1;
+
+    let mut expanded = Vec::new();
+    expanded.try_reserve_exact(expanded_pixels).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::AllocationFailed,
+            None,
+            "VP8L color-indexing expanded output allocation failed",
+        )
+    })?;
+    for row in pixels.chunks_exact(width_after) {
+        for x in 0..width_before {
+            let packed = (row[x / indices_per_pixel] >> 8) as u8;
+            let shift = u32::try_from(x % indices_per_pixel)
+                .expect("VP8L color-indexing shift fits u32")
+                * bits_per_index;
+            let index = usize::from((u16::from(packed) >> shift) & mask);
+            let color = palette.get(index).unwrap_or(TRANSPARENT_BLACK);
+            expanded.push(pack_argb(color.red, color.green, color.blue, color.alpha));
+        }
+    }
+    *pixels = expanded;
+    Ok(())
 }
 
 /// Inverts subtract-green directly in the packed ARGB representation.
@@ -1047,7 +1307,11 @@ mod tests {
         }
     }
 
-    fn write_channel_code(writer: &mut BitWriter, values: &[u8]) -> Option<Vec<u8>> {
+    fn write_channel_code(
+        writer: &mut BitWriter,
+        alphabet_size: usize,
+        values: &[u8],
+    ) -> Option<Vec<u8>> {
         let mut symbols = values.to_vec();
         symbols.sort_unstable();
         symbols.dedup();
@@ -1058,12 +1322,12 @@ mod tests {
             }
             2 => Some(write_normal_code(
                 writer,
-                CHANNEL_ALPHABET_SIZE,
+                alphabet_size,
                 &[(usize::from(symbols[0]), 1), (usize::from(symbols[1]), 1)],
             )),
             3 => Some(write_normal_code(
                 writer,
-                CHANNEL_ALPHABET_SIZE,
+                alphabet_size,
                 &[
                     (usize::from(symbols[0]), 1),
                     (usize::from(symbols[1]), 2),
@@ -1072,7 +1336,7 @@ mod tests {
             )),
             4 => Some(write_normal_code(
                 writer,
-                CHANNEL_ALPHABET_SIZE,
+                alphabet_size,
                 &[
                     (usize::from(symbols[0]), 2),
                     (usize::from(symbols[1]), 2),
@@ -1086,22 +1350,37 @@ mod tests {
 
     /// Writes a small non-level-zero VP8L entropy image with literal pixels.
     fn write_entropy_image_pixels(writer: &mut BitWriter, pixels: &[[u8; 4]]) {
+        write_entropy_image_pixels_at_level(writer, pixels, false);
+    }
+
+    fn write_entropy_image_pixels_at_level(
+        writer: &mut BitWriter,
+        pixels: &[[u8; 4]],
+        is_level0: bool,
+    ) {
         assert!(!pixels.is_empty());
         writer.write_bits(0, 1).unwrap(); // color_cache_present
+        if is_level0 {
+            writer.write_bits(0, 1).unwrap(); // use_meta_huffman
+        }
         let green = write_channel_code(
             writer,
+            GREEN_ALPHABET_SIZE,
             &pixels.iter().map(|pixel| pixel[1]).collect::<Vec<_>>(),
         );
         let red = write_channel_code(
             writer,
+            CHANNEL_ALPHABET_SIZE,
             &pixels.iter().map(|pixel| pixel[0]).collect::<Vec<_>>(),
         );
         let blue = write_channel_code(
             writer,
+            CHANNEL_ALPHABET_SIZE,
             &pixels.iter().map(|pixel| pixel[2]).collect::<Vec<_>>(),
         );
         let alpha = write_channel_code(
             writer,
+            CHANNEL_ALPHABET_SIZE,
             &pixels.iter().map(|pixel| pixel[3]).collect::<Vec<_>>(),
         );
         write_simple_code(writer, 0); // distance prefix
@@ -1120,6 +1399,61 @@ mod tests {
                 write_symbol(writer, lengths, usize::from(pixel[3]));
             }
         }
+    }
+
+    fn color_indexing_stream(
+        width: u32,
+        height: u32,
+        palette_deltas: &[[u8; 4]],
+        indexed_pixels: &[[u8; 4]],
+    ) -> Vec<u8> {
+        assert!((1..=256).contains(&palette_deltas.len()));
+        let width_bits = webp_vp8l::color_index_width_bits(palette_deltas.len() as u16);
+        let packed_width = width.div_ceil(1_u32 << width_bits);
+        assert_eq!(
+            indexed_pixels.len(),
+            usize::try_from(packed_width * height).unwrap()
+        );
+
+        let mut writer = BitWriter::new();
+        write_header(&mut writer, width, height, true);
+        writer.write_bits(1, 1).unwrap(); // transform_present
+        writer.write_bits(3, 2).unwrap(); // color indexing
+        writer
+            .write_bits(u32::try_from(palette_deltas.len() - 1).unwrap(), 8)
+            .unwrap();
+        write_entropy_image_pixels(&mut writer, palette_deltas);
+        writer.write_bits(0, 1).unwrap(); // transform-list terminator
+        write_entropy_image_pixels_at_level(&mut writer, indexed_pixels, true);
+        writer.into_bytes()
+    }
+
+    fn all_transform_kinds_stream() -> Vec<u8> {
+        let mut writer = BitWriter::new();
+        write_header(&mut writer, 2, 1, true);
+
+        writer.write_bits(1, 1).unwrap(); // predictor transform
+        writer.write_bits(0, 2).unwrap();
+        writer.write_bits(0, 3).unwrap(); // four-pixel blocks
+        write_entropy_image_pixels(&mut writer, &[[0, 1, 0, 255]]);
+
+        writer.write_bits(1, 1).unwrap(); // color transform
+        writer.write_bits(1, 2).unwrap();
+        writer.write_bits(0, 3).unwrap(); // four-pixel blocks
+        write_entropy_image_pixels(&mut writer, &[[0, 0, 32, 0]]);
+
+        writer.write_bits(1, 1).unwrap(); // subtract-green transform
+        writer.write_bits(2, 2).unwrap();
+
+        writer.write_bits(1, 1).unwrap(); // color indexing transform
+        writer.write_bits(3, 2).unwrap();
+        writer.write_bits(0, 8).unwrap(); // one palette entry
+        write_entropy_image_pixels(&mut writer, &[[0, 32, 0, 0]]);
+
+        writer.write_bits(0, 1).unwrap(); // transform-list terminator
+        // Two one-bit palette indices, both zero, packed in green's low bits.
+        write_entropy_image_pixels_at_level(&mut writer, &[[0, 0, 0, 0]], true);
+        writer.into_bytes()
     }
 
     fn color_transform_stream(
@@ -1448,19 +1782,114 @@ mod tests {
     }
 
     #[test]
-    fn rejects_color_indexing_without_reading_its_palette_payload() {
+    fn truncated_color_indexing_palette_reports_eof() {
         let mut writer = BitWriter::new();
         write_header(&mut writer, 1, 1, false);
         writer.write_bits(1, 1).unwrap(); // transform_present
         writer.write_bits(3, 2).unwrap(); // color indexing
         writer.write_bits(0, 8).unwrap(); // one palette entry
-        // No palette subimage follows. This must reject as unsupported rather
-        // than attempting to parse a transform that this decoder cannot use.
         assert_eq!(
             decode_literal_only(&writer.into_bytes(), &limits())
                 .unwrap_err()
                 .kind(),
-            DecodeErrorKind::UnsupportedFeature
+            DecodeErrorKind::UnexpectedEof
+        );
+    }
+
+    #[test]
+    fn decodes_packed_color_indices_and_palette_deltas() {
+        // A four-entry palette packs four two-bit indices in each source
+        // green byte.
+        let data = color_indexing_stream(
+            4,
+            1,
+            &[[10, 20, 30, 40], [5, 5, 5, 5], [7, 7, 7, 7], [9, 9, 9, 9]],
+            &[[0xa5, 0b0100_0100, 0x5a, 0x33]],
+        );
+        let image = decode_no_transform(&data, &limits()).unwrap();
+        let first = [10, 20, 30, 40];
+        let second = [15, 25, 35, 45];
+        assert_eq!(image.rgba, [first, second, first, second].concat());
+    }
+
+    #[test]
+    fn color_indexing_handles_each_palette_packing_boundary() {
+        for (size, width) in [
+            (2, 9_u32),
+            (3, 5),
+            (4, 5),
+            (5, 3),
+            (16, 3),
+            (17, 3),
+            (256, 3),
+        ] {
+            let palette = vec![[7, 8, 9, 10]; size];
+            let width_bits = webp_vp8l::color_index_width_bits(size as u16);
+            let packed_width = width.div_ceil(1_u32 << width_bits);
+            let indexed = vec![[0, 0, 0, 0]; usize::try_from(packed_width).unwrap()];
+            let image = decode_no_transform(
+                &color_indexing_stream(width, 1, &palette, &indexed),
+                &limits(),
+            )
+            .unwrap();
+            assert_eq!(
+                image.rgba,
+                [7, 8, 9, 10].repeat(width as usize),
+                "size {size}"
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_packed_palette_indices_become_transparent_black() {
+        // Palette size three selects two-bit indices. The first index is
+        // three (invalid), while every remaining index is zero.
+        let image = decode_no_transform(
+            &color_indexing_stream(
+                4,
+                1,
+                &[[1, 1, 1, 1], [1, 1, 1, 1], [1, 1, 1, 1]],
+                &[[0xaa, 0b0000_0011, 0x55, 0x99]],
+            ),
+            &limits(),
+        )
+        .unwrap();
+        assert_eq!(
+            image.rgba,
+            [
+                0, 0, 0, 0, // invalid palette index
+                1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+            ]
+        );
+    }
+
+    #[test]
+    fn color_indexing_expands_before_other_inverse_transforms() {
+        let image = decode_no_transform(&all_transform_kinds_stream(), &limits()).unwrap();
+        // Wire order is predictor, color, subtract-green, indexing. Reverse
+        // order expands palette indices first, then applies the other three
+        // transforms at their original two-pixel width.
+        assert_eq!(
+            image.rgba,
+            [
+                64, 32, 32, 255, // opaque-black predictor boundary
+                128, 64, 64, 255, // top-row left predictor
+            ]
+        );
+    }
+
+    #[test]
+    fn color_indexing_expansion_counts_packed_palette_and_output_buffers() {
+        let data = color_indexing_stream(2, 1, &[[1, 2, 3, 4], [1, 2, 3, 4]], &[[0, 0, 0, 0]]);
+        // The retained palette (8 B), narrow packed output (4 B), expanded
+        // output (8 B), and final RGBA (8 B) coexist during expansion.
+        let limited = DecodeLimits {
+            max_alloc_bytes: 27,
+            ..limits()
+        };
+        assert_eq!(
+            decode_no_transform(&data, &limited).unwrap_err().kind(),
+            DecodeErrorKind::LimitExceeded
         );
     }
 
