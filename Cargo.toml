@@ -4,6 +4,8 @@ members = [
     "crates/webp-container",
     "crates/webp-vp8l",
     "crates/webp-vp8l-transform",
+    "crates/webp-vp8l-entropy",
+    "crates/webp-vp8l-huffman",
     "crates/webp-testkit",
     "crates/webp",
     "xtask",

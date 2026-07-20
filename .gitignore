@@ -1,4 +1,6 @@
 /target/
+/crates/*/target/
+/crates/*/Cargo.lock
 /fuzz/artifacts/
 /fuzz/corpus/
 /third_party/corpus/

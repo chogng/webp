@@ -311,7 +311,14 @@ pub fn inverse_predictor(
             actual: modes.len(),
         });
     }
-    inverse_predictor_with(image, |x, y| modes[image.offset_in_bounds(x, y)]);
+    let width = usize::try_from(image.width).map_err(|_| TransformError::ImageTooLarge {
+        width: image.width,
+        height: image.height,
+    })?;
+    inverse_predictor_with(image, |x, y| {
+        modes[usize::try_from(y).expect("u32 fits usize") * width
+            + usize::try_from(x).expect("u32 fits usize")]
+    });
     Ok(())
 }
 
@@ -332,15 +339,21 @@ where
 }
 
 fn pixel_len(width: u32, height: u32) -> Result<usize, TransformError> {
-    let width =
-        usize::try_from(width).map_err(|_| TransformError::ImageTooLarge { width, height })?;
-    let height =
-        usize::try_from(height).map_err(|_| TransformError::ImageTooLarge { width, height })?;
+    let original_width = width;
+    let original_height = height;
+    let width = usize::try_from(width).map_err(|_| TransformError::ImageTooLarge {
+        width: original_width,
+        height: original_height,
+    })?;
+    let height = usize::try_from(height).map_err(|_| TransformError::ImageTooLarge {
+        width: original_width,
+        height: original_height,
+    })?;
     width
         .checked_mul(height)
         .ok_or(TransformError::ImageTooLarge {
-            width: width as u32,
-            height: height as u32,
+            width: original_width,
+            height: original_height,
         })
 }
 
@@ -521,7 +534,7 @@ mod tests {
                 Rgba::new(5, 7, 9, 10),
                 Rgba::new(13, 16, 19, 21),
                 Rgba::new(13, 15, 17, 18),
-                Rgba::new(8, 8, 8, 8),
+                Rgba::new(8, 9, 10, 10),
                 Rgba::new(17, 19, 21, 22),
             ]
         );

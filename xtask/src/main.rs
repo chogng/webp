@@ -31,7 +31,7 @@ fn corpus(action: Option<&str>) -> Result<(), String> {
     match action {
         Some("verify") => verify_corpus_lock(Path::new("tools/corpus-lock.toml")),
         Some("fetch" | "index") => Err(
-            "this M0 checkout ships only the committed smoke corpus; upstream corpus fetching is not configured yet"
+            "this checkout ships only the committed smoke corpus; upstream corpus fetching is not configured yet"
                 .to_owned(),
         ),
         _ => Err("usage: cargo xtask corpus <verify|fetch|index>".to_owned()),
@@ -49,7 +49,7 @@ fn feature_matrix(action: Option<&str>) -> Result<(), String> {
             return Err(format!("feature matrix does not list {feature}"));
         }
     }
-    println!("feature matrix: M0 entries present");
+    println!("feature matrix: M0/M1 entries present");
     Ok(())
 }
 
@@ -64,6 +64,8 @@ fn verify_corpus_lock(path: &Path) -> Result<(), String> {
             ));
         }
     }
-    println!("corpus lock: schema verified (network fetch intentionally disabled in M0)");
+    println!(
+        "corpus lock: schema verified (network fetch intentionally disabled during M1 groundwork)"
+    );
     Ok(())
 }
