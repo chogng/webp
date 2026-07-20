@@ -216,11 +216,16 @@ fn extend_repeat(
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct RootTableEntry {
-    symbol: usize,
+    symbol_index: u16,
     bits: u8,
+    secondary_bits: u8,
 }
 
-const EMPTY_ROOT_ENTRY: RootTableEntry = RootTableEntry { symbol: 0, bits: 0 };
+const EMPTY_ROOT_ENTRY: RootTableEntry = RootTableEntry {
+    symbol_index: 0,
+    bits: 0,
+    secondary_bits: 0,
+};
 
 /// Heap storage used by one Huffman table's replicated root lookup table.
 ///
@@ -228,6 +233,11 @@ const EMPTY_ROOT_ENTRY: RootTableEntry = RootTableEntry { symbol: 0, bits: 0 };
 /// alongside the table's inline representation and symbol vector.
 pub const ROOT_TABLE_STORAGE_BYTES: usize =
     core::mem::size_of::<[RootTableEntry; ROOT_TABLE_SIZE]>();
+
+/// Maximum heap storage for all compact second-level entries of one table.
+pub const MAX_SECONDARY_TABLE_STORAGE_BYTES: usize = core::mem::size_of::<RootTableEntry>()
+    * ROOT_TABLE_SIZE
+    * (1 << (MAX_CODE_LENGTH - ROOT_TABLE_BITS));
 
 fn empty_root_table() -> Box<[RootTableEntry; ROOT_TABLE_SIZE]> {
     Box::new([EMPTY_ROOT_ENTRY; ROOT_TABLE_SIZE])
@@ -251,6 +261,7 @@ pub struct HuffmanTable {
     // Most VP8L codes fit in this table. Entries are replicated over all
     // unused high bits, so a direct hit consumes exactly the code length.
     root_table: Box<[RootTableEntry; ROOT_TABLE_SIZE]>,
+    secondary_table: Vec<RootTableEntry>,
     max_code_length: u8,
 }
 
@@ -269,6 +280,7 @@ impl HuffmanTable {
                 first_symbol: [0; MAX_CODE_LENGTH as usize + 1],
                 code_count: [0; MAX_CODE_LENGTH as usize + 1],
                 root_table: empty_root_table(),
+                secondary_table: Vec::new(),
                 max_code_length: 0,
             },
             Some(second_symbol) => {
@@ -278,11 +290,12 @@ impl HuffmanTable {
                     first_symbol: [0; MAX_CODE_LENGTH as usize + 1],
                     code_count: [0; MAX_CODE_LENGTH as usize + 1],
                     root_table: empty_root_table(),
+                    secondary_table: Vec::new(),
                     max_code_length: 1,
                 };
                 table.code_count[1] = 2;
-                fill_root_table(&mut table.root_table, 0, 1, first_symbol);
-                fill_root_table(&mut table.root_table, 1, 1, second_symbol);
+                fill_root_table(&mut table.root_table, 0, 1, 0);
+                fill_root_table(&mut table.root_table, 1, 1, 1);
                 table
             }
         }
@@ -335,6 +348,7 @@ impl HuffmanTable {
                 first_symbol: [0; MAX_CODE_LENGTH as usize + 1],
                 code_count: [0; MAX_CODE_LENGTH as usize + 1],
                 root_table: empty_root_table(),
+                secondary_table: Vec::new(),
                 max_code_length: 0,
             });
         }
@@ -385,8 +399,63 @@ impl HuffmanTable {
                 .ok_or_else(|| invalid("VP8L Huffman symbol index overflow"))?;
         }
 
-        let mut next_code = first_code;
         let mut root_table = empty_root_table();
+        let mut secondary_bits = [0_u8; ROOT_TABLE_SIZE];
+        let mut sizing_codes = first_code;
+        for (length, next_code_for_length) in sizing_codes
+            .iter_mut()
+            .enumerate()
+            .take(usize::from(MAX_CODE_LENGTH) + 1)
+            .skip(usize::from(ROOT_TABLE_BITS + 1))
+        {
+            for &symbol_length in code_lengths {
+                if usize::from(symbol_length) != length {
+                    continue;
+                }
+                let wire_code = reverse_code(
+                    u16::try_from(*next_code_for_length)
+                        .map_err(|_| invalid("VP8L Huffman canonical code exceeds 15 bits"))?,
+                    symbol_length,
+                );
+                let prefix = usize::from(wire_code) & (ROOT_TABLE_SIZE - 1);
+                secondary_bits[prefix] =
+                    secondary_bits[prefix].max(symbol_length - ROOT_TABLE_BITS);
+                *next_code_for_length = next_code_for_length
+                    .checked_add(1)
+                    .ok_or_else(|| invalid("VP8L Huffman canonical code overflow"))?;
+            }
+        }
+
+        let mut secondary_offsets = [0_usize; ROOT_TABLE_SIZE];
+        let mut secondary_len = 0_usize;
+        for (prefix, &table_bits) in secondary_bits.iter().enumerate() {
+            if table_bits == 0 {
+                continue;
+            }
+            secondary_offsets[prefix] = secondary_len;
+            root_table[prefix] = RootTableEntry {
+                symbol_index: u16::try_from(secondary_len)
+                    .map_err(|_| invalid("VP8L Huffman secondary offset does not fit u16"))?,
+                bits: 0,
+                secondary_bits: table_bits,
+            };
+            secondary_len = secondary_len
+                .checked_add(1_usize << table_bits)
+                .ok_or_else(|| invalid("VP8L Huffman secondary table size overflow"))?;
+        }
+        let mut secondary_table = Vec::new();
+        secondary_table
+            .try_reserve_exact(secondary_len)
+            .map_err(|_| {
+                DecodeError::new(
+                    DecodeErrorKind::AllocationFailed,
+                    None,
+                    "VP8L Huffman secondary table allocation failed",
+                )
+            })?;
+        secondary_table.resize(secondary_len, EMPTY_ROOT_ENTRY);
+
+        let mut next_code = first_code;
         let mut max_code_length = 0_u8;
         for (length, next_code_for_length) in next_code
             .iter_mut()
@@ -405,7 +474,22 @@ impl HuffmanTable {
                     symbol_length,
                 );
                 if symbol_length <= ROOT_TABLE_BITS {
-                    fill_root_table(&mut root_table, wire_code, symbol_length, symbol);
+                    let symbol_index = u16::try_from(symbols_by_code.len())
+                        .map_err(|_| invalid("VP8L Huffman root symbol index does not fit u16"))?;
+                    fill_root_table(&mut root_table, wire_code, symbol_length, symbol_index);
+                } else {
+                    let prefix = usize::from(wire_code) & (ROOT_TABLE_SIZE - 1);
+                    let symbol_index = u16::try_from(symbols_by_code.len()).map_err(|_| {
+                        invalid("VP8L Huffman secondary symbol index does not fit u16")
+                    })?;
+                    fill_secondary_table(
+                        &mut secondary_table,
+                        secondary_offsets[prefix],
+                        secondary_bits[prefix],
+                        wire_code,
+                        symbol_length,
+                        symbol_index,
+                    );
                 }
                 *next_code_for_length = next_code_for_length
                     .checked_add(1)
@@ -421,6 +505,7 @@ impl HuffmanTable {
             first_symbol,
             code_count: counts,
             root_table,
+            secondary_table,
             max_code_length,
         })
     }
@@ -441,7 +526,34 @@ impl HuffmanTable {
                 if entry.bits < ROOT_TABLE_BITS {
                     bits.rewind_bits(ROOT_TABLE_BITS - entry.bits)?;
                 }
-                return Ok(entry.symbol);
+                return self
+                    .symbols
+                    .get(usize::from(entry.symbol_index))
+                    .copied()
+                    .ok_or_else(|| invalid("VP8L Huffman root symbol index is missing"));
+            }
+
+            if entry.secondary_bits != 0
+                && bits.remaining_bits() >= usize::from(entry.secondary_bits)
+            {
+                let index = usize::try_from(bits.read_bits(entry.secondary_bits)?)
+                    .map_err(|_| invalid("VP8L Huffman secondary index does not fit usize"))?;
+                let secondary = self
+                    .secondary_table
+                    .get(usize::from(entry.symbol_index) + index)
+                    .copied()
+                    .ok_or_else(|| invalid("VP8L Huffman secondary table index is missing"))?;
+                if secondary.bits == 0 {
+                    return Err(invalid("VP8L Huffman secondary table entry is empty"));
+                }
+                if secondary.bits < entry.secondary_bits {
+                    bits.rewind_bits(entry.secondary_bits - secondary.bits)?;
+                }
+                return self
+                    .symbols
+                    .get(usize::from(secondary.symbol_index))
+                    .copied()
+                    .ok_or_else(|| invalid("VP8L Huffman secondary symbol index is missing"));
             }
 
             let mut code = u16::try_from(prefix)
@@ -506,7 +618,7 @@ fn fill_root_table(
     root_table: &mut [RootTableEntry; ROOT_TABLE_SIZE],
     wire_code: u16,
     length: u8,
-    symbol: usize,
+    symbol_index: u16,
 ) {
     debug_assert!((1..=ROOT_TABLE_BITS).contains(&length));
     let stride = 1_usize << length;
@@ -516,8 +628,31 @@ fn fill_root_table(
         .step_by(stride)
     {
         *entry = RootTableEntry {
-            symbol,
+            symbol_index,
             bits: length,
+            secondary_bits: 0,
+        };
+    }
+}
+
+fn fill_secondary_table(
+    secondary_table: &mut [RootTableEntry],
+    offset: usize,
+    table_bits: u8,
+    wire_code: u16,
+    length: u8,
+    symbol_index: u16,
+) {
+    let extra_bits = length - ROOT_TABLE_BITS;
+    debug_assert!((1..=table_bits).contains(&extra_bits));
+    let code = usize::from(wire_code >> ROOT_TABLE_BITS);
+    let table_len = 1_usize << table_bits;
+    let stride = 1_usize << extra_bits;
+    for index in (code..table_len).step_by(stride) {
+        secondary_table[offset + index] = RootTableEntry {
+            symbol_index,
+            bits: extra_bits,
+            secondary_bits: 0,
         };
     }
 }
@@ -554,6 +689,12 @@ mod tests {
             previous_length = length;
         }
         panic!("requested unused symbol");
+    }
+
+    #[test]
+    fn root_entries_remain_cache_compact() {
+        assert_eq!(core::mem::size_of::<RootTableEntry>(), 4);
+        assert_eq!(ROOT_TABLE_STORAGE_BYTES, ROOT_TABLE_SIZE * 4);
     }
 
     fn encoded_symbols(lengths: &[u8], symbols: &[usize]) -> Vec<u8> {

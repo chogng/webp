@@ -81,6 +81,37 @@ libwebp median was 0.529 s (217.1 MB/s), leaving a 2.41x gap. The dominating
 single image improved from about 5.145 s to 4.666 s over 20 decodes of 16 MB
 RGBA output. All runs retain checksum `96355` for the complete corpus.
 
+## VP8L cached entropy-reader refinement
+
+File-level measurements show `lossless_big_random_alpha.webp` accounts for
+roughly 92% of the complete benchmark time. It is a 2048x2048, 13 MB lossless
+stream with subtract-green and spatial meta-Huffman coding; its dominant code
+group has full green and alpha alphabets and nontrivial red and blue trees.
+The remaining work is therefore entropy decoding rather than inverse color
+transforms or final RGBA packing.
+
+The next pass keeps a safe 64-bit LSB-first input window and reloads it only
+after approximately 32 consumed bits, caches the active meta-Huffman group to
+each tile or row boundary, batches the three non-green literal work charges,
+and compacts root and secondary lookup entries to four bytes. The compact
+secondary table handles 9-to-15-bit codes without the cache expansion seen in
+the rejected 16-byte-entry prototype. Its maximum allocation is included in
+the meta-group storage bound. The implementation continues to forbid unsafe
+code and retains checked tail decoding near end of input.
+
+Three complete five-iteration runs measured Rust at 1.179 s, 1.190 s, and
+1.181 s. The 1.181 s median is 97.2 MB/s, 7.2% faster than the preceding
+committed 1.273 s result and 37.7% faster than the original 1.894 s baseline.
+The corresponding libwebp median was 0.529 s (217.0 MB/s), leaving a 2.23x
+gap. The dominating image measured 4.331 s, 4.362 s, and 4.410 s over 20
+decodes, with a 4.362 s median. Every complete run retained checksum `96355`.
+
+Wider ten-bit roots and a full-size secondary-table prototype regressed due
+to cache pressure; predictor-block traversal and subtract-green/RGBA fusion
+were neutral or slower. Closing the remaining gap requires reducing the four
+independent checked symbol decodes per literal, while preserving work-budget
+and truncation semantics, rather than further transform-loop tuning.
+
 ## Applying the gates to later milestones
 
 M0 owns the reusable fixture, corpus-pin, and benchmark infrastructure. Each

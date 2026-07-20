@@ -6,6 +6,10 @@ pub struct BitReader<'a> {
     data: &'a [u8],
     bit_position: usize,
     bit_len: usize,
+    window: u64,
+    window_byte_position: usize,
+    window_bit_offset: u8,
+    window_valid: bool,
 }
 
 impl<'a> BitReader<'a> {
@@ -15,6 +19,10 @@ impl<'a> BitReader<'a> {
             data,
             bit_position: 0,
             bit_len: data.len().saturating_mul(8),
+            window: 0,
+            window_byte_position: 0,
+            window_bit_offset: 0,
+            window_valid: false,
         }
     }
 
@@ -38,6 +46,10 @@ impl<'a> BitReader<'a> {
             data,
             bit_position,
             bit_len: total_bits,
+            window: 0,
+            window_byte_position: bit_position / 8,
+            window_bit_offset: (bit_position % 8) as u8,
+            window_valid: false,
         })
     }
 
@@ -72,7 +84,8 @@ impl<'a> BitReader<'a> {
     /// On failure the cursor is left unchanged.
     #[inline]
     pub fn skip_bits(&mut self, count: u8) -> Result<(), DecodeError> {
-        self.bit_position = self.end_position(self.bit_position, count)?;
+        let end = self.end_position(self.bit_position, count)?;
+        self.set_position(end);
         Ok(())
     }
 
@@ -90,7 +103,7 @@ impl<'a> BitReader<'a> {
                 "cannot rewind more than 32 bits",
             ));
         }
-        self.bit_position = self
+        let position = self
             .bit_position
             .checked_sub(usize::from(count))
             .ok_or_else(|| {
@@ -100,6 +113,7 @@ impl<'a> BitReader<'a> {
                     "cannot rewind before the start of input",
                 )
             })?;
+        self.set_position(position);
         Ok(())
     }
 
@@ -107,9 +121,67 @@ impl<'a> BitReader<'a> {
     /// On failure the cursor is left unchanged.
     #[inline]
     pub fn read_bits(&mut self, count: u8) -> Result<u32, DecodeError> {
-        let value = self.bits_at(self.bit_position, count)?;
-        self.bit_position += usize::from(count);
+        let end = self.end_position(self.bit_position, count)?;
+        if count == 0 {
+            return Ok(0);
+        }
+
+        self.prepare_window();
+        let count = usize::from(count);
+        let mask = if count == 32 {
+            u64::from(u32::MAX)
+        } else {
+            (1_u64 << count) - 1
+        };
+        let value = ((self.window >> self.window_bit_offset) & mask) as u32;
+        self.bit_position += count;
+        self.window_bit_offset += count as u8;
+        debug_assert_eq!(self.bit_position, end);
         Ok(value)
+    }
+
+    #[inline]
+    fn prepare_window(&mut self) {
+        if !self.window_valid || self.window_bit_offset >= 32 {
+            self.reload_window();
+        }
+        debug_assert!(self.window_bit_offset < 32);
+    }
+
+    #[inline]
+    fn reload_window(&mut self) {
+        let byte_position = self.bit_position / 8;
+        let remaining = &self.data[byte_position..];
+        self.window = if let Some(bytes) = remaining.get(..8) {
+            u64::from_le_bytes(bytes.try_into().expect("eight-byte window"))
+        } else {
+            let mut window = 0_u64;
+            for (index, &byte) in remaining.iter().enumerate() {
+                window |= u64::from(byte) << (index * 8);
+            }
+            window
+        };
+        self.window_byte_position = byte_position;
+        self.window_bit_offset = (self.bit_position % 8) as u8;
+        self.window_valid = true;
+    }
+
+    #[inline]
+    fn set_position(&mut self, position: usize) {
+        self.bit_position = position;
+        if !self.window_valid {
+            return;
+        }
+        let window_start = self.window_byte_position * 8;
+        let Some(offset) = position.checked_sub(window_start) else {
+            self.window_valid = false;
+            return;
+        };
+        if offset <= 64 {
+            self.window_bit_offset = offset as u8;
+        } else {
+            self.window_valid = false;
+        }
     }
 
     #[inline]
@@ -337,6 +409,26 @@ mod tests {
             DecodeErrorKind::InvalidParameter
         );
         assert_eq!(reader.bit_position(), cursor);
+    }
+
+    #[test]
+    fn cached_window_matches_slow_model_across_refills_and_reloads() {
+        let data = [
+            0x13, 0xa7, 0x5c, 0xe1, 0x09, 0xff, 0x42, 0x81, 0x36, 0xc8, 0x7d, 0x2a,
+        ];
+        let mut reader = BitReader::new(&data);
+        for count in [7, 13, 19, 5, 24, 8] {
+            let position = reader.bit_position();
+            assert_eq!(
+                reader.read_bits(count),
+                Ok(slow_read(&data, position, count).unwrap())
+            );
+        }
+
+        assert_eq!(reader.bit_position(), 76);
+        assert_eq!(reader.rewind_bits(20), Ok(()));
+        assert_eq!(reader.bit_position(), 56);
+        assert_eq!(reader.read_bits(32), Ok(slow_read(&data, 56, 32).unwrap()));
     }
 
     #[test]

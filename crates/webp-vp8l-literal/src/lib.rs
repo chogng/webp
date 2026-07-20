@@ -6,20 +6,22 @@
 //! output uses straight RGBA byte order.
 
 use webp_core::{
-    checked_image_bytes, BitReader, DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget,
+    BitReader, DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget, checked_image_bytes,
 };
 use webp_vp8l::{
-    parse_header, BlockTransformDescriptor, TransformDescriptor, TransformListParser, Vp8lHeader,
-    HEADER_LEN,
+    BlockTransformDescriptor, HEADER_LEN, TransformDescriptor, TransformListParser, Vp8lHeader,
+    parse_header,
 };
 use webp_vp8l_color_cache::{ColorCacheOutput, MAX_COLOR_CACHE_BITS, MIN_COLOR_CACHE_BITS};
 use webp_vp8l_color_transform::ColorTransformMultipliers;
 use webp_vp8l_entropy::{
     copy_lz77_pixels, decode_distance, decode_length, distance_code_to_distance,
 };
-use webp_vp8l_huffman::{read_huffman_code, HuffmanTable, ROOT_TABLE_STORAGE_BYTES};
+use webp_vp8l_huffman::{
+    HuffmanTable, MAX_SECONDARY_TABLE_STORAGE_BYTES, ROOT_TABLE_STORAGE_BYTES, read_huffman_code,
+};
 use webp_vp8l_indexing::{Palette, TRANSPARENT_BLACK};
-use webp_vp8l_transform::{predict, PredictorMode, Rgba};
+use webp_vp8l_transform::{PredictorMode, Rgba, predict};
 
 const GREEN_ALPHABET_SIZE: usize = 256 + 24;
 const CHANNEL_ALPHABET_SIZE: usize = 256;
@@ -199,15 +201,20 @@ fn decode_entropy_image(
             color_cache_size,
         )?)?)
     };
+    let mut code_cursor = codes.cursor(width)?;
     let mut output = PixelOutput::new(color_cache_bits, pixels)?;
 
     while output.len() < pixels {
-        let codes = codes.for_pixel(output.len(), width)?;
+        let codes = code_cursor.for_pixel(output.len())?;
         let green = decode_symbol(&codes.green, bits, budget)?;
         if green < CHANNEL_ALPHABET_SIZE {
-            let red = decode_symbol(&codes.red, bits, budget)?;
-            let blue = decode_symbol(&codes.blue, bits, budget)?;
-            let alpha = decode_symbol(&codes.alpha, bits, budget)?;
+            // Green has already consumed one symbol work unit. Charge the
+            // three literal channels together so the hot path performs one
+            // checked budget decrement instead of three more.
+            budget.consume(3)?;
+            let red = codes.red.decode(bits)?;
+            let blue = codes.blue.decode(bits)?;
+            let alpha = codes.alpha.decode(bits)?;
             debug_assert!(red < CHANNEL_ALPHABET_SIZE);
             debug_assert!(blue < CHANNEL_ALPHABET_SIZE);
             debug_assert!(alpha < CHANNEL_ALPHABET_SIZE);
@@ -1077,16 +1084,121 @@ enum EntropyCodes {
 }
 
 impl EntropyCodes {
-    fn for_pixel(&self, pixel: usize, image_width: u32) -> Result<&HuffmanCodes, DecodeError> {
-        match self {
-            Self::Single(codes) => codes.first().ok_or_else(|| {
+    fn cursor(&self, image_width: u32) -> Result<EntropyCodeCursor<'_>, DecodeError> {
+        EntropyCodeCursor::new(self, image_width)
+    }
+}
+
+/// Caches the active meta-Huffman group until the next horizontal tile or row
+/// boundary. Entropy output advances monotonically, including over LZ77 copy
+/// runs, so a group lookup is only needed when the next symbol starts outside
+/// the cached run.
+enum EntropyCodeCursor<'a> {
+    Single(&'a HuffmanCodes),
+    Meta {
+        codes: &'a MetaHuffmanCodes,
+        image_width: usize,
+        current_group: Option<&'a HuffmanCodes>,
+        next_update: usize,
+    },
+}
+
+impl<'a> EntropyCodeCursor<'a> {
+    fn new(codes: &'a EntropyCodes, image_width: u32) -> Result<Self, DecodeError> {
+        match codes {
+            EntropyCodes::Single(codes) => codes.first().map(Self::Single).ok_or_else(|| {
                 DecodeError::new(
                     DecodeErrorKind::InvalidBitstream,
                     None,
                     "VP8L single Huffman-code group is missing",
                 )
             }),
-            Self::Meta(codes) => codes.for_pixel(pixel, image_width),
+            EntropyCodes::Meta(codes) => Ok(Self::Meta {
+                codes,
+                image_width: usize::try_from(image_width).map_err(|_| {
+                    DecodeError::new(
+                        DecodeErrorKind::LimitExceeded,
+                        None,
+                        "VP8L image width does not fit usize",
+                    )
+                })?,
+                current_group: None,
+                next_update: 0,
+            }),
+        }
+    }
+
+    fn for_pixel(&mut self, pixel: usize) -> Result<&'a HuffmanCodes, DecodeError> {
+        match self {
+            Self::Single(codes) => Ok(codes),
+            Self::Meta {
+                codes,
+                image_width,
+                current_group,
+                next_update,
+            } => {
+                if pixel < *next_update {
+                    return current_group.ok_or_else(|| {
+                        DecodeError::new(
+                            DecodeErrorKind::InvalidBitstream,
+                            None,
+                            "VP8L meta-prefix group cursor is missing",
+                        )
+                    });
+                }
+
+                let x = pixel % *image_width;
+                let y = pixel / *image_width;
+                let block_size = 1_usize << codes.prefix_bits;
+                let block_x = x >> codes.prefix_bits;
+                let block_y = y >> codes.prefix_bits;
+                let map_index = block_y
+                    .checked_mul(codes.prefix_image_width)
+                    .and_then(|value| value.checked_add(block_x))
+                    .ok_or_else(|| {
+                        DecodeError::new(
+                            DecodeErrorKind::InvalidBitstream,
+                            None,
+                            "VP8L meta-prefix image index overflow",
+                        )
+                    })?;
+                let group_id = *codes.group_map.get(map_index).ok_or_else(|| {
+                    DecodeError::new(
+                        DecodeErrorKind::InvalidBitstream,
+                        None,
+                        "VP8L meta-prefix image does not cover output pixel",
+                    )
+                })?;
+                let group_index = codes.group_ids.binary_search(&group_id).map_err(|_| {
+                    DecodeError::new(
+                        DecodeErrorKind::InvalidBitstream,
+                        None,
+                        "VP8L meta-prefix group was not retained",
+                    )
+                })?;
+                let group = codes.groups.get(group_index).ok_or_else(|| {
+                    DecodeError::new(
+                        DecodeErrorKind::InvalidBitstream,
+                        None,
+                        "VP8L meta-prefix group table is missing",
+                    )
+                })?;
+
+                let run_in_block = block_size - (x & (block_size - 1));
+                let run_in_row = *image_width - x;
+                *next_update =
+                    pixel
+                        .checked_add(run_in_block.min(run_in_row))
+                        .ok_or_else(|| {
+                            DecodeError::new(
+                                DecodeErrorKind::InvalidBitstream,
+                                None,
+                                "VP8L meta-prefix group cursor overflow",
+                            )
+                        })?;
+                *current_group = Some(group);
+                Ok(group)
+            }
         }
     }
 }
@@ -1116,53 +1228,6 @@ struct MetaHuffmanCodes {
     group_map: Vec<u16>,
     group_ids: Vec<u16>,
     groups: Vec<HuffmanCodes>,
-}
-
-impl MetaHuffmanCodes {
-    fn for_pixel(&self, pixel: usize, image_width: u32) -> Result<&HuffmanCodes, DecodeError> {
-        let image_width = usize::try_from(image_width).map_err(|_| {
-            DecodeError::new(
-                DecodeErrorKind::LimitExceeded,
-                None,
-                "VP8L image width does not fit usize",
-            )
-        })?;
-        let x = pixel % image_width;
-        let y = pixel / image_width;
-        let block_x = x >> self.prefix_bits;
-        let block_y = y >> self.prefix_bits;
-        let map_index = block_y
-            .checked_mul(self.prefix_image_width)
-            .and_then(|value| value.checked_add(block_x))
-            .ok_or_else(|| {
-                DecodeError::new(
-                    DecodeErrorKind::InvalidBitstream,
-                    None,
-                    "VP8L meta-prefix image index overflow",
-                )
-            })?;
-        let group_id = *self.group_map.get(map_index).ok_or_else(|| {
-            DecodeError::new(
-                DecodeErrorKind::InvalidBitstream,
-                None,
-                "VP8L meta-prefix image does not cover output pixel",
-            )
-        })?;
-        let group_index = self.group_ids.binary_search(&group_id).map_err(|_| {
-            DecodeError::new(
-                DecodeErrorKind::InvalidBitstream,
-                None,
-                "VP8L meta-prefix group was not retained",
-            )
-        })?;
-        self.groups.get(group_index).ok_or_else(|| {
-            DecodeError::new(
-                DecodeErrorKind::InvalidBitstream,
-                None,
-                "VP8L meta-prefix group table is missing",
-            )
-        })
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -1380,7 +1445,10 @@ fn meta_group_storage_upper_bound(color_cache_size: usize) -> Result<usize, Deco
         // table is being built. Include that extra allocation per group as a
         // conservative bound for both retained and skipped meta groups.
         .and_then(|value| {
-            value.checked_add((HUFFMAN_TABLES_PER_GROUP + 1) * ROOT_TABLE_STORAGE_BYTES)
+            value.checked_add(
+                (HUFFMAN_TABLES_PER_GROUP + 1)
+                    * (ROOT_TABLE_STORAGE_BYTES + MAX_SECONDARY_TABLE_STORAGE_BYTES),
+            )
         })
         .ok_or_else(|| {
             DecodeError::new(
