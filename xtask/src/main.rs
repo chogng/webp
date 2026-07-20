@@ -2,6 +2,8 @@
 
 use std::{env, fs, path::Path};
 
+use sha2::{Digest, Sha256};
+
 fn main() {
     let Some(command) = env::args().nth(1) else {
         print_usage();
@@ -10,6 +12,7 @@ fn main() {
 
     let result = match command.as_str() {
         "corpus" => corpus(env::args().nth(2).as_deref()),
+        "fixtures" => fixtures(env::args().nth(2).as_deref()),
         "feature-matrix" => feature_matrix(env::args().nth(2).as_deref()),
         _ => Err(format!("unknown xtask command: {command}")),
     };
@@ -22,9 +25,138 @@ fn main() {
 
 fn print_usage() {
     eprintln!(
-        "usage: cargo run -p xtask -- <corpus verify|feature-matrix check>\n\
+        "usage: cargo run -p xtask -- <corpus verify|fixtures generate-malformed|feature-matrix check>\n\
          `corpus fetch` and `corpus index` are reserved for the pinned upstream corpus workflow."
     );
+}
+
+fn fixtures(action: Option<&str>) -> Result<(), String> {
+    match action {
+        Some("generate-malformed") => generate_malformed_fixtures(),
+        _ => Err("usage: cargo xtask fixtures generate-malformed".to_owned()),
+    }
+}
+
+struct GeneratedFixture {
+    id: &'static str,
+    file: &'static str,
+    bytes: Vec<u8>,
+    feature: &'static str,
+    notes: &'static str,
+}
+
+fn generate_malformed_fixtures() -> Result<(), String> {
+    let valid_vp8 = riff_body(chunk(*b"VP8 ", &[0x00, 0x00], None));
+    let mut trailing = valid_vp8;
+    trailing.push(0xff);
+
+    let truncated_chunk = riff_body({
+        let mut body = b"WEBPVP8 ".to_vec();
+        body.extend_from_slice(&1_u32.to_le_bytes());
+        body
+    });
+    let vp8x = chunk(*b"VP8X", &[0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0], None);
+    let duplicate_vp8x = riff_body([vp8x.clone(), vp8x].concat());
+
+    let fixtures = [
+        GeneratedFixture {
+            id: "container-riff-declared-size-too-large-001",
+            file: "riff-declared-size-too-large.webp",
+            bytes: {
+                let mut bytes = b"RIFF".to_vec();
+                bytes.extend_from_slice(&u32::MAX.to_le_bytes());
+                bytes.extend_from_slice(b"WEBP");
+                bytes
+            },
+            feature: "riff-declared-size",
+            notes: "Declared RIFF body length exceeds supplied bytes.",
+        },
+        GeneratedFixture {
+            id: "container-chunk-payload-truncated-001",
+            file: "chunk-payload-truncated.webp",
+            bytes: truncated_chunk,
+            feature: "chunk-payload-truncated",
+            notes: "RIFF ends immediately after a one-byte VP8 payload declaration.",
+        },
+        GeneratedFixture {
+            id: "container-riff-trailing-byte-001",
+            file: "riff-trailing-byte.webp",
+            bytes: trailing,
+            feature: "riff-trailing-bytes",
+            notes: "Strict parsing rejects data after the declared RIFF body.",
+        },
+        GeneratedFixture {
+            id: "container-non-zero-padding-001",
+            file: "non-zero-padding.webp",
+            bytes: riff_body(chunk(*b"VP8 ", &[0x00], Some(0xff))),
+            feature: "riff-non-zero-padding",
+            notes: "Strict parsing rejects the required odd-size padding byte when non-zero.",
+        },
+        GeneratedFixture {
+            id: "container-vp8x-reserved-bit-001",
+            file: "vp8x-reserved-bit.webp",
+            bytes: riff_body(chunk(*b"VP8X", &[0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0], None)),
+            feature: "vp8x-reserved-bit",
+            notes: "VP8X uses a reserved feature bit in the strict profile.",
+        },
+        GeneratedFixture {
+            id: "container-duplicate-vp8x-001",
+            file: "duplicate-vp8x.webp",
+            bytes: duplicate_vp8x,
+            feature: "duplicate-vp8x",
+            notes: "Strict parsing rejects duplicate VP8X singleton chunks.",
+        },
+    ];
+    for fixture in &fixtures {
+        let fixture_path = Path::new("tests/fixtures/generated").join(fixture.file);
+        write_if_changed(&fixture_path, &fixture.bytes)?;
+        let digest = Sha256::digest(&fixture.bytes);
+        let manifest = format!(
+            "id = \"{}\"\nfile = \"../fixtures/generated/{}\"\nsha256 = \"{digest:x}\"\nclass = \"MustReject\"\nsource = \"generated: cargo xtask fixtures generate-malformed\"\nlicense = \"CC0-1.0\"\ncodec = \"Container\"\nfeatures = [\"{}\", \"public-api\", \"no-panic\"]\nnotes = \"{}\"\n",
+            fixture.id, fixture.file, fixture.feature, fixture.notes
+        );
+        let manifest_path = Path::new("tests/manifests").join(format!("{}.toml", fixture.id));
+        write_if_changed(&manifest_path, manifest.as_bytes())?;
+    }
+    println!("generated {} malformed container fixtures", fixtures.len());
+    Ok(())
+}
+
+fn riff_body(body: Vec<u8>) -> Vec<u8> {
+    let mut bytes = b"RIFF".to_vec();
+    bytes.extend_from_slice(
+        &u32::try_from(body.len())
+            .expect("generated RIFF body length fits u32")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(&body);
+    bytes
+}
+
+fn chunk(fourcc: [u8; 4], payload: &[u8], padding: Option<u8>) -> Vec<u8> {
+    let mut bytes = fourcc.to_vec();
+    bytes.extend_from_slice(
+        &u32::try_from(payload.len())
+            .expect("generated chunk payload length fits u32")
+            .to_le_bytes(),
+    );
+    bytes.extend_from_slice(payload);
+    if payload.len() % 2 == 1 {
+        bytes.push(padding.unwrap_or(0));
+    }
+    bytes
+}
+
+fn write_if_changed(path: &Path, bytes: &[u8]) -> Result<(), String> {
+    if fs::read(path).ok().as_deref() == Some(bytes) {
+        return Ok(());
+    }
+    let parent = path
+        .parent()
+        .ok_or_else(|| format!("{} has no parent", path.display()))?;
+    fs::create_dir_all(parent)
+        .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
+    fs::write(path, bytes).map_err(|error| format!("cannot write {}: {error}", path.display()))
 }
 
 fn corpus(action: Option<&str>) -> Result<(), String> {

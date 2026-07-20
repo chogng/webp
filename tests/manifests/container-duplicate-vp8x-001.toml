@@ -1,0 +1,9 @@
+id = "container-duplicate-vp8x-001"
+file = "../fixtures/generated/duplicate-vp8x.webp"
+sha256 = "afeb7212eb9823a99d62a8ffbd2198aea3ca13e1a48643be16b86681e0b30556"
+class = "MustReject"
+source = "generated: cargo xtask fixtures generate-malformed"
+license = "CC0-1.0"
+codec = "Container"
+features = ["duplicate-vp8x", "public-api", "no-panic"]
+notes = "Strict parsing rejects duplicate VP8X singleton chunks."

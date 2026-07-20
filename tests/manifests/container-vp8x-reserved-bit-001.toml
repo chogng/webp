@@ -1,0 +1,9 @@
+id = "container-vp8x-reserved-bit-001"
+file = "../fixtures/generated/vp8x-reserved-bit.webp"
+sha256 = "1133aa7b39b123f0c96b8f5f9590f01de4380465df71573037c0ad68b7d98996"
+class = "MustReject"
+source = "generated: cargo xtask fixtures generate-malformed"
+license = "CC0-1.0"
+codec = "Container"
+features = ["vp8x-reserved-bit", "public-api", "no-panic"]
+notes = "VP8X uses a reserved feature bit in the strict profile."

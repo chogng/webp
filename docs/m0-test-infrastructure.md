@@ -69,5 +69,14 @@ It is the candidate PR vector list once the public decoder can accept valid
 VP8L and VP8 inputs; until then it remains a verified external corpus rather
 than a falsely passing decode test.
 
+Generate the committed structural-malformation corpus with:
+
+```text
+cargo run -p xtask -- fixtures generate-malformed
+```
+
+The generator is idempotent and writes the corresponding SHA-256 manifests, so
+every deliberate malformed input remains reproducible and reviewable.
+
 The first decoder integration test should run the smoke manifest and call each
 selected public API (`read_info`, one-shot decode, and incremental finish).

@@ -1,0 +1,9 @@
+id = "container-non-zero-padding-001"
+file = "../fixtures/generated/non-zero-padding.webp"
+sha256 = "311c3eeb97dd542e3221b9c39a907db6fcdd025cb768333ac67a9e112f57a685"
+class = "MustReject"
+source = "generated: cargo xtask fixtures generate-malformed"
+license = "CC0-1.0"
+codec = "Container"
+features = ["riff-non-zero-padding", "public-api", "no-panic"]
+notes = "Strict parsing rejects the required odd-size padding byte when non-zero."
