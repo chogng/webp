@@ -1,0 +1,11 @@
+[package]
+name = "webp-vp8l-transform"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Safe scalar inverse transforms for WebP lossless images"
+
+[lints]
+workspace = true

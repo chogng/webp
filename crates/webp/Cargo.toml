@@ -1,0 +1,19 @@
+[package]
+name = "webp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Public safe-Rust WebP API"
+
+[lints]
+workspace = true
+
+[dependencies]
+webp-core = { path = "../webp-core" }
+webp-container = { path = "../webp-container" }
+webp-vp8l = { path = "../webp-vp8l" }
+
+[dev-dependencies]
+webp-testkit = { path = "../webp-testkit" }

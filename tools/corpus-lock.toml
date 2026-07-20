@@ -1,0 +1,17 @@
+# Schema for reproducible external test corpora and C/C++ oracle builds.
+#
+# Placeholder zero hashes are intentionally invalid pins.  An oracle build or
+# corpus fetch command must reject them until a reviewed 40-hex commit and
+# archive SHA-256 are recorded.  CI must never resolve a branch name or
+# "latest" revision from this file.
+schema_version = 1
+
+[libwebp]
+commit = "0000000000000000000000000000000000000000"
+source_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
+build_profile = "scalar-canonical-v1"
+compiler = "clang-pinned-major"
+
+[libvpx]
+commit = "0000000000000000000000000000000000000000"
+source_sha256 = "0000000000000000000000000000000000000000000000000000000000000000"
