@@ -87,3 +87,12 @@ fetch and normalize it with
 `python3 tools/fetch-clic-validation.py --allow-full-download`. It writes
 ignored PNG inputs plus a SHA-256/geometry manifest for the Rust benchmark
 harness; no CLIC image enters the release crate or conformance fixture set.
+
+When the two official validation zips have already been downloaded, avoid TFDS
+entirely with `--mobile-zip /path/mobile_valid_2020.zip --professional-zip
+/path/professional_valid_2020.zip`. The exporter keeps the archive SHA-256
+values in `validation-manifest.json` alongside per-image integrity data. Once
+imported, runtime benchmarks need only `validation-png/` and this manifest;
+the source zips may be archived or deleted. Run
+`python3 tools/verify-clic-validation.py` to recheck the local corpus without
+the source zips.
