@@ -16,12 +16,16 @@ and loop-filter controls, and safely splits the coefficient stream into 1, 2,
 4, or 8 token partitions. `vp8_partition_raw` fuzzes this complete structural
 path, including every size-table boundary.
 
+Quantizer parsing now recovers the base index and all five signed deltas. The
+coefficient-probability-update flag is exposed so the next parser slice can
+consume the remaining first-partition entropy data with its canonical tables.
+
 `webp::read_info` now obtains dimensions from an unextended `VP8 ` chunk. The
 public `decode` path invokes the same validation and then returns
 `UnsupportedFeature` until the macroblock, transform, loop-filter, and YUV
 stages are implemented. This avoids treating a header-only parse as a pixel
 decode.
 
-The next M2 slice adds quantizer deltas and coefficient-probability updates to
-the first-partition parser, then connects the decoded controls to macroblock
-prediction and reconstruction.
+The next M2 slice adds the canonical coefficient-probability tables and their
+updates, then connects decoded controls to macroblock prediction and
+reconstruction.

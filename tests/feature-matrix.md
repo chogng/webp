@@ -13,3 +13,4 @@
 | VP8 frame header | `webp-vp8` tag, signature, dimension, canvas, and truncation suites | `webp::read_info` on an unextended VP8 RIFF | `vp8_partition_raw` |
 | VP8 boolean entropy | `webp-vp8` probability-boundary, literal, EOF, budget, and arithmetic-vector suites | first-partition parser (pending next M2 slice) | `vp8_bool_raw` |
 | VP8 partition layout | `webp-vp8` segmentation/filter controls, 1/2/4/8 layout, and table-boundary suites | VP8 decode path (pending macroblock decoder) | `vp8_partition_raw` |
+| VP8 quantization | `webp-vp8` base-index and signed-delta vectors | macroblock dequantization (pending reconstruction) | `vp8_partition_raw` |

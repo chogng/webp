@@ -149,6 +149,17 @@ pub struct FilterHeader {
     pub mode_deltas: [i32; 4],
 }
 
+/// Quantizer controls carried by the first VP8 partition.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct QuantizationHeader {
+    pub base_index: u8,
+    pub y1_dc_delta: i32,
+    pub y2_dc_delta: i32,
+    pub y2_ac_delta: i32,
+    pub uv_dc_delta: i32,
+    pub uv_ac_delta: i32,
+}
+
 /// The parsed prefix of a VP8 first partition.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FirstPartitionHeader {
@@ -160,6 +171,10 @@ pub struct FirstPartitionHeader {
     pub filter: FilterHeader,
     /// Number of coefficient-token partitions: always 1, 2, 4, or 8.
     pub token_partition_count: u8,
+    pub quantization: QuantizationHeader,
+    /// Whether the remaining first-partition entropy data carries coefficient
+    /// probability updates. The table entries are parsed by the next M2 slice.
+    pub coefficient_probability_update: bool,
 }
 
 /// One coefficient-token partition after its three-byte size table.
@@ -211,6 +226,8 @@ pub fn parse_partition_layout<'a>(
     let segments = parse_segment_header(&mut bits)?;
     let filter = parse_filter_header(&mut bits)?;
     let token_partition_count = 1_u8 << bits.read_literal(2)?;
+    let quantization = parse_quantization_header(&mut bits)?;
+    let coefficient_probability_update = bits.read_bool(128)?;
 
     let size_table_len = 3_usize * (usize::from(token_partition_count) - 1);
     let token_data_start = first_partition_end
@@ -270,6 +287,8 @@ pub fn parse_partition_layout<'a>(
             segments,
             filter,
             token_partition_count,
+            quantization,
+            coefficient_probability_update,
         },
         tokens,
     })
@@ -348,6 +367,26 @@ fn parse_filter_header(bits: &mut BoolDecoder<'_>) -> Result<FilterHeader, Decod
         use_deltas,
         ref_deltas,
         mode_deltas,
+    })
+}
+
+fn parse_quantization_header(
+    bits: &mut BoolDecoder<'_>,
+) -> Result<QuantizationHeader, DecodeError> {
+    let base_index = bits.read_literal(7)? as u8;
+    let mut deltas = [0; 5];
+    for value in &mut deltas {
+        if bits.read_bool(128)? {
+            *value = bits.read_signed_literal(4)?;
+        }
+    }
+    Ok(QuantizationHeader {
+        base_index,
+        y1_dc_delta: deltas[0],
+        y2_dc_delta: deltas[1],
+        y2_ac_delta: deltas[2],
+        uv_dc_delta: deltas[3],
+        uv_ac_delta: deltas[4],
     })
 }
 
@@ -551,6 +590,23 @@ mod tests {
             self.run = 0;
             self.bytes.push((bits & 0xff) as u8);
         }
+    }
+
+    fn write_quantization_header(
+        writer: &mut TestBoolWriter,
+        base_index: u8,
+        deltas: [i32; 5],
+        coefficient_probability_update: bool,
+    ) {
+        writer.write_literal(u32::from(base_index), 7);
+        for value in deltas {
+            writer.write_bool(value != 0, 128);
+            if value != 0 {
+                writer.write_signed_literal(value, 4);
+            }
+        }
+        writer.write_bool(coefficient_probability_update, 128);
+        writer.write_literal(0, 8); // Leave structural fields away from EOF.
     }
 
     fn key_frame(
@@ -791,7 +847,7 @@ mod tests {
             }
         }
         writer.write_literal(2, 2); // four coefficient-token partitions
-        writer.write_literal(0, 8); // parser intentionally stops before quantization
+        write_quantization_header(&mut writer, 63, [-7, 0, 4, 0, -3], true);
         let partition_zero = writer.finish();
 
         let mut payload = key_frame(3, 5, 0, true, 7 + partition_zero.len() as u32).to_vec();
@@ -811,6 +867,18 @@ mod tests {
         assert_eq!(layout.header.filter.sharpness, 4);
         assert_eq!(layout.header.filter.ref_deltas, [2, 0, 0, 0]);
         assert_eq!(layout.header.filter.mode_deltas, [0, 0, 0, -1]);
+        assert_eq!(
+            layout.header.quantization,
+            QuantizationHeader {
+                base_index: 63,
+                y1_dc_delta: -7,
+                y2_dc_delta: 0,
+                y2_ac_delta: 4,
+                uv_dc_delta: 0,
+                uv_ac_delta: -3,
+            }
+        );
+        assert!(layout.header.coefficient_probability_update);
         assert_eq!(
             layout
                 .tokens
@@ -832,7 +900,7 @@ mod tests {
         writer.write_literal(0, 3);
         writer.write_bool(false, 128); // no filter deltas
         writer.write_literal(2, 2); // four token partitions
-        writer.write_literal(0, 8);
+        write_quantization_header(&mut writer, 0, [0; 5], false);
         let partition_zero = writer.finish();
         let mut payload = key_frame(1, 1, 0, true, 7 + partition_zero.len() as u32).to_vec();
         payload.extend_from_slice(&partition_zero);
@@ -865,7 +933,7 @@ mod tests {
             writer.write_literal(0, 3);
             writer.write_bool(false, 128); // no filter deltas
             writer.write_literal(partition_bits, 2);
-            writer.write_literal(0, 8);
+            write_quantization_header(&mut writer, 0, [0; 5], false);
             let partition_zero = writer.finish();
             let partition_count = 1_usize << partition_bits;
             let mut payload = key_frame(1, 1, 0, true, 7 + partition_zero.len() as u32).to_vec();
