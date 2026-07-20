@@ -88,6 +88,7 @@ dependencies = [
  "webp-container",
  "webp-core",
  "webp-vp8l",
+ "webp-vp8l-literal",
 ]
 
 [[package]]
@@ -114,4 +115,37 @@ name = "webp-vp8l"
 version = "0.1.0"
 dependencies = [
  "webp-core",
+]
+
+[[package]]
+name = "webp-vp8l-color-cache"
+version = "0.1.0"
+dependencies = [
+ "webp-core",
+ "webp-vp8l-entropy",
+]
+
+[[package]]
+name = "webp-vp8l-entropy"
+version = "0.1.0"
+dependencies = [
+ "webp-core",
+]
+
+[[package]]
+name = "webp-vp8l-huffman"
+version = "0.1.0"
+dependencies = [
+ "webp-core",
+]
+
+[[package]]
+name = "webp-vp8l-literal"
+version = "0.1.0"
+dependencies = [
+ "webp-core",
+ "webp-vp8l",
+ "webp-vp8l-color-cache",
+ "webp-vp8l-entropy",
+ "webp-vp8l-huffman",
 ]
