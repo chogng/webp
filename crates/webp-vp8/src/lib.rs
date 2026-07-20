@@ -6,7 +6,7 @@
 //! macroblock storage is allocated.  Pixel decoding is intentionally kept out
 //! of this crate's first slice.
 
-use webp_core::{DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget};
+use webp_core::{DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget, checked_image_bytes};
 
 mod coefficients;
 mod intra;
@@ -1458,6 +1458,20 @@ pub fn parse_partition_layout<'a>(
     frame: &Vp8Header,
     limits: &DecodeLimits,
 ) -> Result<PartitionLayout<'a>, DecodeError> {
+    let (layout, _) = parse_partition_layout_with_mode_decoder(payload, frame, limits)?;
+    Ok(layout)
+}
+
+/// Parses the first partition and returns its decoder at the first mode bit.
+///
+/// VP8 arithmetic decoding is stateful across the first-partition header and
+/// macroblock mode stream, so frame reconstruction must continue this exact
+/// decoder rather than create one at a later byte offset.
+fn parse_partition_layout_with_mode_decoder<'a>(
+    payload: &'a [u8],
+    frame: &Vp8Header,
+    limits: &DecodeLimits,
+) -> Result<(PartitionLayout<'a>, BoolDecoder<'a>), DecodeError> {
     limits.check_input_len(payload.len())?;
     let first_partition_end = FRAME_TAG_LEN
         .checked_add(frame.first_partition_len)
@@ -1537,19 +1551,296 @@ pub fn parse_partition_layout<'a>(
         offset: data_offset,
     });
 
-    Ok(PartitionLayout {
-        header: FirstPartitionHeader {
-            colorspace_reserved,
-            clamp_type,
-            segments,
-            filter,
-            token_partition_count,
-            quantization,
-            refresh_entropy_probabilities,
-            coefficients,
+    Ok((
+        PartitionLayout {
+            header: FirstPartitionHeader {
+                colorspace_reserved,
+                clamp_type,
+                segments,
+                filter,
+                token_partition_count,
+                quantization,
+                refresh_entropy_probabilities,
+                coefficients,
+            },
+            tokens,
         },
-        tokens,
-    })
+        bits,
+    ))
+}
+
+/// Macroblock-aligned YUV 4:2:0 samples reconstructed from a VP8 key frame.
+///
+/// `width` and `height` describe the visible picture. The plane strides and
+/// lengths are rounded up to whole 16×16 macroblocks so the final partial
+/// macroblock can retain its prediction border for subsequent decoding. Users
+/// emitting pixels should copy only the visible rectangle from each plane.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Vp8YuvImage {
+    pub width: u32,
+    pub height: u32,
+    pub y_stride: usize,
+    pub uv_stride: usize,
+    pub y: Vec<u8>,
+    pub u: Vec<u8>,
+    pub v: Vec<u8>,
+}
+
+impl Vp8YuvImage {
+    /// Macroblock-aligned luma storage height.
+    #[must_use]
+    pub fn padded_height(&self) -> usize {
+        self.y.len() / self.y_stride
+    }
+
+    /// Macroblock-aligned chroma storage height.
+    #[must_use]
+    pub fn padded_uv_height(&self) -> usize {
+        self.u.len() / self.uv_stride
+    }
+
+    fn new(frame: &Vp8Header, limits: &DecodeLimits) -> Result<Self, DecodeError> {
+        let (macroblock_width, macroblock_height) = macroblock_dimensions(frame)?;
+        let y_stride = macroblock_width.checked_mul(16).ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8 luma stride overflows",
+            )
+        })?;
+        let padded_height = macroblock_height.checked_mul(16).ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8 luma height overflows",
+            )
+        })?;
+        let uv_stride = macroblock_width.checked_mul(8).ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8 chroma stride overflows",
+            )
+        })?;
+        let padded_uv_height = macroblock_height.checked_mul(8).ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8 chroma height overflows",
+            )
+        })?;
+        let y_len = checked_image_bytes(
+            u32::try_from(y_stride).map_err(|_| allocation_size_error())?,
+            u32::try_from(padded_height).map_err(|_| allocation_size_error())?,
+            1,
+        )?;
+        let uv_len = checked_image_bytes(
+            u32::try_from(uv_stride).map_err(|_| allocation_size_error())?,
+            u32::try_from(padded_uv_height).map_err(|_| allocation_size_error())?,
+            1,
+        )?;
+        let storage = y_len
+            .checked_add(uv_len.checked_mul(2).ok_or_else(allocation_size_error)?)
+            .ok_or_else(allocation_size_error)?;
+        if storage > limits.max_alloc_bytes {
+            return Err(DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8 YUV frame storage exceeds configured allocation limit",
+            ));
+        }
+        Ok(Self {
+            width: frame.width,
+            height: frame.height,
+            y_stride,
+            uv_stride,
+            y: vec![0; y_len],
+            u: vec![0; uv_len],
+            v: vec![0; uv_len],
+        })
+    }
+
+    fn edges(&self, macroblock_x: usize, macroblock_y: usize) -> MacroblockPredictionEdges {
+        let y_origin = macroblock_y * 16 * self.y_stride + macroblock_x * 16;
+        let uv_origin = macroblock_y * 8 * self.uv_stride + macroblock_x * 8;
+        let top_y = (macroblock_y > 0)
+            .then(|| std::array::from_fn(|index| self.y[y_origin - self.y_stride + index]));
+        let top_right_y = (macroblock_y > 0 && macroblock_x + 1 < self.y_stride / 16)
+            .then(|| std::array::from_fn(|index| self.y[y_origin - self.y_stride + 16 + index]));
+        let left_y = (macroblock_x > 0)
+            .then(|| std::array::from_fn(|index| self.y[y_origin + index * self.y_stride - 1]));
+        let top_u = (macroblock_y > 0)
+            .then(|| std::array::from_fn(|index| self.u[uv_origin - self.uv_stride + index]));
+        let left_u = (macroblock_x > 0)
+            .then(|| std::array::from_fn(|index| self.u[uv_origin + index * self.uv_stride - 1]));
+        let top_v = (macroblock_y > 0)
+            .then(|| std::array::from_fn(|index| self.v[uv_origin - self.uv_stride + index]));
+        let left_v = (macroblock_x > 0)
+            .then(|| std::array::from_fn(|index| self.v[uv_origin + index * self.uv_stride - 1]));
+        MacroblockPredictionEdges {
+            top_y,
+            top_right_y,
+            left_y,
+            top_left_y: if macroblock_x > 0 && macroblock_y > 0 {
+                self.y[y_origin - self.y_stride - 1]
+            } else {
+                0
+            },
+            top_u,
+            left_u,
+            top_left_u: if macroblock_x > 0 && macroblock_y > 0 {
+                self.u[uv_origin - self.uv_stride - 1]
+            } else {
+                0
+            },
+            top_v,
+            left_v,
+            top_left_v: if macroblock_x > 0 && macroblock_y > 0 {
+                self.v[uv_origin - self.uv_stride - 1]
+            } else {
+                0
+            },
+        }
+    }
+
+    fn store_macroblock(
+        &mut self,
+        macroblock_x: usize,
+        macroblock_y: usize,
+        pixels: MacroblockPixels,
+    ) {
+        let y_origin = macroblock_y * 16 * self.y_stride + macroblock_x * 16;
+        let uv_origin = macroblock_y * 8 * self.uv_stride + macroblock_x * 8;
+        for row in 0..16 {
+            self.y[y_origin + row * self.y_stride..y_origin + row * self.y_stride + 16]
+                .copy_from_slice(&pixels.y[row * 16..row * 16 + 16]);
+        }
+        for row in 0..8 {
+            self.u[uv_origin + row * self.uv_stride..uv_origin + row * self.uv_stride + 8]
+                .copy_from_slice(&pixels.u[row * 8..row * 8 + 8]);
+            self.v[uv_origin + row * self.uv_stride..uv_origin + row * self.uv_stride + 8]
+                .copy_from_slice(&pixels.v[row * 8..row * 8 + 8]);
+        }
+    }
+}
+
+/// Decodes all intra macroblocks of a WebP VP8 key frame into YUV samples.
+///
+/// The VP8 payload and [`Vp8Header`] must originate from the same RIFF chunk.
+/// Mode data is consumed in raster order from partition zero; coefficient
+/// tokens select their partition using `macroblock_row & (count - 1)`, exactly
+/// as specified by VP8. Loop filtering and RGB conversion are intentionally
+/// separate stages.
+pub fn decode_intra_frame(
+    payload: &[u8],
+    frame: &Vp8Header,
+    limits: &DecodeLimits,
+) -> Result<Vp8YuvImage, DecodeError> {
+    limits.check_image(frame.width, frame.height)?;
+    let (layout, mut mode_bits) = parse_partition_layout_with_mode_decoder(payload, frame, limits)?;
+    let mut token_bits = layout
+        .tokens
+        .iter()
+        .map(|partition| BoolDecoder::new(partition.data, limits))
+        .collect::<Result<Vec<_>, _>>()?;
+    let (macroblock_width, macroblock_height) = macroblock_dimensions(frame)?;
+    let context_bytes = macroblock_width
+        .checked_mul(4 * std::mem::size_of::<Intra4Mode>())
+        .and_then(|size| {
+            size.checked_add(macroblock_width * std::mem::size_of::<ResidualContext>())
+        })
+        .and_then(|size| {
+            size.checked_add(macroblock_width * std::mem::size_of::<IntraMacroblock>())
+        })
+        .ok_or_else(allocation_size_error)?;
+    if context_bytes > limits.max_alloc_bytes {
+        return Err(DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8 macroblock row state exceeds configured allocation limit",
+        ));
+    }
+    let mut image = Vp8YuvImage::new(frame, limits)?;
+    let matrices = derive_dequantization(layout.header.quantization, &layout.header.segments);
+    let mut top_modes = vec![Intra4Mode::Dc; macroblock_width * 4];
+    let mut top_contexts = vec![ResidualContext::default(); macroblock_width];
+    let mut blocks = vec![empty_intra_macroblock(); macroblock_width];
+    for macroblock_y in 0..macroblock_height {
+        parse_intra_mode_row(&mut mode_bits, &layout.header, &mut top_modes, &mut blocks)?;
+        let mut left_context = ResidualContext::default();
+        let partition = macroblock_y & (token_bits.len() - 1);
+        for (macroblock_x, &block) in blocks.iter().enumerate() {
+            let residuals = if block.skip {
+                top_contexts[macroblock_x] = ResidualContext::default();
+                left_context = ResidualContext::default();
+                empty_macroblock_residuals()
+            } else {
+                decode_intra_residuals(
+                    &mut token_bits[partition],
+                    &layout.header.coefficients,
+                    matches!(block.luma, LumaMode::FourByFour(_)),
+                    &mut top_contexts[macroblock_x],
+                    &mut left_context,
+                )?
+            };
+            let matrix = matrices.get(usize::from(block.segment)).ok_or_else(|| {
+                DecodeError::at(
+                    DecodeErrorKind::InvalidBitstream,
+                    mode_bits.bytes_consumed(),
+                    "VP8 macroblock segment exceeds four-entry quantizer table",
+                )
+            })?;
+            let pixels = reconstruct_intra_macroblock(
+                block,
+                &residuals,
+                *matrix,
+                image.edges(macroblock_x, macroblock_y),
+            )?;
+            image.store_macroblock(macroblock_x, macroblock_y, pixels);
+        }
+    }
+    Ok(image)
+}
+
+fn macroblock_dimensions(frame: &Vp8Header) -> Result<(usize, usize), DecodeError> {
+    let width = usize::try_from(frame.width).map_err(|_| allocation_size_error())?;
+    let height = usize::try_from(frame.height).map_err(|_| allocation_size_error())?;
+    let macroblock_width = width.checked_add(15).ok_or_else(allocation_size_error)? / 16;
+    let macroblock_height = height.checked_add(15).ok_or_else(allocation_size_error)? / 16;
+    Ok((macroblock_width, macroblock_height))
+}
+
+fn allocation_size_error() -> DecodeError {
+    DecodeError::new(
+        DecodeErrorKind::LimitExceeded,
+        None,
+        "VP8 frame allocation size overflows",
+    )
+}
+
+fn empty_intra_macroblock() -> IntraMacroblock {
+    IntraMacroblock {
+        segment: 0,
+        skip: true,
+        luma: LumaMode::Sixteen(Intra16Mode::Dc),
+        chroma: ChromaMode::Dc,
+    }
+}
+
+fn empty_macroblock_residuals() -> MacroblockResiduals {
+    let empty = DecodedCoefficients {
+        values: [0; 16],
+        end: 0,
+        non_zero: 0,
+    };
+    MacroblockResiduals {
+        y2: None,
+        luma: [empty; 16],
+        u: [empty; 4],
+        v: [empty; 4],
+        non_zero_y: 0,
+        non_zero_uv: 0,
+    }
 }
 
 fn parse_segment_header(bits: &mut BoolDecoder<'_>) -> Result<SegmentHeader, DecodeError> {
@@ -1914,6 +2205,9 @@ mod tests {
         if use_skip_probability {
             writer.write_literal(u32::from(skip_probability), 8);
         }
+    }
+
+    fn pad_first_partition(writer: &mut TestBoolWriter) {
         writer.write_literal(0, 8); // Leave structural fields away from EOF.
     }
 
@@ -2209,6 +2503,7 @@ mod tests {
         writer.write_literal(2, 2); // four coefficient-token partitions
         write_quantization_header(&mut writer, 63, [-7, 0, 4, 0, -3], false);
         write_coefficient_updates(&mut writer, &[], false, 0);
+        pad_first_partition(&mut writer);
         let mut partition_zero = writer.finish();
         partition_zero.extend_from_slice(&[0; 8]);
 
@@ -2269,6 +2564,7 @@ mod tests {
         writer.write_literal(2, 2); // four token partitions
         write_quantization_header(&mut writer, 0, [0; 5], false);
         write_coefficient_updates(&mut writer, &[], false, 0);
+        pad_first_partition(&mut writer);
         let partition_zero = writer.finish();
         let mut payload = key_frame(1, 1, 0, true, 7 + partition_zero.len() as u32).to_vec();
         payload.extend_from_slice(&partition_zero);
@@ -2303,6 +2599,7 @@ mod tests {
             writer.write_literal(partition_bits, 2);
             write_quantization_header(&mut writer, 0, [0; 5], false);
             write_coefficient_updates(&mut writer, &[], false, 0);
+            pad_first_partition(&mut writer);
             let partition_zero = writer.finish();
             let partition_count = 1_usize << partition_bits;
             let mut payload = key_frame(1, 1, 0, true, 7 + partition_zero.len() as u32).to_vec();
@@ -2856,6 +3153,99 @@ mod tests {
                 .unwrap_err()
                 .kind(),
             DecodeErrorKind::InvalidParameter
+        );
+    }
+
+    #[test]
+    fn intra_frame_decoder_reconstructs_a_skipped_macroblock() {
+        let mut writer = TestBoolWriter::new();
+        writer.write_bool(false, 128); // colour space
+        writer.write_bool(false, 128); // clamp type
+        writer.write_bool(false, 128); // no segmentation
+        writer.write_bool(false, 128); // normal filter
+        writer.write_literal(0, 6); // filter level
+        writer.write_literal(0, 3); // filter sharpness
+        writer.write_bool(false, 128); // no filter deltas
+        writer.write_literal(0, 2); // one token partition
+        write_quantization_header(&mut writer, 0, [0; 5], false);
+        write_coefficient_updates(&mut writer, &[], true, 1);
+        writer.write_bool(true, 1); // skip residuals
+        writer.write_bool(true, 145); // 16x16 luma
+        writer.write_bool(false, 156); // DC luma
+        writer.write_bool(false, 163);
+        writer.write_bool(false, 142); // DC chroma
+        let partition_zero = writer.finish();
+        let mut payload = key_frame(1, 1, 0, true, 7 + partition_zero.len() as u32).to_vec();
+        payload.extend_from_slice(&partition_zero);
+        payload.push(0); // Non-empty final token partition, never consumed by skip.
+
+        let limits = DecodeLimits::default();
+        let frame = parse_riff_payload(&payload, None, &limits).unwrap();
+        let image = decode_intra_frame(&payload, &frame, &limits).unwrap();
+        assert_eq!(image.width, 1);
+        assert_eq!(image.height, 1);
+        assert_eq!(image.y_stride, 16);
+        assert_eq!(image.uv_stride, 8);
+        assert_eq!(image.y.len(), 16 * 16);
+        assert_eq!(image.u.len(), 8 * 8);
+        assert!(image.y.iter().all(|&sample| sample == 128));
+        assert!(image.u.iter().all(|&sample| sample == 128));
+        assert!(image.v.iter().all(|&sample| sample == 128));
+    }
+
+    #[test]
+    fn macroblock_storage_exposes_reconstructed_edges() {
+        let frame = Vp8Header {
+            width: 17,
+            height: 17,
+            version: 0,
+            first_partition_len: 0,
+            horizontal_scale: 0,
+            vertical_scale: 0,
+        };
+        let mut image = Vp8YuvImage::new(&frame, &DecodeLimits::default()).unwrap();
+        let pixels = MacroblockPixels {
+            y: std::array::from_fn(|index| index as u8),
+            u: std::array::from_fn(|index| (index + 64) as u8),
+            v: std::array::from_fn(|index| (index + 128) as u8),
+        };
+        image.store_macroblock(0, 0, pixels);
+        let right_edges = image.edges(1, 0);
+        assert_eq!(
+            right_edges.left_y.unwrap(),
+            std::array::from_fn(|row| (row * 16 + 15) as u8)
+        );
+        assert_eq!(
+            right_edges.left_u.unwrap(),
+            std::array::from_fn(|row| (row * 8 + 71) as u8)
+        );
+        assert_eq!(
+            right_edges.left_v.unwrap(),
+            std::array::from_fn(|row| (row * 8 + 135) as u8)
+        );
+        let below_edges = image.edges(0, 1);
+        assert_eq!(below_edges.top_y.unwrap(), pixels.y[240..256]);
+        assert_eq!(below_edges.top_u.unwrap(), pixels.u[56..64]);
+        assert_eq!(below_edges.top_v.unwrap(), pixels.v[56..64]);
+    }
+
+    #[test]
+    fn macroblock_storage_enforces_allocation_limit() {
+        let frame = Vp8Header {
+            width: 1,
+            height: 1,
+            version: 0,
+            first_partition_len: 0,
+            horizontal_scale: 0,
+            vertical_scale: 0,
+        };
+        let limits = DecodeLimits {
+            max_alloc_bytes: 383,
+            ..DecodeLimits::default()
+        };
+        assert_eq!(
+            Vp8YuvImage::new(&frame, &limits).unwrap_err().kind(),
+            DecodeErrorKind::LimitExceeded
         );
     }
 
