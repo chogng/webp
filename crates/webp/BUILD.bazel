@@ -1,25 +1,17 @@
-load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//:defs.bzl", "webp_rust_crate")
+load("@rules_rust//rust:defs.bzl", "rust_test")
 
-rust_library(
+webp_rust_crate(
     name = "webp",
-    srcs = glob(["src/**/*.rs"]),
-    crate_root = "src/lib.rs",
-    edition = "2024",
     deps = [
         "//crates/webp-container:webp_container",
         "//crates/webp-core:webp_core",
         "//crates/webp-vp8l:webp_vp8l",
         "//crates/webp-vp8l-literal:webp_vp8l_literal",
     ],
-    visibility = ["//visibility:public"],
-)
-
-rust_test(
-    name = "unit_tests",
-    crate = ":webp",
-    compile_data = ["//:test_data"],
-    data = ["//:test_data"],
-    deps = ["//crates/webp-testkit:webp_testkit"],
+    test_compile_data = ["//:test_data"],
+    test_data = ["//:test_data"],
+    test_deps = ["//crates/webp-testkit:webp_testkit"],
 )
 
 rust_test(

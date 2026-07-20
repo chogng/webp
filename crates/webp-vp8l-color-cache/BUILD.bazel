@@ -1,18 +1,9 @@
-load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("//:defs.bzl", "webp_rust_crate")
 
-rust_library(
+webp_rust_crate(
     name = "webp_vp8l_color_cache",
-    srcs = glob(["src/**/*.rs"]),
-    crate_root = "src/lib.rs",
-    edition = "2024",
     deps = [
         "//crates/webp-core:webp_core",
         "//crates/webp-vp8l-entropy:webp_vp8l_entropy",
     ],
-    visibility = ["//visibility:public"],
-)
-
-rust_test(
-    name = "unit_tests",
-    crate = ":webp_vp8l_color_cache",
 )
