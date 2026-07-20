@@ -305,6 +305,7 @@ version = "0.1.0"
 dependencies = [
  "webp-core",
  "webp-vp8l",
+ "webp-vp8l-color-cache",
  "webp-vp8l-entropy",
  "webp-vp8l-huffman",
 ]

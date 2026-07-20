@@ -48,7 +48,30 @@ impl ColorCacheOutput {
 
     /// Creates an empty output stream with a cache of `2^bits` entries.
     pub fn with_cache_bits(bits: u8) -> Result<Self, DecodeError> {
-        Ok(Self::new(ColorCache::new(bits)?))
+        Self::with_cache_bits_and_capacity(bits, 0)
+    }
+
+    /// Creates an output stream with a cache of `2^bits` entries and an exact
+    /// requested capacity for packed ARGB pixels.
+    ///
+    /// Decoders that have already validated an image allocation budget should
+    /// use this constructor so incremental literal and LZ77 output cannot make
+    /// the vector grow beyond its accounted capacity. Allocation failure is
+    /// reported before any pixels are emitted.
+    pub fn with_cache_bits_and_capacity(
+        bits: u8,
+        pixel_capacity: usize,
+    ) -> Result<Self, DecodeError> {
+        let cache = ColorCache::new(bits)?;
+        let mut pixels = Vec::new();
+        pixels.try_reserve_exact(pixel_capacity).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::AllocationFailed,
+                None,
+                "VP8L output allocation failed",
+            )
+        })?;
+        Ok(Self { pixels, cache })
     }
 
     /// Returns pixels emitted so far in VP8L's packed ARGB representation.
@@ -362,6 +385,19 @@ mod tests {
         assert_eq!(sink.pixels(), model_pixels);
         assert_cache_matches_model(sink.cache(), &model_cache);
         assert_eq!(budget.remaining(), 0);
+    }
+
+    #[test]
+    fn output_sink_can_preallocate_its_bounded_pixel_capacity() {
+        let capacity = 4;
+        let mut sink = ColorCacheOutput::with_cache_bits_and_capacity(1, capacity).unwrap();
+        assert!(sink.pixels.capacity() >= capacity);
+
+        for color in 0..capacity {
+            sink.emit_literal(color as u32).unwrap();
+        }
+        assert_eq!(sink.pixels.len(), capacity);
+        assert!(sink.pixels.capacity() >= capacity);
     }
 
     #[test]
