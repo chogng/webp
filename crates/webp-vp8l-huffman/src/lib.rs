@@ -434,15 +434,16 @@ impl HuffmanTable {
         }
 
         if bits.remaining_bits() >= usize::from(ROOT_TABLE_BITS) {
-            let prefix = usize::try_from(bits.peek_bits(ROOT_TABLE_BITS)?)
+            let prefix = usize::try_from(bits.read_bits(ROOT_TABLE_BITS)?)
                 .map_err(|_| invalid("VP8L Huffman root table index does not fit usize"))?;
             let entry = self.root_table[prefix];
             if entry.bits != 0 {
-                bits.skip_bits(entry.bits)?;
+                if entry.bits < ROOT_TABLE_BITS {
+                    bits.rewind_bits(ROOT_TABLE_BITS - entry.bits)?;
+                }
                 return Ok(entry.symbol);
             }
 
-            bits.skip_bits(ROOT_TABLE_BITS)?;
             let mut code = u16::try_from(prefix)
                 .map_err(|_| invalid("VP8L Huffman prefix does not fit u16"))?;
             for length in ROOT_TABLE_BITS + 1..=self.max_code_length {

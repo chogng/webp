@@ -76,6 +76,33 @@ impl<'a> BitReader<'a> {
         Ok(())
     }
 
+    /// Moves the cursor backwards by up to 32 already-consumed bits.
+    ///
+    /// On failure the cursor is left unchanged. This is useful for table
+    /// decoders that speculatively read a fixed-width prefix and retain only
+    /// the bits belonging to a shorter matching code.
+    #[inline]
+    pub fn rewind_bits(&mut self, count: u8) -> Result<(), DecodeError> {
+        if count > 32 {
+            return Err(DecodeError::new(
+                DecodeErrorKind::InvalidParameter,
+                Some(self.bit_position / 8),
+                "cannot rewind more than 32 bits",
+            ));
+        }
+        self.bit_position = self
+            .bit_position
+            .checked_sub(usize::from(count))
+            .ok_or_else(|| {
+                DecodeError::new(
+                    DecodeErrorKind::InvalidParameter,
+                    Some(self.bit_position / 8),
+                    "cannot rewind before the start of input",
+                )
+            })?;
+        Ok(())
+    }
+
     /// Reads up to 32 bits, with the first bit becoming bit 0 of the result.
     /// On failure the cursor is left unchanged.
     #[inline]
@@ -290,6 +317,26 @@ mod tests {
         assert_eq!(reader.skip_bits(3), Ok(()));
         assert_eq!(reader.peek_bits(4), Ok(0b1011));
         assert_eq!(reader.bit_position(), 3);
+    }
+
+    #[test]
+    fn rewind_restores_a_speculative_read_and_rejects_bad_widths() {
+        let mut reader = BitReader::new(&[0b0101_1010]);
+        assert_eq!(reader.read_bits(5), Ok(0b1_1010));
+        assert_eq!(reader.rewind_bits(3), Ok(()));
+        assert_eq!(reader.bit_position(), 2);
+        assert_eq!(reader.read_bits(3), Ok(0b110));
+        let cursor = reader.bit_position();
+        assert_eq!(
+            reader.rewind_bits(33).unwrap_err().kind(),
+            DecodeErrorKind::InvalidParameter
+        );
+        assert_eq!(reader.bit_position(), cursor);
+        assert_eq!(
+            reader.rewind_bits(6).unwrap_err().kind(),
+            DecodeErrorKind::InvalidParameter
+        );
+        assert_eq!(reader.bit_position(), cursor);
     }
 
     #[test]

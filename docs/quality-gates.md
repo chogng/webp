@@ -64,6 +64,23 @@ allocation overhead in those paths. The gap remains performance pending and
 the next profile pass should separately quantify inverse transforms and final
 RGBA packing.
 
+## VP8L Huffman root-consume refinement
+
+The next 2026-07-20 pass profiles the same corpus by file and finds that
+`lossless_big_random_alpha.webp` contributes most of the decode time. Its
+high-entropy literal stream repeatedly hits eight-bit root-table entries. The
+decoder now consumes that root prefix in one `read_bits(8)` operation. A
+shorter root-table code rewinds only its unused tail bits; a longer code keeps
+the consumed prefix for the existing fallback. This removes the separate
+`peek_bits` and checked `skip_bits` operation from the common root-table hit.
+
+Across three five-iteration runs, Rust measured 1.271 s, 1.280 s, and 1.273
+s; the 1.273 s median is 90.2 MB/s, 9.5% faster than the preceding 1.407 s
+median and 32.8% faster than the original 1.894 s baseline. The matching
+libwebp median was 0.529 s (217.1 MB/s), leaving a 2.41x gap. The dominating
+single image improved from about 5.145 s to 4.666 s over 20 decodes of 16 MB
+RGBA output. All runs retain checksum `96355` for the complete corpus.
+
 ## Applying the gates to later milestones
 
 M0 owns the reusable fixture, corpus-pin, and benchmark infrastructure. Each
