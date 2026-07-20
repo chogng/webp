@@ -7,8 +7,10 @@
 
 #![forbid(unsafe_code)]
 
+pub mod clic;
 pub mod fixture;
 
+pub use clic::{verify_clic_validation, ClicError, ClicImage, ClicManifest, ClicSummary};
 pub use fixture::{
     parse_manifest, sha256_hex, Codec, FixtureApi, FixtureClass, FixtureManifest, FixtureRunner,
     ManifestError, RunError, RunSummary,
