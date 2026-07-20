@@ -2,15 +2,16 @@
 //! A deliberately small, bounded VP8L entropy decoder.
 //!
 //! This crate is an integration seam for the first lossless decoder slice. It
-//! accepts only a single Huffman group, no transforms, optional color cache,
-//! and literal/backward-reference entropy symbols.  All other valid VP8L features receive an explicit
+//! accepts a single Huffman group, an optional subtract-green transform,
+//! optional color cache, and literal/backward-reference entropy symbols. All
+//! other valid VP8L features receive an explicit
 //! [`DecodeErrorKind::UnsupportedFeature`] rather than being partially
 //! interpreted.  The output uses straight RGBA byte order.
 
 use webp_core::{
     BitReader, DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget, checked_image_bytes,
 };
-use webp_vp8l::{HEADER_LEN, Vp8lHeader, parse_header};
+use webp_vp8l::{HEADER_LEN, TransformDescriptor, TransformListParser, Vp8lHeader, parse_header};
 use webp_vp8l_color_cache::{ColorCacheOutput, MAX_COLOR_CACHE_BITS, MIN_COLOR_CACHE_BITS};
 use webp_vp8l_entropy::{
     copy_lz77_pixels, decode_distance, decode_length, distance_code_to_distance,
@@ -32,11 +33,10 @@ pub struct LiteralImage {
 
 /// Decodes a standalone VP8L stream limited to one entropy group.
 ///
-/// The input begins with the five-byte VP8L fixed header.  `transform`, color
-/// Transforms and meta-Huffman groups are intentionally not implemented in
-/// this stage. For compatibility with the initial decoder slice this function
-/// delegates to [`decode_no_transform`], which additionally supports VP8L
-/// backward references and color-cache references.
+/// The input begins with the five-byte VP8L fixed header. A transform list may
+/// be empty or contain the subtract-green transform; color cache, backward
+/// references, and literal entropy symbols are also supported. Other
+/// transforms and meta-Huffman groups remain explicitly unsupported.
 pub fn decode_literal_only(
     data: &[u8],
     limits: &DecodeLimits,
@@ -44,13 +44,14 @@ pub fn decode_literal_only(
     decode_no_transform(data, limits)
 }
 
-/// Decodes a standalone VP8L stream with one Huffman group and no transforms.
+/// Decodes a standalone VP8L stream with one Huffman group.
 ///
 /// Literal pixels, green-alphabet backward-reference symbols, and color-cache
-/// references are supported. Transforms and meta-Huffman groups remain
-/// explicitly unsupported. Internally decoded samples are packed as
-/// `0xAARRGGBB` until entropy expansion is complete, then emitted in RGBA byte
-/// order.
+/// references are supported. The transform list may be empty or contain the
+/// subtract-green transform. Transforms that require a separately coded
+/// subimage and meta-Huffman groups remain explicitly unsupported. Internally
+/// decoded samples are packed as `0xAARRGGBB` until entropy expansion is
+/// complete, then inverse-transformed and emitted in RGBA byte order.
 pub fn decode_no_transform(
     data: &[u8],
     limits: &DecodeLimits,
@@ -68,10 +69,7 @@ pub fn decode_no_transform(
     let mut bits = BitReader::with_bit_position(data, HEADER_LEN * 8)?;
     let mut budget = limits.work_budget();
 
-    budget.consume(1)?;
-    if bits.read_bit()? {
-        return Err(unsupported("VP8L transforms are not implemented"));
-    }
+    let subtract_green = read_supported_transforms(&mut bits, &mut budget, &header, limits)?;
 
     budget.consume(1)?;
     let color_cache_bits = if bits.read_bit()? {
@@ -159,6 +157,11 @@ pub fn decode_no_transform(
         output.copy_lz77(length, distance, pixels, &mut budget)?;
     }
 
+    let mut output = output.into_pixels();
+    if subtract_green {
+        inverse_subtract_green_argb(&mut output);
+    }
+
     let mut rgba = Vec::new();
     rgba.try_reserve_exact(rgba_len).map_err(|_| {
         DecodeError::new(
@@ -167,11 +170,41 @@ pub fn decode_no_transform(
             "RGBA output allocation failed",
         )
     })?;
-    for pixel in output.into_pixels() {
+    for pixel in output {
         rgba.extend_from_slice(&unpack_rgba(pixel));
     }
 
     Ok(LiteralImage { header, rgba })
+}
+
+/// Reads the main-level transform list without attempting to decode transform
+/// subimages. A descriptor with an attached subimage must be rejected as soon
+/// as it is seen: the following bits belong to that subimage, not to the next
+/// main-image transform or entropy stream.
+fn read_supported_transforms(
+    bits: &mut BitReader<'_>,
+    budget: &mut WorkBudget,
+    header: &Vp8lHeader,
+    limits: &DecodeLimits,
+) -> Result<bool, DecodeError> {
+    let mut parser = TransformListParser::new(header.width, header.height, limits)?;
+    let mut subtract_green = false;
+
+    loop {
+        // Count every transform-list entry, including its terminating bit, as
+        // bounded parser work. The empty-list case therefore retains the
+        // original one-unit stream-flag accounting.
+        budget.consume(1)?;
+        match parser.read_next(bits, limits)? {
+            None => return Ok(subtract_green),
+            Some(TransformDescriptor::SubtractGreen) => subtract_green = true,
+            Some(_) => {
+                return Err(unsupported(
+                    "VP8L transforms with coded subimages are not implemented",
+                ));
+            }
+        }
+    }
 }
 
 /// Bounds the allocations that coexist while entropy output becomes RGBA.
@@ -233,6 +266,20 @@ const fn unpack_rgba(pixel: u32) -> [u8; 4] {
         pixel as u8,
         (pixel >> 24) as u8,
     ]
+}
+
+/// Inverts subtract-green directly in the packed ARGB representation.
+///
+/// Keeping this as a packed-pixel helper avoids allocating a second image
+/// buffer solely to adapt to the transform crate's RGBA image type. The green
+/// and alpha lanes are unchanged, while red and blue add green modulo 256.
+fn inverse_subtract_green_argb(pixels: &mut [u32]) {
+    for pixel in pixels {
+        let green = (*pixel >> 8) as u8;
+        let red = ((*pixel >> 16) as u8).wrapping_add(green);
+        let blue = (*pixel as u8).wrapping_add(green);
+        *pixel = (*pixel & 0xff00_ff00) | (u32::from(red) << 16) | u32::from(blue);
+    }
 }
 
 struct HuffmanCodes {
@@ -479,9 +526,22 @@ mod tests {
     }
 
     fn literal_stream(width: u32, height: u32, pixel: [u8; 4]) -> Vec<u8> {
+        literal_stream_with_transforms(width, height, pixel, &[])
+    }
+
+    fn literal_stream_with_transforms(
+        width: u32,
+        height: u32,
+        pixel: [u8; 4],
+        transforms: &[u8],
+    ) -> Vec<u8> {
         let mut writer = BitWriter::new();
         write_header(&mut writer, width, height, pixel[3] != 255);
-        writer.write_bits(0, 1).unwrap(); // transform_present
+        for &transform_type in transforms {
+            writer.write_bits(1, 1).unwrap(); // transform_present
+            writer.write_bits(u32::from(transform_type), 2).unwrap();
+        }
+        writer.write_bits(0, 1).unwrap(); // transform list terminator
         writer.write_bits(0, 1).unwrap(); // color_cache_present
         writer.write_bits(0, 1).unwrap(); // use_meta_huffman
         for symbol in [pixel[1], pixel[0], pixel[2], pixel[3], 0] {
@@ -592,18 +652,74 @@ mod tests {
     }
 
     #[test]
-    fn rejects_each_deferred_feature_before_entropy_decode() {
-        // The middle deferred feature is the supported color-cache flag. The
-        // transform and meta-Huffman flags still fail before entropy decode.
-        for bit in [0, 2] {
-            let mut data = literal_stream(1, 1, [1, 2, 3, 4]);
-            let position = HEADER_LEN * 8 + bit;
-            data[position / 8] |= 1 << (position % 8);
+    fn applies_subtract_green_to_handwritten_residual_pixels() {
+        // Stored channels are residual red, green, residual blue, alpha.
+        // Inversion adds green to red and blue modulo 256.
+        let data = literal_stream_with_transforms(1, 1, [0xf0, 0x30, 0xee, 0x80], &[2]);
+        let image = decode_literal_only(&data, &limits()).unwrap();
+        assert_eq!(image.rgba, [0x20, 0x30, 0x1e, 0x80]);
+    }
+
+    #[test]
+    fn inverse_subtract_green_preserves_green_and_alpha_for_each_pixel() {
+        let mut pixels = [
+            pack_argb(0xf0, 0x30, 0xee, 0x80),
+            pack_argb(0x01, 0xff, 0x02, 0x7f),
+        ];
+        inverse_subtract_green_argb(&mut pixels);
+        assert_eq!(unpack_rgba(pixels[0]), [0x20, 0x30, 0x1e, 0x80]);
+        assert_eq!(unpack_rgba(pixels[1]), [0x00, 0xff, 0x01, 0x7f]);
+    }
+
+    #[test]
+    fn rejects_meta_huffman_before_entropy_decode() {
+        let mut data = literal_stream(1, 1, [1, 2, 3, 4]);
+        let position = HEADER_LEN * 8 + 2;
+        data[position / 8] |= 1 << (position % 8);
+        assert_eq!(
+            decode_literal_only(&data, &limits()).unwrap_err().kind(),
+            DecodeErrorKind::UnsupportedFeature
+        );
+    }
+
+    #[test]
+    fn rejects_transforms_with_subimages_without_reading_their_payload() {
+        for transform_type in [0_u32, 1, 3] {
+            let mut writer = BitWriter::new();
+            write_header(&mut writer, 1, 1, false);
+            writer.write_bits(1, 1).unwrap(); // transform_present
+            writer.write_bits(transform_type, 2).unwrap();
+            match transform_type {
+                0 | 1 => writer.write_bits(0, 3).unwrap(), // block_size_bits
+                3 => writer.write_bits(0, 8).unwrap(),     // one palette entry
+                _ => unreachable!(),
+            }
+            // No transform subimage follows. This must still reject as
+            // unsupported rather than attempting to parse that payload.
             assert_eq!(
-                decode_literal_only(&data, &limits()).unwrap_err().kind(),
+                decode_literal_only(&writer.into_bytes(), &limits())
+                    .unwrap_err()
+                    .kind(),
                 DecodeErrorKind::UnsupportedFeature
             );
         }
+    }
+
+    #[test]
+    fn rejects_subtract_green_combined_with_a_subimage_transform() {
+        let mut writer = BitWriter::new();
+        write_header(&mut writer, 1, 1, false);
+        writer.write_bits(1, 1).unwrap(); // subtract-green present
+        writer.write_bits(2, 2).unwrap(); // subtract-green
+        writer.write_bits(1, 1).unwrap(); // predictor present
+        writer.write_bits(0, 2).unwrap(); // predictor
+        writer.write_bits(0, 3).unwrap(); // predictor block_size_bits
+        assert_eq!(
+            decode_literal_only(&writer.into_bytes(), &limits())
+                .unwrap_err()
+                .kind(),
+            DecodeErrorKind::UnsupportedFeature
+        );
     }
 
     #[test]
@@ -769,6 +885,16 @@ mod tests {
                 error.kind(),
                 DecodeErrorKind::UnexpectedEof,
                 "length {length}"
+            );
+        }
+
+        let transformed = literal_stream_with_transforms(1, 1, [1, 2, 3, 4], &[2]);
+        for length in 0..transformed.len() {
+            let error = decode_literal_only(&transformed[..length], &limits()).unwrap_err();
+            assert_eq!(
+                error.kind(),
+                DecodeErrorKind::UnexpectedEof,
+                "subtract-green truncation length {length}"
             );
         }
     }
