@@ -35,7 +35,7 @@ fn fixtures(action: Option<&str>) -> Result<(), String> {
     match action {
         Some("generate-malformed") => generate_malformed_fixtures(),
         Some("generate-metadata") => generate_metadata_fixtures(),
-        _ => Err("usage: cargo xtask fixtures generate-malformed".to_owned()),
+        _ => Err("usage: cargo xtask fixtures <generate-malformed|generate-metadata>".to_owned()),
     }
 }
 
@@ -128,6 +128,14 @@ fn generate_malformed_fixtures() -> Result<(), String> {
     });
     let vp8x = chunk(*b"VP8X", &[0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0], None);
     let duplicate_vp8x = riff_body([vp8x.clone(), vp8x].concat());
+    let animation_vp8x = chunk(*b"VP8X", &[0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0], None);
+    let truncated_anmf = riff_body({
+        let mut body = animation_vp8x.clone();
+        body.extend_from_slice(b"ANMF");
+        body.extend_from_slice(&16_u32.to_le_bytes());
+        body.extend_from_slice(&[0; 10]);
+        body
+    });
 
     let fixtures = [
         GeneratedFixture {
@@ -176,6 +184,20 @@ fn generate_malformed_fixtures() -> Result<(), String> {
             bytes: duplicate_vp8x,
             feature: "duplicate-vp8x",
             notes: "Strict parsing rejects duplicate VP8X singleton chunks.",
+        },
+        GeneratedFixture {
+            id: "animation-anmf-payload-truncated-001",
+            file: "animation-anmf-payload-truncated.webp",
+            bytes: truncated_anmf,
+            feature: "animation-anmf-payload-truncated",
+            notes: "ANMF declares 16 payload bytes but supplies only 10.",
+        },
+        GeneratedFixture {
+            id: "animation-anmf-non-zero-padding-001",
+            file: "animation-anmf-non-zero-padding.webp",
+            bytes: riff_body([animation_vp8x, chunk(*b"ANMF", &[0x00], Some(0xff))].concat()),
+            feature: "animation-anmf-non-zero-padding",
+            notes: "Strict parsing rejects non-zero alignment padding after ANMF.",
         },
     ];
     for fixture in &fixtures {

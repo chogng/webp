@@ -1,0 +1,9 @@
+id = "animation-anmf-non-zero-padding-001"
+file = "../fixtures/generated/animation-anmf-non-zero-padding.webp"
+sha256 = "13d07c19fa12f22a5ad8aa3eebd6f6cbbe817256bbf5a792e7e6b3a9a0d75a1a"
+class = "MustReject"
+source = "generated: cargo xtask fixtures generate-malformed"
+license = "CC0-1.0"
+codec = "Container"
+features = ["animation-anmf-non-zero-padding", "public-api", "no-panic"]
+notes = "Strict parsing rejects non-zero alignment padding after ANMF."
