@@ -1,12 +1,12 @@
-# M0 feature matrix
+# M1 feature matrix
 
 | Feature | Unit tests | Public-path tests | Fuzz target |
 | --- | --- | --- | --- |
-| bit reader | `webp-core::bit_io` | fixture runner entry point | pending M0 skeleton |
-| checked arithmetic | `webp-core::limits` | `webp::read_info` | pending M0 skeleton |
-| RIFF | `webp-container::parser` | smoke fixture manifest | `container_raw` skeleton |
-| VP8X | `webp-container::vp8x` | `webp::read_info` | `container_raw` skeleton |
-| VP8L header | `webp-vp8l` header boundary suite | `webp::read_info` simple VP8L | `vp8l_raw` pending M1 wiring |
-| VP8L Huffman | balanced/unbalanced/tree rejection suite | pending entropy-stream decoder | `vp8l_huffman` pending M1 wiring |
-| VP8L LZ77 | prefix ranges and slow-copy differential | pending entropy-stream decoder | `vp8l_lz77` pending M1 wiring |
-| VP8L predictor/subtract-green | all modes, borders and channel extremes | pending lossless decoder | `vp8l_transforms` pending M1 wiring |
+| bit reader | `webp-core::bit_io` | `webp::read_info`, `webp::decode` | `vp8l_raw`, `vp8l_huffman` |
+| checked arithmetic | `webp-core::limits` | bounded `read_info`/`decode`/incremental paths | all public raw targets |
+| RIFF | `webp-container::parser` | fixture manifests and all-prefix truncation | `container_raw`, `incremental_raw` |
+| VP8X | `webp-container::vp8x` | `webp::read_info`, strict decode validation | `container_raw` |
+| VP8L header | `webp-vp8l` header boundary suite | `read_info`, upstream lossless corpus | `vp8l_header_raw`, `vp8l_raw` |
+| VP8L Huffman | balanced/unbalanced/repeat/tree rejection suites | 41 upstream lossless RGBA goldens | `vp8l_huffman`, `vp8l_raw` |
+| VP8L LZ77 | prefix ranges and slow-copy differential | upstream lossless RGBA goldens | `vp8l_raw` |
+| VP8L transforms | predictor/color/indexing unit suites | all 16 transform combinations and payload-prefix truncation | `vp8l_transforms`, `vp8l_raw` |

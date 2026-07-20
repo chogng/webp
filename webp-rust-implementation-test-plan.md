@@ -737,7 +737,7 @@ LZ77 copy 应有一个逐元素慢速实现用于 property differential。优化
 - lossless RGBA 与 pinned scalar libwebp 逐字节一致；
 - 所有 transform 组合有 feature coverage；
 - 所有小尺寸 fixture 在每个 byte truncation point 不 panic；
-- random small RGBA 经 ours encode/libwebp encode 后均可由两边精确恢复；
+- random small RGBA 经 pinned libwebp encode 后可由 ours/libwebp 精确恢复；ours encode 产生的流由两边精确恢复属于 M4 encoder 门禁；
 - raw VP8L fuzz、Huffman structured fuzz 和 transform structured fuzz 均无已知 crash；
 - critical mutation score 不低于 95%，且无未解释 surviving mutant。
 
