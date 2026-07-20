@@ -19,6 +19,57 @@ pub const CODE_LENGTH_CODE_ORDER: [usize; 19] = [
 
 const CODE_LENGTH_ALPHABET_SIZE: usize = CODE_LENGTH_CODE_ORDER.len();
 
+/// Reads a simple VP8L Huffman code and builds its decoder table.
+///
+/// The enclosing Huffman-code parser must consume `simple_code_flag` before
+/// calling this function.  The simple representation stores one or two
+/// length-one symbols; the first is encoded in either one or eight bits and
+/// the second is always encoded in eight bits.  Its symbols are constrained to
+/// the caller-provided alphabet even though the wire representation itself is
+/// limited to `[0, 255]`.
+///
+/// A two-symbol representation is permitted to repeat the same symbol by the
+/// VP8L specification.  It remains a two-entry, one-bit decoder so the
+/// subsequent wire stream remains aligned; both one-bit values decode to that
+/// duplicated symbol.
+pub fn read_simple_code(
+    bits: &mut BitReader<'_>,
+    alphabet_size: usize,
+) -> Result<HuffmanTable, DecodeError> {
+    if alphabet_size == 0 {
+        return Err(invalid("VP8L Huffman alphabet must contain a symbol"));
+    }
+
+    let num_symbols = usize::from(bits.read_bit()?) + 1;
+    debug_assert!((1..=2).contains(&num_symbols));
+
+    let first_width = if bits.read_bit()? { 8 } else { 1 };
+    let first_symbol = usize::try_from(bits.read_bits(first_width)?)
+        .map_err(|_| invalid("VP8L simple Huffman symbol does not fit usize"))?;
+    validate_simple_symbol(first_symbol, alphabet_size)?;
+
+    let second_symbol = if num_symbols == 2 {
+        let symbol = usize::try_from(bits.read_bits(8)?)
+            .map_err(|_| invalid("VP8L simple Huffman symbol does not fit usize"))?;
+        validate_simple_symbol(symbol, alphabet_size)?;
+        Some(symbol)
+    } else {
+        None
+    };
+
+    Ok(HuffmanTable::from_simple_symbols(
+        first_symbol,
+        second_symbol,
+    ))
+}
+
+fn validate_simple_symbol(symbol: usize, alphabet_size: usize) -> Result<(), DecodeError> {
+    if symbol >= alphabet_size {
+        return Err(invalid("VP8L simple Huffman symbol exceeds alphabet"));
+    }
+    Ok(())
+}
+
 /// Reads the code lengths for a normal (non-simple) VP8L Huffman code.
 ///
 /// `alphabet_size` is the number of symbols in the code that is being
@@ -136,6 +187,40 @@ pub struct HuffmanTable {
 }
 
 impl HuffmanTable {
+    /// Builds the decoder represented by a VP8L simple code header.
+    ///
+    /// With one symbol the format consumes no data bits.  With two symbols it
+    /// uses the two length-one canonical codes (zero then one), even if the
+    /// symbols are the same.
+    #[must_use]
+    pub fn from_simple_symbols(first_symbol: usize, second_symbol: Option<usize>) -> Self {
+        match second_symbol {
+            None => Self {
+                codes: vec![Code {
+                    bits: 0,
+                    length: 0,
+                    symbol: first_symbol,
+                }],
+                max_code_length: 0,
+            },
+            Some(second_symbol) => Self {
+                codes: vec![
+                    Code {
+                        bits: 0,
+                        length: 1,
+                        symbol: first_symbol,
+                    },
+                    Code {
+                        bits: 1,
+                        length: 1,
+                        symbol: second_symbol,
+                    },
+                ],
+                max_code_length: 1,
+            },
+        }
+    }
+
     /// Builds a canonical table from the code length for each symbol.
     ///
     /// A zero length marks an unused symbol.  The returned symbol value is the
@@ -387,6 +472,43 @@ mod tests {
         writer.into_bytes()
     }
 
+    fn simple_stream(
+        has_second_symbol: bool,
+        first_uses_eight_bits: bool,
+        first_symbol: u32,
+        second_symbol: u32,
+    ) -> BitWriter {
+        let mut writer = BitWriter::new();
+        writer.write_bits(u32::from(has_second_symbol), 1).unwrap();
+        writer
+            .write_bits(u32::from(first_uses_eight_bits), 1)
+            .unwrap();
+        writer
+            .write_bits(first_symbol, if first_uses_eight_bits { 8 } else { 1 })
+            .unwrap();
+        if has_second_symbol {
+            writer.write_bits(second_symbol, 8).unwrap();
+        }
+        writer
+    }
+
+    /// Produces an exact bit-prefix of `stream`, with the reader positioned
+    /// after leading padding so its remaining input is exactly `available`
+    /// bits.  This lets truncation tests cover every bit boundary, rather than
+    /// only byte-aligned file cuts.
+    fn simple_prefix(stream: &BitWriter, available: usize) -> (Vec<u8>, usize) {
+        assert!(available <= stream.bit_len());
+        let leading_padding = (8 - (available % 8)) % 8;
+        let mut writer = BitWriter::new();
+        writer.write_bits(0, leading_padding as u8).unwrap();
+        for bit_index in 0..available {
+            let bit = u32::from((stream.as_bytes()[bit_index / 8] >> (bit_index % 8)) & 1);
+            writer.write_bits(bit, 1).unwrap();
+        }
+        assert_eq!(writer.bit_len() % 8, 0);
+        (writer.into_bytes(), leading_padding)
+    }
+
     #[test]
     fn decodes_single_symbol_without_consuming_a_bit() {
         let table = HuffmanTable::from_code_lengths(&[0, 1, 0]).unwrap();
@@ -458,6 +580,109 @@ mod tests {
         let mut input = BitReader::with_bit_position(&[0b1100_0000], 6).unwrap();
         let error = table.decode(&mut input).unwrap_err();
         assert_eq!(error.kind(), DecodeErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn simple_code_decodes_one_or_two_symbols_in_lsb_order() {
+        let one = simple_stream(false, false, 1, 0);
+        let mut one_input = BitReader::new(one.as_bytes());
+        let one_table = read_simple_code(&mut one_input, 2).unwrap();
+        assert_eq!(one_table.symbol_count(), 1);
+        assert_eq!(one_table.max_code_length(), 0);
+        assert_eq!(one_table.decode(&mut one_input), Ok(1));
+        assert_eq!(one_input.bit_position(), one.bit_len());
+
+        // For two length-one entries canonical code zero belongs to the first
+        // symbol and canonical code one to the second, unchanged in LSB order.
+        let two = simple_stream(true, true, 3, 200);
+        let mut two_input = BitReader::new(two.as_bytes());
+        let two_table = read_simple_code(&mut two_input, 256).unwrap();
+        let data_start = two_input.bit_position();
+        let mut data = BitReader::new(&[0b0000_0010]);
+        assert_eq!(two_table.decode(&mut data), Ok(3));
+        assert_eq!(two_table.decode(&mut data), Ok(200));
+        assert_eq!(two_input.bit_position(), data_start);
+    }
+
+    #[test]
+    fn simple_code_honors_symbol_widths_and_boundaries() {
+        for &(first_uses_eight_bits, first_symbol) in
+            &[(false, 0), (false, 1), (true, 0), (true, 255)]
+        {
+            let stream = simple_stream(false, first_uses_eight_bits, first_symbol, 0);
+            let table = read_simple_code(&mut BitReader::new(stream.as_bytes()), 256).unwrap();
+            let mut no_data = BitReader::new(&[]);
+            assert_eq!(table.decode(&mut no_data), Ok(first_symbol as usize));
+        }
+
+        for &(first_symbol, second_symbol) in &[(0, 255), (255, 0)] {
+            let stream = simple_stream(true, true, first_symbol, second_symbol);
+            let table = read_simple_code(&mut BitReader::new(stream.as_bytes()), 256).unwrap();
+            let mut input = BitReader::new(&[0b0000_0010]);
+            assert_eq!(table.decode(&mut input), Ok(first_symbol as usize));
+            assert_eq!(table.decode(&mut input), Ok(second_symbol as usize));
+        }
+    }
+
+    #[test]
+    fn simple_code_allows_duplicate_symbols() {
+        let stream = simple_stream(true, true, 42, 42);
+        let mut input = BitReader::new(stream.as_bytes());
+        let table = read_simple_code(&mut input, 256).unwrap();
+        assert_eq!(table.symbol_count(), 2);
+        assert_eq!(table.max_code_length(), 1);
+        assert_eq!(input.bit_position(), stream.bit_len());
+        let mut data = BitReader::new(&[0b0000_0010]);
+        assert_eq!(table.decode(&mut data), Ok(42));
+        assert_eq!(data.bit_position(), 1);
+        assert_eq!(table.decode(&mut data), Ok(42));
+        assert_eq!(data.bit_position(), 2);
+    }
+
+    #[test]
+    fn simple_code_rejects_symbols_outside_the_target_alphabet() {
+        let first = simple_stream(false, true, 2, 0);
+        let error = read_simple_code(&mut BitReader::new(first.as_bytes()), 2).unwrap_err();
+        assert_eq!(error.kind(), DecodeErrorKind::InvalidBitstream);
+        assert_eq!(
+            error.context(),
+            "VP8L simple Huffman symbol exceeds alphabet"
+        );
+
+        let second = simple_stream(true, false, 1, 2);
+        let error = read_simple_code(&mut BitReader::new(second.as_bytes()), 2).unwrap_err();
+        assert_eq!(error.kind(), DecodeErrorKind::InvalidBitstream);
+        assert_eq!(
+            error.context(),
+            "VP8L simple Huffman symbol exceeds alphabet"
+        );
+
+        let error = read_simple_code(&mut BitReader::new(&[]), 0).unwrap_err();
+        assert_eq!(error.kind(), DecodeErrorKind::InvalidBitstream);
+    }
+
+    #[test]
+    fn simple_code_reports_truncation_at_every_field_boundary() {
+        let streams = [
+            simple_stream(false, false, 1, 0),
+            simple_stream(false, true, 255, 0),
+            simple_stream(true, false, 1, 255),
+            simple_stream(true, true, 255, 0),
+        ];
+        for stream in &streams {
+            for available in 0..stream.bit_len() {
+                let (prefix, start) = simple_prefix(stream, available);
+                let mut input = BitReader::with_bit_position(&prefix, start).unwrap();
+                let error = read_simple_code(&mut input, 256).unwrap_err();
+                assert_eq!(
+                    error.kind(),
+                    DecodeErrorKind::UnexpectedEof,
+                    "bits={}/{}",
+                    available,
+                    stream.bit_len()
+                );
+            }
+        }
     }
 
     #[test]

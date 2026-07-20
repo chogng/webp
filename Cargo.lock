@@ -273,6 +273,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "webp-vp8l-color-transform"
+version = "0.1.0"
+
+[[package]]
 name = "webp-vp8l-entropy"
 version = "0.1.0"
 dependencies = [

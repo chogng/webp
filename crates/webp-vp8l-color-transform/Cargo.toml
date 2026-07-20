@@ -1,0 +1,11 @@
+[package]
+name = "webp-vp8l-color-transform"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Safe scalar inverse color transforms for WebP lossless images"
+
+[lints]
+workspace = true
