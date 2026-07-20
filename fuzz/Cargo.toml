@@ -10,6 +10,11 @@ cargo-fuzz = true
 [dependencies]
 libfuzzer-sys = "0.4"
 webp = { path = "../crates/webp" }
+webp-core = { path = "../crates/webp-core" }
+webp-vp8l-color-transform = { path = "../crates/webp-vp8l-color-transform" }
+webp-vp8l-huffman = { path = "../crates/webp-vp8l-huffman" }
+webp-vp8l-indexing = { path = "../crates/webp-vp8l-indexing" }
+webp-vp8l-transform = { path = "../crates/webp-vp8l-transform" }
 
 [[bin]]
 name = "container_raw"
@@ -35,6 +40,20 @@ bench = false
 [[bin]]
 name = "vp8l_raw"
 path = "fuzz_targets/vp8l_raw.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vp8l_huffman"
+path = "fuzz_targets/vp8l_huffman.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vp8l_transforms"
+path = "fuzz_targets/vp8l_transforms.rs"
 test = false
 doc = false
 bench = false

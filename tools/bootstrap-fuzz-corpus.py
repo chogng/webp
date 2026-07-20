@@ -76,6 +76,19 @@ def main() -> None:
     }
     for name, payload in raw_seeds.items():
         write_if_changed(output / "vp8l_raw" / name, payload)
+    huffman_seeds = {
+        "alphabet-1-empty-code": bytes((0, 0, 1, 0, 0)),
+        "alphabet-256-simple-code": bytes((255, 0, 1, 0, 0)),
+        "max-alphabet-normal-code": bytes((0x17, 0x09, 0, 0, 0, 0)),
+    }
+    for name, payload in huffman_seeds.items():
+        write_if_changed(output / "vp8l_huffman" / name, payload)
+    transform_seeds = {
+        "one-pixel": bytes((0, 0, 0, 0, 0, 255)),
+        "max-bounded-shape": bytes(range(256)),
+    }
+    for name, payload in transform_seeds.items():
+        write_if_changed(output / "vp8l_transforms" / name, payload)
     write_if_changed(
         output / "vp8l_header_raw" / "valid-vp8l-header.webp",
         vp8l_riff(raw_seeds["header-only"]),
@@ -83,7 +96,8 @@ def main() -> None:
 
     print(
         f"seeded {len(fixture_files)} fixture inputs for {len(targets)} targets and "
-        f"{len(raw_seeds)} raw VP8L seeds under {output}"
+        f"{len(raw_seeds)} raw VP8L, {len(huffman_seeds)} Huffman, and "
+        f"{len(transform_seeds)} transform seeds under {output}"
     )
 
 

@@ -108,6 +108,11 @@ version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
  "webp",
+ "webp-core",
+ "webp-vp8l-color-transform",
+ "webp-vp8l-huffman",
+ "webp-vp8l-indexing",
+ "webp-vp8l-transform",
 ]
 
 [[package]]

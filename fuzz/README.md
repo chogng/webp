@@ -9,6 +9,8 @@ cargo +nightly fuzz run container_raw -- -dict=fuzz/dictionaries/webp.dict
 cargo +nightly fuzz run incremental_raw -- -dict=fuzz/dictionaries/webp.dict
 cargo +nightly fuzz run vp8l_header_raw -- -dict=fuzz/dictionaries/webp.dict
 cargo +nightly fuzz run vp8l_raw -- -dict=fuzz/dictionaries/webp.dict
+cargo +nightly fuzz run vp8l_huffman
+cargo +nightly fuzz run vp8l_transforms
 ```
 
 `cargo-fuzz` enables AddressSanitizer with nightly-only Rust compiler options;
@@ -32,9 +34,13 @@ chunk boundaries for the public incremental state machine, and
 `vp8l_header_raw` reaches VP8L header validation through `read_info`.
 `vp8l_raw` wraps its raw input in a `RIFF/WEBP` `VP8L` chunk and reaches the
 bounded public `decode` path, including the supported VP8L entropy decoder.
+`vp8l_huffman` keeps the alphabet size valid while mutating the encoded tree.
+`vp8l_transforms` generates bounded valid image/configuration shapes and
+exercises predictor, subtract-green, color, and color-indexing inverse
+transforms directly.
 Each uses explicit byte, dimension, metadata, allocation, and work limits. Run
 `tools/update-fuzz-dictionary.sh` after refreshing the test-only oracle to copy
 the current upstream dictionary into the checked-in fuzz target.
 
-Future targets will cover structured VP8L entropy, animation, mux/demux, and
-encode/decode round trips once those public APIs exist.
+Future targets will cover animation, mux/demux, and encode/decode round trips
+once those public APIs exist.
