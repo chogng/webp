@@ -11,3 +11,11 @@ filegroup(
     name = "corpus_lock",
     srcs = ["tools/corpus-lock.toml"],
 )
+
+# External corpora are intentionally Git-ignored. They are injected as
+# runfiles only by CI jobs that fetch them before explicitly running the
+# corresponding manual Bazel tests.
+filegroup(
+    name = "external_corpus_data",
+    srcs = glob(["third_party/corpus/**"]),
+)

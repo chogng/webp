@@ -12,14 +12,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.88.0
         with:
           components: rustfmt, clippy
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
       - uses: bazelbuild/setup-bazelisk@v3
-      - run: bazel test //...
+      - run: bash tools/check-module-bazel-lock.sh
+      - run: bazel test --test_output=errors --test_tag_filters=-external-corpus //...
+      - run: CARGO_BAZEL_REPIN=1 bazel build --lockfile_mode=error //...
+      - run: git diff --exit-code -- cargo-bazel-lock.json
       - run: cargo run -p xtask -- corpus verify
       - run: cargo run -p xtask -- feature-matrix check
 
@@ -28,8 +31,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@1.88.0
       - run: tools/fetch-libwebp-test-data.sh
+      - run: tools/fetch-libwebp-oracle.sh
+      - run: cmake -S third_party/oracle/libwebp -B third_party/oracle/libwebp/build -DWEBP_BUILD_DWEBP=ON
+      - run: cmake --build third_party/oracle/libwebp/build --target dwebp cwebp --parallel 2
       - run: tools/verify-upstream-smoke.sh
       - run: tools/index-upstream-smoke-corpus.sh
-      - run: cargo test -p webp-testkit --test external_upstream_corpus
+      - run: cargo test --release -p webp --test external_upstream_corpus
+      - uses: bazelbuild/setup-bazelisk@v3
+      - run: bash tools/check-module-bazel-lock.sh
+      - run: bazel test --test_output=errors --test_tag_filters=external-corpus //crates/webp:external_upstream_corpus_test

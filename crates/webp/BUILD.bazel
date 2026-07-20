@@ -27,8 +27,24 @@ rust_test(
     crate_root = "tests/external_animation_corpus.rs",
     srcs = ["tests/external_animation_corpus.rs"],
     edition = "2024",
+    data = ["//:external_corpus_data"],
     deps = [
         ":webp",
         "//crates/webp-testkit:webp_testkit",
     ],
+    tags = ["external-corpus", "manual"],
+)
+
+rust_test(
+    name = "external_upstream_corpus_test",
+    crate_root = "tests/external_upstream_corpus.rs",
+    srcs = ["tests/external_upstream_corpus.rs"],
+    edition = "2024",
+    data = ["//:external_corpus_data"],
+    deps = [
+        ":webp",
+        "//crates/webp-container:webp_container",
+        "//crates/webp-testkit:webp_testkit",
+    ],
+    tags = ["external-corpus", "manual"],
 )

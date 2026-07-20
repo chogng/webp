@@ -23,7 +23,9 @@ rust_test(
     crate_root = "tests/external_reference_corpus.rs",
     srcs = ["tests/external_reference_corpus.rs"],
     edition = crate_edition(),
+    data = ["//:external_corpus_data"],
     deps = [":webp_testkit"],
+    tags = ["external-corpus", "manual"],
 )
 
 rust_test(
@@ -32,5 +34,7 @@ rust_test(
     crate_root = "tests/external_upstream_corpus.rs",
     srcs = ["tests/external_upstream_corpus.rs"],
     edition = crate_edition(),
+    data = ["//:external_corpus_data"],
     deps = [":webp_testkit"],
+    tags = ["external-corpus", "manual"],
 )

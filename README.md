@@ -28,15 +28,39 @@ the checked-in Cargo manifests and lockfiles to resolve third-party crates, so
 Cargo remains the dependency source of truth.
 
 ```sh
-bazel test //...
+bazel test --test_output=errors --test_tag_filters=-external-corpus //...
 ```
 
-Use Bazelisk to select the pinned version in `.bazelversion`. When Cargo
-dependencies change, regenerate the Bazel dependency lockfile before committing:
+Use Bazelisk to select the pinned version in `.bazelversion`. Bazel 9 maintains
+the Bzlmod graph lock and the Rust crate-universe lock separately. Update the
+Bzlmod lock after changing `MODULE.bazel`:
+
+```sh
+bazel mod deps --lockfile_mode=update
+```
+
+When Cargo dependencies change, regenerate the crate-universe lock during a
+normal Bazel analysis before committing:
 
 ```sh
 CARGO_BAZEL_REPIN=1 bazel build //...
 ```
+
+Verify both dependency graphs without update mode:
+
+```sh
+bazel mod deps --lockfile_mode=error
+bazel build //...
+```
+
+External-corpus tests are marked `manual` and `external-corpus`: ordinary
+Bazel test runs explicitly exclude them, remain offline, and run only source
+tests plus committed fixtures. The whole `third_party/` directory is ignored:
+it holds only downloaded validation material, including the pinned
+`libwebp-test-data` corpus. CI jobs that fetch that corpus opt into the
+`external-corpus` tag and run the relevant explicit target with it declared as
+a Bazel runfile. See `docs/test-corpus.md` for the locked download and
+validation workflow.
 
 ## License
 

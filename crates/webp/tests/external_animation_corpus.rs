@@ -5,12 +5,24 @@ use webp_testkit::{FixtureApi, FixtureClass, FixtureRunner};
 
 #[test]
 fn generated_animation_corpus_is_readable_by_rust() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    let cargo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join("third_party/corpus/animation-v1");
-    if !root.is_dir() {
-        return;
-    }
+    let root = match std::env::var_os("TEST_SRCDIR") {
+        Some(runfiles) => {
+            let workspace = std::env::var_os("TEST_WORKSPACE").unwrap_or_else(|| "_main".into());
+            let root = PathBuf::from(runfiles)
+                .join(workspace)
+                .join("third_party/corpus/animation-v1");
+            assert!(
+                root.is_dir(),
+                "Bazel external-corpus test requires the fetched animation corpus"
+            );
+            root
+        }
+        None if cargo_root.is_dir() => cargo_root,
+        None => return,
+    };
 
     let summary = FixtureRunner::with_fixture_root(root.join("manifests"), &root)
         .run_all(|fixture, bytes| {

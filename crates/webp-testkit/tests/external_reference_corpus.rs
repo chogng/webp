@@ -4,9 +4,23 @@ use webp_testkit::{FixtureApi, FixtureClass, FixtureRunner};
 
 #[test]
 fn reference_encoder_corpus_is_rust_consumable() {
-    let corpus_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+    let cargo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../..")
         .join("third_party/corpus");
+    let corpus_root = match std::env::var_os("TEST_SRCDIR") {
+        Some(runfiles) => {
+            let workspace = std::env::var_os("TEST_WORKSPACE").unwrap_or_else(|| "_main".into());
+            let root = PathBuf::from(runfiles)
+                .join(workspace)
+                .join("third_party/corpus");
+            assert!(
+                root.is_dir(),
+                "Bazel external-corpus test requires a fetched reference corpus"
+            );
+            root
+        }
+        None => cargo_root,
+    };
     let mut fixtures = 0;
     for name in ["reference-v1", "reference-edge-v1"] {
         let root = corpus_root.join(name);
