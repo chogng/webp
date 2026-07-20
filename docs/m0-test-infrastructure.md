@@ -48,5 +48,15 @@ The upstream test data and the oracle are deliberately ignored by Git. Fetch
 them only at their locked revisions under `third_party/`; committed PR smoke
 fixtures must stay small and independently licensed.
 
+To fetch the upstream conformance vectors, run:
+
+```text
+tools/fetch-libwebp-test-data.sh
+```
+
+The script rejects an existing checkout with a different `origin` and confirms
+that its detached `HEAD` is the `libwebp_test_data.commit` in
+`tools/corpus-lock.toml`.
+
 The first decoder integration test should run the smoke manifest and call each
 selected public API (`read_info`, one-shot decode, and incremental finish).
