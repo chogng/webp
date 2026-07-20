@@ -72,6 +72,9 @@ duplicates, incorrect declared sizes, and truncation.
 Rust-readable `ReadInfo` sidecar. The animation test is deliberately separate
 from pixel decode until frame composition is exposed by the public API.
 
+`python3 tools/generate-animation-state-corpus.py` adds blend/dispose, offset,
+duration, loop-count, and background-color container states using `webpmux`.
+
 ## Execution profiles
 
 PR tests only assert features already implemented by the public API. A valid
