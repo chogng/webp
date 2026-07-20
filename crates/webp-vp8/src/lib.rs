@@ -9,8 +9,10 @@
 use webp_core::{DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget};
 
 mod coefficients;
+mod quantization;
 
 use coefficients::{COEFFICIENT_DEFAULTS, COEFFICIENT_UPDATE_PROBABILITIES};
+use quantization::{AC as DEQUANT_AC, DC as DEQUANT_DC};
 
 const FRAME_TAG_LEN: usize = 3;
 const KEY_FRAME_HEADER_LEN: usize = 10;
@@ -162,6 +164,81 @@ pub struct QuantizationHeader {
     pub y2_ac_delta: i32,
     pub uv_dc_delta: i32,
     pub uv_ac_delta: i32,
+}
+
+/// Dequantization multipliers for one VP8 segment.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DequantizationMatrix {
+    pub y1_dc: u16,
+    pub y1_ac: u16,
+    pub y2_dc: u16,
+    pub y2_ac: u16,
+    pub uv_dc: u16,
+    pub uv_ac: u16,
+    /// Unclamped UV AC index, retained for later dithering decisions.
+    pub uv_quant: i32,
+}
+
+/// Derives the four VP8 scalar dequantization matrices from first-partition
+/// quantizer and segmentation controls.
+///
+/// When segmentation is disabled, all four output entries equal segment zero,
+/// exactly matching VP8's state inheritance rule.
+#[must_use]
+pub fn derive_dequantization(
+    quantization: QuantizationHeader,
+    segments: &SegmentHeader,
+) -> [DequantizationMatrix; 4] {
+    let base = i32::from(quantization.base_index);
+    let mut matrices = [DequantizationMatrix {
+        y1_dc: 0,
+        y1_ac: 0,
+        y2_dc: 0,
+        y2_ac: 0,
+        uv_dc: 0,
+        uv_ac: 0,
+        uv_quant: 0,
+    }; 4];
+    for (segment, matrix) in matrices.iter_mut().enumerate() {
+        let index = if segments.enabled {
+            let segment_quantizer = segments.quantizer[segment];
+            if segments.absolute_delta {
+                segment_quantizer
+            } else {
+                base + segment_quantizer
+            }
+        } else {
+            base
+        };
+        *matrix = dequantization_matrix(index, quantization);
+    }
+    matrices
+}
+
+fn dequantization_matrix(index: i32, quantization: QuantizationHeader) -> DequantizationMatrix {
+    let y1_dc = DEQUANT_DC[clamp_quantizer(index + quantization.y1_dc_delta, 127)];
+    let y1_ac = DEQUANT_AC[clamp_quantizer(index, 127)];
+    let y2_dc = DEQUANT_DC[clamp_quantizer(index + quantization.y2_dc_delta, 127)] * 2;
+    let y2_ac = ((u32::from(DEQUANT_AC[clamp_quantizer(index + quantization.y2_ac_delta, 127)])
+        * 101_581)
+        >> 16)
+        .max(8) as u16;
+    let uv_dc = DEQUANT_DC[clamp_quantizer(index + quantization.uv_dc_delta, 117)];
+    let uv_quant = index + quantization.uv_ac_delta;
+    let uv_ac = DEQUANT_AC[clamp_quantizer(uv_quant, 127)];
+    DequantizationMatrix {
+        y1_dc,
+        y1_ac,
+        y2_dc,
+        y2_ac,
+        uv_dc,
+        uv_ac,
+        uv_quant,
+    }
+}
+
+fn clamp_quantizer(index: i32, maximum: usize) -> usize {
+    index.clamp(0, maximum as i32) as usize
 }
 
 /// Canonical VP8 coefficient probabilities after first-partition updates.
@@ -1044,5 +1121,93 @@ mod tests {
             assert_eq!(layout.tokens.len(), partition_count);
             assert_eq!(layout.tokens.last().unwrap().data, &[0]);
         }
+    }
+
+    #[test]
+    fn derives_default_dequantization_for_each_disabled_segment() {
+        let matrices = derive_dequantization(
+            QuantizationHeader {
+                base_index: 0,
+                y1_dc_delta: 0,
+                y2_dc_delta: 0,
+                y2_ac_delta: 0,
+                uv_dc_delta: 0,
+                uv_ac_delta: 0,
+            },
+            &SegmentHeader {
+                enabled: false,
+                update_map: false,
+                absolute_delta: true,
+                quantizer: [0; 4],
+                filter_strength: [0; 4],
+                probabilities: [255; 3],
+            },
+        );
+        let expected = DequantizationMatrix {
+            y1_dc: 4,
+            y1_ac: 4,
+            y2_dc: 8,
+            y2_ac: 8,
+            uv_dc: 4,
+            uv_ac: 4,
+            uv_quant: 0,
+        };
+        assert_eq!(matrices, [expected; 4]);
+    }
+
+    #[test]
+    fn derives_segment_delta_and_absolute_dequantization_with_clamps() {
+        let quantization = QuantizationHeader {
+            base_index: 126,
+            y1_dc_delta: 7,
+            y2_dc_delta: -7,
+            y2_ac_delta: 7,
+            uv_dc_delta: 7,
+            uv_ac_delta: -7,
+        };
+        let delta = derive_dequantization(
+            quantization,
+            &SegmentHeader {
+                enabled: true,
+                update_map: false,
+                absolute_delta: false,
+                quantizer: [2, -127, 0, 1],
+                filter_strength: [0; 4],
+                probabilities: [255; 3],
+            },
+        );
+        assert_eq!(delta[0].y1_dc, 157);
+        assert_eq!(delta[0].y1_ac, 284);
+        assert_eq!(delta[0].uv_dc, 132);
+        assert_eq!(delta[0].uv_ac, 254);
+        assert_eq!(delta[0].uv_quant, 121);
+        assert_eq!(
+            delta[1],
+            DequantizationMatrix {
+                y1_dc: 10,
+                y1_ac: 4,
+                y2_dc: 8,
+                y2_ac: 15,
+                uv_dc: 10,
+                uv_ac: 4,
+                uv_quant: -8,
+            }
+        );
+
+        let absolute = derive_dequantization(
+            quantization,
+            &SegmentHeader {
+                enabled: true,
+                update_map: false,
+                absolute_delta: true,
+                quantizer: [-5, 5, 127, 0],
+                filter_strength: [0; 4],
+                probabilities: [255; 3],
+            },
+        );
+        assert_eq!(absolute[0].uv_quant, -12);
+        assert_eq!(absolute[0].y1_ac, 4);
+        assert_eq!(absolute[2].y1_ac, 284);
+        assert_eq!(absolute[2].uv_dc, 132);
     }
 }

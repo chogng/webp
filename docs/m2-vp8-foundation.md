@@ -21,11 +21,16 @@ remaining first-partition entropy data is consumed using the canonical 4 × 8 ×
 3 × 11 coefficient-probability defaults and update probabilities from RFC
 6386; the resulting table and skip probability are retained for token decode.
 
+The parser also derives four scalar dequantization matrices. It applies VP8's
+segment inheritance/absolute modes, the distinct UV DC clamp, and the Y2 AC
+minimum, so later coefficient reconstruction receives specification-scale
+multipliers rather than raw quantizer indices.
+
 `webp::read_info` now obtains dimensions from an unextended `VP8 ` chunk. The
 public `decode` path invokes the same validation and then returns
 `UnsupportedFeature` until the macroblock, transform, loop-filter, and YUV
 stages are implemented. This avoids treating a header-only parse as a pixel
 decode.
 
-The next M2 slice derives dequantization matrices from the parsed controls,
-then connects them to macroblock prediction and reconstruction.
+The next M2 slice adds coefficient-token decoding and inverse transforms, then
+connects them to macroblock prediction and reconstruction.
