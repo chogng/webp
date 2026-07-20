@@ -18,6 +18,21 @@ const FRAME_TAG_LEN: usize = 3;
 const KEY_FRAME_HEADER_LEN: usize = 10;
 const KEY_FRAME_START_CODE: [u8; 3] = [0x9d, 0x01, 0x2a];
 
+/// VP8's coefficient scan order, mapping entropy positions to raster indexes.
+pub const COEFFICIENT_ZIGZAG: [usize; 16] = [0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15];
+
+// The final sentinel is used while selecting the probability context after
+// coefficient 15. It is intentionally zero because that context cannot be
+// consumed by a legal 4x4 block, but keeping it mirrors VP8's 17-entry table.
+const COEFFICIENT_BANDS: [usize; 17] = [0, 1, 2, 3, 6, 4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 7, 0];
+
+const CATEGORY_PROBABILITIES: [&[u8]; 4] = [
+    &[173, 148, 140],
+    &[176, 155, 140, 135],
+    &[180, 157, 141, 134, 130],
+    &[254, 254, 243, 230, 196, 177, 153, 140, 133, 130, 129],
+];
+
 /// VP8's most-significant-bit-first arithmetic boolean decoder.
 ///
 /// The decoder owns a deterministic work budget: every decoded boolean value
@@ -348,6 +363,144 @@ impl CoefficientProbabilities {
     pub fn get(&self, coefficient_type: usize, band: usize, context: usize, node: usize) -> u8 {
         self.values[coefficient_type][band][context][node]
     }
+
+    fn nodes(
+        &self,
+        coefficient_type: CoefficientBlockType,
+        position: usize,
+        context: usize,
+    ) -> &[u8; 11] {
+        &self.values[coefficient_type as usize][COEFFICIENT_BANDS[position]][context]
+    }
+}
+
+/// One VP8 coefficient probability family.
+///
+/// The variants follow the bitstream's `NUM_TYPES` ordering, rather than the
+/// order in which macroblock reconstruction consumes them.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[repr(u8)]
+pub enum CoefficientBlockType {
+    /// Luma AC for a 16×16-predicted macroblock.
+    Luma16Ac = 0,
+    /// The macroblock's Y2 DC transform block.
+    LumaDc = 1,
+    /// Chroma AC block.
+    ChromaAc = 2,
+    /// Luma AC for one 4×4-predicted block.
+    Luma4Ac = 3,
+}
+
+/// Quantized values decoded from one VP8 4×4 coefficient token stream.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DecodedCoefficients {
+    /// Quantized signed levels, stored in raster order and not dequantized.
+    pub values: [i16; 16],
+    /// Number of entropy positions consumed before EOB or the block boundary.
+    pub end: u8,
+    /// Number of non-zero coefficients in [`Self::values`].
+    pub non_zero: u8,
+}
+
+/// Decodes a VP8 coefficient-token stream for one 4×4 block.
+///
+/// `context` is the preceding-neighbour non-zero context (`0..=2`), and
+/// `start` selects the first entropy position (`0` normally, or `1` for the
+/// AC-only portion of a luma 16×16 block). Returned values are deliberately
+/// left quantized: a later macroblock stage owns dequantization and can apply
+/// the corresponding Y1/Y2/UV matrix without losing overflow information.
+pub fn decode_coefficients(
+    bits: &mut BoolDecoder<'_>,
+    probabilities: &CoefficientProbabilities,
+    coefficient_type: CoefficientBlockType,
+    context: u8,
+    start: u8,
+) -> Result<DecodedCoefficients, DecodeError> {
+    if context > 2 {
+        return Err(DecodeError::at(
+            DecodeErrorKind::InvalidParameter,
+            bits.bytes_consumed(),
+            "VP8 coefficient context must be in 0..=2",
+        ));
+    }
+    let mut position = usize::from(start);
+    if position >= 16 {
+        return Err(DecodeError::at(
+            DecodeErrorKind::InvalidParameter,
+            bits.bytes_consumed(),
+            "VP8 coefficient start must be in 0..=15",
+        ));
+    }
+
+    let mut values = [0_i16; 16];
+    let mut non_zero = 0_u8;
+    let mut nodes = probabilities.nodes(coefficient_type, position, usize::from(context));
+    while position < 16 {
+        if !bits.read_bool(nodes[0])? {
+            break;
+        }
+        while !bits.read_bool(nodes[1])? {
+            position += 1;
+            if position == 16 {
+                return Ok(DecodedCoefficients {
+                    values,
+                    end: 16,
+                    non_zero,
+                });
+            }
+            nodes = probabilities.nodes(coefficient_type, position, 0);
+        }
+
+        let magnitude = if !bits.read_bool(nodes[2])? {
+            1
+        } else {
+            decode_large_coefficient(bits, nodes)?
+        };
+        let next_context = if magnitude == 1 { 1 } else { 2 };
+        let negative = bits.read_bool(128)?;
+        let signed = if negative { -magnitude } else { magnitude };
+        values[COEFFICIENT_ZIGZAG[position]] = signed;
+        non_zero += 1;
+        position += 1;
+        if position < 16 {
+            nodes = probabilities.nodes(coefficient_type, position, next_context);
+        }
+    }
+
+    Ok(DecodedCoefficients {
+        values,
+        end: position as u8,
+        non_zero,
+    })
+}
+
+fn decode_large_coefficient(
+    bits: &mut BoolDecoder<'_>,
+    nodes: &[u8; 11],
+) -> Result<i16, DecodeError> {
+    let value = if !bits.read_bool(nodes[3])? {
+        if !bits.read_bool(nodes[4])? {
+            2
+        } else {
+            3 + i16::from(bits.read_bool(nodes[5])?)
+        }
+    } else if !bits.read_bool(nodes[6])? {
+        if !bits.read_bool(nodes[7])? {
+            5 + i16::from(bits.read_bool(159)?)
+        } else {
+            7 + 2 * i16::from(bits.read_bool(165)?) + i16::from(bits.read_bool(145)?)
+        }
+    } else {
+        let high = usize::from(bits.read_bool(nodes[8])?);
+        let low = usize::from(bits.read_bool(nodes[9 + high])?);
+        let category = high * 2 + low;
+        let mut suffix = 0_i16;
+        for &probability in CATEGORY_PROBABILITIES[category] {
+            suffix = (suffix << 1) | i16::from(bits.read_bool(probability)?);
+        }
+        suffix + 3 + (8_i16 << category)
+    };
+    Ok(value)
 }
 
 /// The parsed prefix of a VP8 first partition.
@@ -852,6 +1005,15 @@ mod tests {
         writer.write_literal(0, 8); // Leave structural fields away from EOF.
     }
 
+    fn coefficient_nodes(
+        probabilities: &CoefficientProbabilities,
+        coefficient_type: CoefficientBlockType,
+        position: usize,
+        context: usize,
+    ) -> &[u8; 11] {
+        probabilities.nodes(coefficient_type, position, context)
+    }
+
     fn key_frame(
         width: u16,
         height: u16,
@@ -1307,5 +1469,109 @@ mod tests {
         let mut dc = [0_i16; 16];
         dc[0] = 8;
         assert_eq!(inverse_wht_4x4(dc), [1; 16]);
+    }
+
+    #[test]
+    fn coefficient_decoder_handles_eob_zero_runs_signs_and_zigzag() {
+        let probabilities = CoefficientProbabilities::default();
+        let mut writer = TestBoolWriter::new();
+
+        let initial = coefficient_nodes(&probabilities, CoefficientBlockType::Luma16Ac, 0, 0);
+        writer.write_bool(true, initial[0]); // not EOB
+        writer.write_bool(false, initial[1]); // zero at position zero
+        let position_one = coefficient_nodes(&probabilities, CoefficientBlockType::Luma16Ac, 1, 0);
+        writer.write_bool(false, position_one[1]); // zero at position one
+        let position_two = coefficient_nodes(&probabilities, CoefficientBlockType::Luma16Ac, 2, 0);
+        writer.write_bool(true, position_two[1]);
+        writer.write_bool(false, position_two[2]); // magnitude one
+        writer.write_bool(true, 128); // negative
+        let next = coefficient_nodes(&probabilities, CoefficientBlockType::Luma16Ac, 3, 1);
+        writer.write_bool(false, next[0]); // EOB
+
+        let bytes = writer.finish();
+        let mut decoder = BoolDecoder::new(&bytes, &DecodeLimits::default()).unwrap();
+        let decoded = decode_coefficients(
+            &mut decoder,
+            &probabilities,
+            CoefficientBlockType::Luma16Ac,
+            0,
+            0,
+        )
+        .unwrap();
+        let mut expected = [0_i16; 16];
+        expected[COEFFICIENT_ZIGZAG[2]] = -1;
+        assert_eq!(decoded.values, expected);
+        assert_eq!(decoded.end, 3);
+        assert_eq!(decoded.non_zero, 1);
+    }
+
+    #[test]
+    fn coefficient_decoder_handles_large_category_values_and_ac_only_start() {
+        let probabilities = CoefficientProbabilities::default();
+        let mut writer = TestBoolWriter::new();
+
+        let nodes = coefficient_nodes(&probabilities, CoefficientBlockType::Luma4Ac, 1, 2);
+        writer.write_bool(true, nodes[0]); // not EOB
+        writer.write_bool(true, nodes[1]); // non-zero
+        writer.write_bool(true, nodes[2]); // value exceeds one
+        writer.write_bool(true, nodes[3]); // category path
+        writer.write_bool(true, nodes[6]);
+        writer.write_bool(false, nodes[8]);
+        writer.write_bool(true, nodes[9]);
+        for &probability in CATEGORY_PROBABILITIES[2] {
+            writer.write_bool(false, probability);
+        }
+        writer.write_bool(false, 128); // positive sign
+        let next = coefficient_nodes(&probabilities, CoefficientBlockType::Luma4Ac, 2, 2);
+        writer.write_bool(false, next[0]); // EOB
+
+        let bytes = writer.finish();
+        let mut decoder = BoolDecoder::new(&bytes, &DecodeLimits::default()).unwrap();
+        let decoded = decode_coefficients(
+            &mut decoder,
+            &probabilities,
+            CoefficientBlockType::Luma4Ac,
+            2,
+            1,
+        )
+        .unwrap();
+        let mut expected = [0_i16; 16];
+        // This uses the category-five branch (base magnitude 35) with a zero
+        // suffix, exercising the longest category tree selected by this
+        // compact vector.
+        expected[COEFFICIENT_ZIGZAG[1]] = 35;
+        assert_eq!(decoded.values, expected);
+        assert_eq!(decoded.end, 2);
+        assert_eq!(decoded.non_zero, 1);
+    }
+
+    #[test]
+    fn coefficient_decoder_rejects_invalid_context_and_start() {
+        let probabilities = CoefficientProbabilities::default();
+        let mut decoder = BoolDecoder::new(&[0], &DecodeLimits::default()).unwrap();
+        assert_eq!(
+            decode_coefficients(
+                &mut decoder,
+                &probabilities,
+                CoefficientBlockType::LumaDc,
+                3,
+                0,
+            )
+            .unwrap_err()
+            .kind(),
+            DecodeErrorKind::InvalidParameter
+        );
+        assert_eq!(
+            decode_coefficients(
+                &mut decoder,
+                &probabilities,
+                CoefficientBlockType::LumaDc,
+                0,
+                16,
+            )
+            .unwrap_err()
+            .kind(),
+            DecodeErrorKind::InvalidParameter
+        );
     }
 }
