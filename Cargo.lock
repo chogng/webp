@@ -308,6 +308,7 @@ dependencies = [
  "webp-vp8l-color-cache",
  "webp-vp8l-entropy",
  "webp-vp8l-huffman",
+ "webp-vp8l-transform",
 ]
 
 [[package]]

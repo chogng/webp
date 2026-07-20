@@ -11,12 +11,16 @@
 use webp_core::{
     BitReader, DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget, checked_image_bytes,
 };
-use webp_vp8l::{HEADER_LEN, TransformDescriptor, TransformListParser, Vp8lHeader, parse_header};
+use webp_vp8l::{
+    BlockTransformDescriptor, HEADER_LEN, TransformDescriptor, TransformListParser, Vp8lHeader,
+    parse_header,
+};
 use webp_vp8l_color_cache::{ColorCacheOutput, MAX_COLOR_CACHE_BITS, MIN_COLOR_CACHE_BITS};
 use webp_vp8l_entropy::{
     copy_lz77_pixels, decode_distance, decode_length, distance_code_to_distance,
 };
 use webp_vp8l_huffman::{HuffmanTable, read_huffman_code};
+use webp_vp8l_transform::{PredictorMode, Rgba, predict};
 
 const GREEN_ALPHABET_SIZE: usize = 256 + 24;
 const CHANNEL_ALPHABET_SIZE: usize = 256;
@@ -34,8 +38,8 @@ pub struct LiteralImage {
 /// Decodes a standalone VP8L stream limited to one entropy group.
 ///
 /// The input begins with the five-byte VP8L fixed header. A transform list may
-/// be empty or contain the subtract-green transform; color cache, backward
-/// references, and literal entropy symbols are also supported. Other
+/// be empty or contain subtract-green and predictor transforms; color cache,
+/// backward references, and literal entropy symbols are also supported. Other
 /// transforms and meta-Huffman groups remain explicitly unsupported.
 pub fn decode_literal_only(
     data: &[u8],
@@ -47,11 +51,13 @@ pub fn decode_literal_only(
 /// Decodes a standalone VP8L stream with one Huffman group.
 ///
 /// Literal pixels, green-alphabet backward-reference symbols, and color-cache
-/// references are supported. The transform list may be empty or contain the
-/// subtract-green transform. Transforms that require a separately coded
-/// subimage and meta-Huffman groups remain explicitly unsupported. Internally
-/// decoded samples are packed as `0xAARRGGBB` until entropy expansion is
-/// complete, then inverse-transformed and emitted in RGBA byte order.
+/// references are supported. The transform list may be empty or contain
+/// subtract-green and predictor transforms. Predictor mode subimages use the
+/// non-level-zero entropy syntax: they have no transform list and cannot use
+/// meta-Huffman groups. Other transforms and meta-Huffman groups remain
+/// explicitly unsupported. Internally decoded samples are packed as
+/// `0xAARRGGBB` until entropy expansion is complete, then inverse-transformed
+/// and emitted in RGBA byte order.
 pub fn decode_no_transform(
     data: &[u8],
     limits: &DecodeLimits,
@@ -69,8 +75,69 @@ pub fn decode_no_transform(
     let mut bits = BitReader::with_bit_position(data, HEADER_LEN * 8)?;
     let mut budget = limits.work_budget();
 
-    let subtract_green = read_supported_transforms(&mut bits, &mut budget, &header, limits)?;
+    let mut retained_transform_bytes = 0_usize;
+    let transforms = read_supported_transforms(
+        &mut bits,
+        &mut budget,
+        &header,
+        limits,
+        &mut retained_transform_bytes,
+    )?;
+    let mut output = decode_entropy_image(
+        &mut bits,
+        header.width,
+        header.height,
+        true,
+        &mut budget,
+        limits,
+        retained_transform_bytes,
+        rgba_len,
+    )?;
 
+    for transform in transforms.iter().rev() {
+        match transform {
+            DecodedTransform::SubtractGreen => inverse_subtract_green_argb(&mut output),
+            DecodedTransform::Predictor {
+                descriptor,
+                mode_pixels,
+            } => {
+                inverse_predictor_argb(&mut output, *descriptor, mode_pixels)?;
+            }
+        }
+    }
+    drop(transforms);
+
+    let mut rgba = Vec::new();
+    rgba.try_reserve_exact(rgba_len).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::AllocationFailed,
+            None,
+            "RGBA output allocation failed",
+        )
+    })?;
+    for pixel in output {
+        rgba.extend_from_slice(&unpack_rgba(pixel));
+    }
+
+    Ok(LiteralImage { header, rgba })
+}
+
+/// Decodes VP8L's one-group entropy image syntax at either nesting level.
+///
+/// A main-level image carries the meta-Huffman presence flag (which this
+/// bounded decoder rejects). Predictor subimages are `is_level0 = false`, so
+/// their Huffman stream begins directly after the color-cache declaration.
+#[allow(clippy::too_many_arguments)]
+fn decode_entropy_image(
+    bits: &mut BitReader<'_>,
+    width: u32,
+    height: u32,
+    is_level0: bool,
+    budget: &mut WorkBudget,
+    limits: &DecodeLimits,
+    retained_bytes: usize,
+    final_rgba_bytes: usize,
+) -> Result<Vec<u32>, DecodeError> {
     budget.consume(1)?;
     let color_cache_bits = if bits.read_bit()? {
         budget.consume(1)?;
@@ -79,43 +146,32 @@ pub fn decode_no_transform(
         None
     };
 
-    budget.consume(1)?;
-    if bits.read_bit()? {
-        return Err(unsupported("VP8L meta-Huffman groups are not implemented"));
+    if is_level0 {
+        budget.consume(1)?;
+        if bits.read_bit()? {
+            return Err(unsupported("VP8L meta-Huffman groups are not implemented"));
+        }
     }
 
-    let color_cache_size = match color_cache_bits {
-        None => 0,
-        Some(cache_bits) => {
-            if !(MIN_COLOR_CACHE_BITS..=MAX_COLOR_CACHE_BITS).contains(&cache_bits) {
-                return Err(DecodeError::new(
-                    DecodeErrorKind::InvalidBitstream,
-                    None,
-                    "VP8L color-cache bits must be in 1..=11",
-                ));
-            }
-            1_usize << cache_bits
-        }
-    };
-    let pixels =
-        usize::try_from(u64::from(header.width) * u64::from(header.height)).map_err(|_| {
-            DecodeError::new(
-                DecodeErrorKind::LimitExceeded,
-                None,
-                "image pixel count does not fit platform usize",
-            )
-        })?;
-    check_allocation_budget(pixels, rgba_len, color_cache_size, limits.max_alloc_bytes)?;
+    let color_cache_size = color_cache_size(color_cache_bits)?;
+    let pixels = pixel_count(width, height)?;
+    check_allocation_budget(
+        pixels,
+        final_rgba_bytes,
+        color_cache_size,
+        retained_bytes,
+        limits.max_alloc_bytes,
+    )?;
 
-    let codes = read_huffman_codes(&mut bits, &mut budget, color_cache_size)?;
+    let codes = read_huffman_codes(bits, budget, color_cache_size)?;
     let mut output = PixelOutput::new(color_cache_bits, pixels)?;
 
     while output.len() < pixels {
-        let green = decode_symbol(&codes.green, &mut bits, &mut budget)?;
+        let green = decode_symbol(&codes.green, bits, budget)?;
         if green < CHANNEL_ALPHABET_SIZE {
-            let red = decode_symbol(&codes.red, &mut bits, &mut budget)?;
-            let blue = decode_symbol(&codes.blue, &mut bits, &mut budget)?;
-            let alpha = decode_symbol(&codes.alpha, &mut bits, &mut budget)?;
+            let red = decode_symbol(&codes.red, bits, budget)?;
+            let blue = decode_symbol(&codes.blue, bits, budget)?;
+            let alpha = decode_symbol(&codes.alpha, bits, budget)?;
             debug_assert!(red < CHANNEL_ALPHABET_SIZE);
             debug_assert!(blue < CHANNEL_ALPHABET_SIZE);
             debug_assert!(alpha < CHANNEL_ALPHABET_SIZE);
@@ -143,8 +199,8 @@ pub fn decode_no_transform(
                 "VP8L length prefix does not fit u8",
             )
         })?;
-        let length = decode_length(&mut bits, &mut budget, length_prefix)?;
-        let distance_prefix = decode_symbol(&codes.distance, &mut bits, &mut budget)?;
+        let length = decode_length(bits, budget, length_prefix)?;
+        let distance_prefix = decode_symbol(&codes.distance, bits, budget)?;
         let distance_prefix = u8::try_from(distance_prefix).map_err(|_| {
             DecodeError::new(
                 DecodeErrorKind::InvalidBitstream,
@@ -152,43 +208,37 @@ pub fn decode_no_transform(
                 "VP8L distance prefix does not fit u8",
             )
         })?;
-        let distance_code = decode_distance(&mut bits, &mut budget, distance_prefix)?;
-        let distance = distance_code_to_distance(distance_code, header.width)?;
-        output.copy_lz77(length, distance, pixels, &mut budget)?;
+        let distance_code = decode_distance(bits, budget, distance_prefix)?;
+        let distance = distance_code_to_distance(distance_code, width)?;
+        output.copy_lz77(length, distance, pixels, budget)?;
     }
 
-    let mut output = output.into_pixels();
-    if subtract_green {
-        inverse_subtract_green_argb(&mut output);
-    }
-
-    let mut rgba = Vec::new();
-    rgba.try_reserve_exact(rgba_len).map_err(|_| {
-        DecodeError::new(
-            DecodeErrorKind::AllocationFailed,
-            None,
-            "RGBA output allocation failed",
-        )
-    })?;
-    for pixel in output {
-        rgba.extend_from_slice(&unpack_rgba(pixel));
-    }
-
-    Ok(LiteralImage { header, rgba })
+    Ok(output.into_pixels())
 }
 
-/// Reads the main-level transform list without attempting to decode transform
-/// subimages. A descriptor with an attached subimage must be rejected as soon
-/// as it is seen: the following bits belong to that subimage, not to the next
-/// main-image transform or entropy stream.
+enum DecodedTransform {
+    Predictor {
+        descriptor: BlockTransformDescriptor,
+        mode_pixels: Vec<u32>,
+    },
+    SubtractGreen,
+}
+
+/// Reads the main-level transform list and decodes supported transform
+/// subimages immediately.
+///
+/// Predictor descriptors are followed by an `is_level0 = false` entropy
+/// image. The nested image has no transform-list flag or meta-Huffman flag;
+/// consuming either would desynchronize the main transform list.
 fn read_supported_transforms(
     bits: &mut BitReader<'_>,
     budget: &mut WorkBudget,
     header: &Vp8lHeader,
     limits: &DecodeLimits,
-) -> Result<bool, DecodeError> {
+    retained_bytes: &mut usize,
+) -> Result<Vec<DecodedTransform>, DecodeError> {
     let mut parser = TransformListParser::new(header.width, header.height, limits)?;
-    let mut subtract_green = false;
+    let mut transforms = Vec::new();
 
     loop {
         // Count every transform-list entry, including its terminating bit, as
@@ -196,9 +246,46 @@ fn read_supported_transforms(
         // original one-unit stream-flag accounting.
         budget.consume(1)?;
         match parser.read_next(bits, limits)? {
-            None => return Ok(subtract_green),
-            Some(TransformDescriptor::SubtractGreen) => subtract_green = true,
-            Some(_) => {
+            None => return Ok(transforms),
+            Some(TransformDescriptor::SubtractGreen) => {
+                transforms.push(DecodedTransform::SubtractGreen)
+            }
+            Some(TransformDescriptor::Predictor(descriptor)) => {
+                let mode_pixels = decode_entropy_image(
+                    bits,
+                    descriptor.transform_width,
+                    descriptor.transform_height,
+                    false,
+                    budget,
+                    limits,
+                    *retained_bytes,
+                    0,
+                )?;
+                validate_predictor_modes(&mode_pixels)?;
+                let mode_bytes =
+                    mode_pixels
+                        .len()
+                        .checked_mul(size_of::<u32>())
+                        .ok_or_else(|| {
+                            DecodeError::new(
+                                DecodeErrorKind::LimitExceeded,
+                                None,
+                                "VP8L predictor mode buffer byte size overflow",
+                            )
+                        })?;
+                *retained_bytes = retained_bytes.checked_add(mode_bytes).ok_or_else(|| {
+                    DecodeError::new(
+                        DecodeErrorKind::LimitExceeded,
+                        None,
+                        "VP8L retained transform byte size overflow",
+                    )
+                })?;
+                transforms.push(DecodedTransform::Predictor {
+                    descriptor,
+                    mode_pixels,
+                });
+            }
+            Some(TransformDescriptor::Color(_) | TransformDescriptor::ColorIndexing(_)) => {
                 return Err(unsupported(
                     "VP8L transforms with coded subimages are not implemented",
                 ));
@@ -217,6 +304,7 @@ fn check_allocation_budget(
     pixels: usize,
     rgba_len: usize,
     color_cache_size: usize,
+    retained_bytes: usize,
     max_alloc_bytes: usize,
 ) -> Result<(), DecodeError> {
     let packed_bytes = pixels.checked_mul(size_of::<u32>()).ok_or_else(|| {
@@ -235,8 +323,9 @@ fn check_allocation_budget(
                 "VP8L color-cache byte size overflow",
             )
         })?;
-    let total = packed_bytes
-        .checked_add(cache_bytes)
+    let total = retained_bytes
+        .checked_add(packed_bytes)
+        .and_then(|value| value.checked_add(cache_bytes))
         .and_then(|value| value.checked_add(rgba_len))
         .ok_or_else(|| {
             DecodeError::new(
@@ -251,6 +340,45 @@ fn check_allocation_budget(
             None,
             "VP8L decoder allocations exceed configured allocation limit",
         ));
+    }
+    Ok(())
+}
+
+fn pixel_count(width: u32, height: u32) -> Result<usize, DecodeError> {
+    usize::try_from(u64::from(width) * u64::from(height)).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "image pixel count does not fit platform usize",
+        )
+    })
+}
+
+fn color_cache_size(color_cache_bits: Option<u8>) -> Result<usize, DecodeError> {
+    match color_cache_bits {
+        None => Ok(0),
+        Some(cache_bits) => {
+            if !(MIN_COLOR_CACHE_BITS..=MAX_COLOR_CACHE_BITS).contains(&cache_bits) {
+                return Err(DecodeError::new(
+                    DecodeErrorKind::InvalidBitstream,
+                    None,
+                    "VP8L color-cache bits must be in 1..=11",
+                ));
+            }
+            Ok(1_usize << cache_bits)
+        }
+    }
+}
+
+fn validate_predictor_modes(pixels: &[u32]) -> Result<(), DecodeError> {
+    for &pixel in pixels {
+        PredictorMode::try_from(((pixel >> 8) & 0x0f) as u8).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::InvalidBitstream,
+                None,
+                "VP8L predictor mode must be in 0..=13",
+            )
+        })?;
     }
     Ok(())
 }
@@ -280,6 +408,130 @@ fn inverse_subtract_green_argb(pixels: &mut [u32]) {
         let blue = (*pixel as u8).wrapping_add(green);
         *pixel = (*pixel & 0xff00_ff00) | (u32::from(red) << 16) | u32::from(blue);
     }
+}
+
+/// Inverts a predictor transform without a second full-image allocation.
+///
+/// The public transform primitives operate on `RgbaImage`, whose owned pixel
+/// buffer would overlap the already bounded packed output. This adapter keeps
+/// the same `Rgba`/`predict` arithmetic while reconstructing in place. VP8L's
+/// special top-left, top-row, and left-column predictor rules deliberately
+/// ignore the coded block mode at those coordinates.
+fn inverse_predictor_argb(
+    pixels: &mut [u32],
+    descriptor: BlockTransformDescriptor,
+    mode_pixels: &[u32],
+) -> Result<(), DecodeError> {
+    let width = usize::try_from(descriptor.image_width).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor image width does not fit usize",
+        )
+    })?;
+    let height = usize::try_from(descriptor.image_height).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor image height does not fit usize",
+        )
+    })?;
+    let expected_pixels = width.checked_mul(height).ok_or_else(|| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor image pixel count overflow",
+        )
+    })?;
+    if pixels.len() != expected_pixels {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L predictor output length does not match image dimensions",
+        ));
+    }
+    let mode_width = usize::try_from(descriptor.transform_width).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor mode width does not fit usize",
+        )
+    })?;
+    let expected_modes = mode_width
+        .checked_mul(usize::try_from(descriptor.transform_height).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L predictor mode height does not fit usize",
+            )
+        })?)
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L predictor mode pixel count overflow",
+            )
+        })?;
+    if mode_pixels.len() != expected_modes {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L predictor mode image has unexpected dimensions",
+        ));
+    }
+
+    let block_size = usize::try_from(descriptor.block_size()).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor block size does not fit usize",
+        )
+    })?;
+    for y in 0..height {
+        for x in 0..width {
+            let offset = y * width + x;
+            let residual = argb_to_rgba(pixels[offset]);
+            let prediction = if x == 0 && y == 0 {
+                Rgba::OPAQUE_BLACK
+            } else if y == 0 {
+                argb_to_rgba(pixels[offset - 1])
+            } else if x == 0 {
+                argb_to_rgba(pixels[offset - width])
+            } else {
+                let mode_index = (y / block_size) * mode_width + (x / block_size);
+                let mode = PredictorMode::try_from(((mode_pixels[mode_index] >> 8) & 0x0f) as u8)
+                    .map_err(|_| {
+                    DecodeError::new(
+                        DecodeErrorKind::InvalidBitstream,
+                        None,
+                        "VP8L predictor mode must be in 0..=13",
+                    )
+                })?;
+                let left = argb_to_rgba(pixels[offset - 1]);
+                let top = argb_to_rgba(pixels[offset - width]);
+                let top_left = argb_to_rgba(pixels[offset - width - 1]);
+                let top_right_x = if x + 1 == width { 0 } else { x + 1 };
+                let top_right = argb_to_rgba(pixels[(y - 1) * width + top_right_x]);
+                predict(mode, left, top, top_left, top_right)
+            };
+            pixels[offset] = pack_argb(
+                residual.red.wrapping_add(prediction.red),
+                residual.green.wrapping_add(prediction.green),
+                residual.blue.wrapping_add(prediction.blue),
+                residual.alpha.wrapping_add(prediction.alpha),
+            );
+        }
+    }
+    Ok(())
+}
+
+const fn argb_to_rgba(pixel: u32) -> Rgba {
+    Rgba::new(
+        (pixel >> 16) as u8,
+        (pixel >> 8) as u8,
+        pixel as u8,
+        (pixel >> 24) as u8,
+    )
 }
 
 struct HuffmanCodes {
@@ -550,6 +802,35 @@ mod tests {
         writer.into_bytes()
     }
 
+    fn write_flat_entropy_image(writer: &mut BitWriter, pixel: [u8; 4], is_level0: bool) {
+        writer.write_bits(0, 1).unwrap(); // color_cache_present
+        if is_level0 {
+            writer.write_bits(0, 1).unwrap(); // use_meta_huffman
+        }
+        for symbol in [pixel[1], pixel[0], pixel[2], pixel[3], 0] {
+            write_simple_code(writer, symbol);
+        }
+    }
+
+    fn predictor_stream(mode: u8) -> Vec<u8> {
+        let mut writer = BitWriter::new();
+        write_header(&mut writer, 2, 2, false);
+        writer.write_bits(1, 1).unwrap(); // transform_present
+        writer.write_bits(0, 2).unwrap(); // predictor transform
+        writer.write_bits(0, 3).unwrap(); // 2 + 0 => four-pixel blocks
+        // The predictor subimage is 1 by 1. It is a non-level-zero entropy
+        // image, so this starts directly with color_cache_present; there is no
+        // transform-list terminator or meta-Huffman flag here. Mode one is
+        // carried in the green byte.
+        write_flat_entropy_image(&mut writer, [0, mode, 0, 255], false);
+        writer.write_bits(0, 1).unwrap(); // main transform-list terminator
+        // All four residual samples are 1,1,1,0. Boundary rules reconstruct
+        // the first row/column, while the lower-right pixel proves mode one
+        // (left) is selected from the predictor subimage.
+        write_flat_entropy_image(&mut writer, [1, 1, 1, 0], true);
+        writer.into_bytes()
+    }
+
     fn repeated_lz77_stream(width: u32, height: u32) -> Vec<u8> {
         let mut writer = BitWriter::new();
         write_header(&mut writer, width, height, false);
@@ -661,6 +942,47 @@ mod tests {
     }
 
     #[test]
+    fn decodes_predictor_subimage_without_a_nested_transform_list() {
+        let image = decode_no_transform(&predictor_stream(1), &limits()).unwrap();
+        assert_eq!(
+            image.rgba,
+            [
+                1, 1, 1, 255, // top-left: opaque black + residual
+                2, 2, 2, 255, // top row: left + residual
+                2, 2, 2, 255, // left column: top + residual
+                3, 3, 3, 255, // mode one: left + residual
+            ]
+        );
+    }
+
+    #[test]
+    fn rejects_predictor_modes_outside_the_wire_range() {
+        assert_eq!(
+            decode_no_transform(&predictor_stream(14), &limits())
+                .unwrap_err()
+                .kind(),
+            DecodeErrorKind::InvalidBitstream
+        );
+    }
+
+    #[test]
+    fn predictor_subimage_storage_counts_toward_the_allocation_limit() {
+        // One packed predictor-mode pixel (4 B), four packed main pixels
+        // (16 B), and final RGBA (16 B) are conservatively accounted while
+        // main entropy is decoded.
+        let limited = DecodeLimits {
+            max_alloc_bytes: 35,
+            ..limits()
+        };
+        assert_eq!(
+            decode_no_transform(&predictor_stream(1), &limited)
+                .unwrap_err()
+                .kind(),
+            DecodeErrorKind::LimitExceeded
+        );
+    }
+
+    #[test]
     fn inverse_subtract_green_preserves_green_and_alpha_for_each_pixel() {
         let mut pixels = [
             pack_argb(0xf0, 0x30, 0xee, 0x80),
@@ -683,15 +1005,15 @@ mod tests {
     }
 
     #[test]
-    fn rejects_transforms_with_subimages_without_reading_their_payload() {
-        for transform_type in [0_u32, 1, 3] {
+    fn rejects_unsupported_transforms_with_subimages_without_reading_their_payload() {
+        for transform_type in [1_u32, 3] {
             let mut writer = BitWriter::new();
             write_header(&mut writer, 1, 1, false);
             writer.write_bits(1, 1).unwrap(); // transform_present
             writer.write_bits(transform_type, 2).unwrap();
             match transform_type {
-                0 | 1 => writer.write_bits(0, 3).unwrap(), // block_size_bits
-                3 => writer.write_bits(0, 8).unwrap(),     // one palette entry
+                1 => writer.write_bits(0, 3).unwrap(), // block_size_bits
+                3 => writer.write_bits(0, 8).unwrap(), // one palette entry
                 _ => unreachable!(),
             }
             // No transform subimage follows. This must still reject as
@@ -706,7 +1028,7 @@ mod tests {
     }
 
     #[test]
-    fn rejects_subtract_green_combined_with_a_subimage_transform() {
+    fn truncated_predictor_subimage_reports_eof_after_prior_transforms() {
         let mut writer = BitWriter::new();
         write_header(&mut writer, 1, 1, false);
         writer.write_bits(1, 1).unwrap(); // subtract-green present
@@ -718,7 +1040,7 @@ mod tests {
             decode_literal_only(&writer.into_bytes(), &limits())
                 .unwrap_err()
                 .kind(),
-            DecodeErrorKind::UnsupportedFeature
+            DecodeErrorKind::UnexpectedEof
         );
     }
 
