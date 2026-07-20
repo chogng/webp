@@ -9,9 +9,9 @@ does **not** claim that any WebP bitstream is decoded yet.
   integrity verification, and deterministic sidecar discovery.
 - `tests/fixtures/smoke`: a committed minimal malformed-input seed.
 - `tests/manifests`: data-driven expected classifications and resource budgets.
-- `tools/corpus-lock.toml`: a versioned schema for pinning the oracle and
-  external corpus; its all-zero entries must be replaced during the oracle
-  bootstrap, never silently downloaded from a moving branch.
+- `tools/corpus-lock.toml`: reviewed, immutable pins for the libwebp oracle and
+  upstream conformance corpus. It records both Git revisions and archive
+  checksums; it must never name a moving branch.
 - `tools/faults`: the record format for deliberate fault-injection checks.
 
 ## Adding a fixture
@@ -43,6 +43,10 @@ Until the root workspace includes the testkit crate, it can be tested directly:
 ```text
 cargo test --manifest-path crates/webp-testkit/Cargo.toml
 ```
+
+The upstream test data and the oracle are deliberately ignored by Git. Fetch
+them only at their locked revisions under `third_party/`; committed PR smoke
+fixtures must stay small and independently licensed.
 
 The first decoder integration test should run the smoke manifest and call each
 selected public API (`read_info`, one-shot decode, and incremental finish).
