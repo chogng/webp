@@ -1,0 +1,13 @@
+package(default_visibility = ["//visibility:public"])
+
+# Tests resolve fixtures through CARGO_MANIFEST_DIR/../../tests. Declaring the
+# complete directory here makes those source files available in Bazel sandboxes.
+filegroup(
+    name = "test_data",
+    srcs = glob(["tests/**"]),
+)
+
+filegroup(
+    name = "corpus_lock",
+    srcs = ["tools/corpus-lock.toml"],
+)

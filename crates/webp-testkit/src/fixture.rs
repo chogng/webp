@@ -269,13 +269,12 @@ impl FixtureRunner {
                 source,
             })?;
             let path = entry.path();
-            let file_type = entry.file_type().map_err(|source| RunError::Read {
-                path: path.clone(),
-                source,
-            })?;
-            if file_type.is_dir() {
+            // Bazel exposes runfiles as symlinks. Path predicates follow those
+            // links, unlike DirEntry::file_type(), so fixture discovery works
+            // in both Bazel sandboxes and direct Cargo test runs.
+            if path.is_dir() {
                 self.collect_manifest_paths(&path, paths)?;
-            } else if file_type.is_file()
+            } else if path.is_file()
                 && path
                     .extension()
                     .is_some_and(|extension| extension == "toml")
@@ -293,23 +292,52 @@ impl FixtureRunner {
     ) -> Result<PathBuf, RunError<E>> {
         let parent = manifest_path.parent().unwrap_or(&self.root);
         let requested = parent.join(fixture);
-        let resolved = fs::canonicalize(&requested).map_err(|source| RunError::Read {
-            path: requested,
-            source,
-        })?;
-        let root = fs::canonicalize(&self.fixture_root).map_err(|source| RunError::Read {
-            path: self.fixture_root.clone(),
-            source,
-        })?;
-        if resolved.starts_with(&root) {
-            Ok(resolved)
-        } else {
+        let root = normalize_path(&self.fixture_root);
+        let requested = normalize_path(&requested);
+        if !requested.starts_with(&root) {
             Err(RunError::PathEscape {
-                path: resolved,
+                path: requested,
                 root,
             })
+        } else if std::env::var_os("TEST_SRCDIR").is_some() {
+            // Bazel models source inputs as symlinks, so canonicalizing here
+            // would turn a safely declared runfile into a path outside the
+            // runfile tree.
+            Ok(requested)
+        } else {
+            let resolved = fs::canonicalize(&requested).map_err(|source| RunError::Read {
+                path: requested,
+                source,
+            })?;
+            let root = fs::canonicalize(&self.fixture_root).map_err(|source| RunError::Read {
+                path: self.fixture_root.clone(),
+                source,
+            })?;
+            if resolved.starts_with(&root) {
+                Ok(resolved)
+            } else {
+                Err(RunError::PathEscape {
+                    path: resolved,
+                    root,
+                })
+            }
         }
     }
+}
+
+fn normalize_path(path: &Path) -> PathBuf {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::CurDir => {}
+            Component::ParentDir => {
+                normalized.pop();
+            }
+            Component::Normal(value) => normalized.push(value),
+            Component::RootDir | Component::Prefix(_) => normalized.push(component.as_os_str()),
+        }
+    }
+    normalized
 }
 
 /// Aggregate information produced by [`FixtureRunner::run_all`].

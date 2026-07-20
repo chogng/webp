@@ -7,3 +7,7 @@
 /third_party/corpus/
 /third_party/oracle/
 /third_party/benchdata/
+
+# Bazel output-tree convenience symlinks and local overrides.
+/.bazelrc.user
+/bazel-*

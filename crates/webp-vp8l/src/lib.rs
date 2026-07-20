@@ -277,7 +277,7 @@ pub const fn color_index_width_bits(color_table_size: u16) -> u8 {
 /// Computes `ceil(value / divisor)` without an addition that can overflow.
 const fn div_round_up(value: u32, divisor: u32) -> u32 {
     let quotient = value / divisor;
-    if value % divisor == 0 {
+    if value.is_multiple_of(divisor) {
         quotient
     } else {
         quotient + 1

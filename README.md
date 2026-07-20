@@ -20,3 +20,20 @@ Run the M0 test suite with:
 ```sh
 cargo test --workspace
 ```
+
+## Bazel
+
+The workspace also supports Bazel through Bzlmod and `rules_rust`. Bazel uses
+the checked-in Cargo manifests and lockfiles to resolve third-party crates, so
+Cargo remains the dependency source of truth.
+
+```sh
+bazel test //...
+```
+
+Use Bazelisk to select the pinned version in `.bazelversion`. When Cargo
+dependencies change, regenerate the Bazel dependency lockfile before committing:
+
+```sh
+CARGO_BAZEL_REPIN=1 bazel build //...
+```

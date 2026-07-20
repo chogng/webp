@@ -18,6 +18,8 @@ jobs:
       - run: cargo fmt --all -- --check
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      - uses: bazelbuild/setup-bazelisk@v3
+      - run: bazel test //...
       - run: cargo run -p xtask -- corpus verify
       - run: cargo run -p xtask -- feature-matrix check
 

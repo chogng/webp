@@ -1,0 +1,34 @@
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+
+rust_library(
+    name = "webp",
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = "2024",
+    deps = [
+        "//crates/webp-container:webp_container",
+        "//crates/webp-core:webp_core",
+        "//crates/webp-vp8l:webp_vp8l",
+        "//crates/webp-vp8l-literal:webp_vp8l_literal",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+rust_test(
+    name = "unit_tests",
+    crate = ":webp",
+    compile_data = ["//:test_data"],
+    data = ["//:test_data"],
+    deps = ["//crates/webp-testkit:webp_testkit"],
+)
+
+rust_test(
+    name = "external_animation_corpus_test",
+    crate_root = "tests/external_animation_corpus.rs",
+    srcs = ["tests/external_animation_corpus.rs"],
+    edition = "2024",
+    deps = [
+        ":webp",
+        "//crates/webp-testkit:webp_testkit",
+    ],
+)

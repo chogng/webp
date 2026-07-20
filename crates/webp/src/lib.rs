@@ -213,13 +213,30 @@ pub fn read_metadata(data: &[u8], limits: &DecodeLimits) -> Result<Metadata, Dec
 
 #[cfg(test)]
 mod tests {
+    use std::path::PathBuf;
+
     use super::*;
     use webp_testkit::{FixtureApi, FixtureClass, FixtureRunner, sha256_hex};
 
+    fn test_data_root() -> PathBuf {
+        if let Some(runfiles) = std::env::var_os("TEST_SRCDIR") {
+            let bazel_root = PathBuf::from(runfiles).join("_main/tests");
+            if bazel_root.is_dir() {
+                return bazel_root;
+            }
+        }
+
+        let cargo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests");
+        if cargo_root.is_dir() {
+            return cargo_root;
+        }
+
+        panic!("test fixtures are unavailable")
+    }
+
     #[test]
     fn smoke_manifests_exercise_each_public_decode_entrypoint() {
-        let root = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests");
-        let summary = FixtureRunner::new(root)
+        let summary = FixtureRunner::new(test_data_root())
             .run_all(|fixture, bytes| {
                 match fixture.class {
                     FixtureClass::MustReject => {

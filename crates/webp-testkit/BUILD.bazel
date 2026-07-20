@@ -1,0 +1,36 @@
+load("@crates//:defs.bzl", "all_crate_deps", "aliases", "crate_edition")
+load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+
+rust_library(
+    name = "webp_testkit",
+    aliases = aliases(),
+    srcs = glob(["src/**/*.rs"]),
+    crate_root = "src/lib.rs",
+    edition = crate_edition(),
+    deps = all_crate_deps(normal = True),
+    proc_macro_deps = all_crate_deps(proc_macro = True),
+    visibility = ["//visibility:public"],
+)
+
+rust_test(
+    name = "unit_tests",
+    crate = ":webp_testkit",
+)
+
+rust_test(
+    name = "external_reference_corpus_test",
+    aliases = aliases(),
+    crate_root = "tests/external_reference_corpus.rs",
+    srcs = ["tests/external_reference_corpus.rs"],
+    edition = crate_edition(),
+    deps = [":webp_testkit"],
+)
+
+rust_test(
+    name = "external_upstream_corpus_test",
+    aliases = aliases(),
+    crate_root = "tests/external_upstream_corpus.rs",
+    srcs = ["tests/external_upstream_corpus.rs"],
+    edition = crate_edition(),
+    deps = [":webp_testkit"],
+)
