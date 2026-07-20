@@ -42,6 +42,11 @@ Build `cwebp` from that checkout, then run
 matrix outside Git and writes Rust-readable sidecars containing the resolved
 oracle revision, source-image SHA-256, and exact encoder arguments.
 
+Run `python3 tools/generate-reference-edge-corpus.py` to add the separate
+66-vector RGB/RGBA edge matrix: 1×1, odd dimensions, a long row, alpha, lossy,
+lossless, and near-lossless settings. Each sidecar contains the oracle-decoded
+canonical RGBA SHA-256 for later pixel-golden promotion.
+
 ## Generated fixtures
 
 Run `cargo run -p xtask -- fixtures generate-malformed` after changing the
