@@ -884,6 +884,24 @@ pub struct MacroblockPixels {
     pub v: [u8; 64],
 }
 
+/// Already-reconstructed samples adjacent to one macroblock.
+///
+/// Missing top or left edges model the first macroblock row or column. The
+/// top-left samples are consulted only by true-motion prediction, which is
+/// invalid at a missing boundary.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct MacroblockPredictionEdges {
+    pub top_y: Option<[u8; 16]>,
+    pub left_y: Option<[u8; 16]>,
+    pub top_left_y: u8,
+    pub top_u: Option<[u8; 8]>,
+    pub left_u: Option<[u8; 8]>,
+    pub top_left_u: u8,
+    pub top_v: Option<[u8; 8]>,
+    pub left_v: Option<[u8; 8]>,
+    pub top_left_v: u8,
+}
+
 /// Applies one segment's VP8 dequantization matrix to a macroblock.
 ///
 /// For a 16×16-predicted luma macroblock, this also inverse-transforms the
@@ -937,6 +955,136 @@ pub fn combine_macroblock_prediction(
     combine_plane_blocks(&mut prediction.u, 8, 2, residues.u);
     combine_plane_blocks(&mut prediction.v, 8, 2, residues.v);
     prediction
+}
+
+/// Builds a 16×16-luma/8×8-chroma VP8 intra prediction for non-B_PRED luma.
+///
+/// DC prediction follows VP8's specified edge fallbacks. Vertical,
+/// horizontal, and true-motion modes require their corresponding reconstructed
+/// neighbours; a stream selecting an unavailable edge mode is rejected.
+pub fn predict_intra16_macroblock(
+    luma_mode: Intra16Mode,
+    chroma_mode: ChromaMode,
+    edges: MacroblockPredictionEdges,
+) -> Result<MacroblockPixels, DecodeError> {
+    let mut prediction = MacroblockPixels {
+        y: [0; 256],
+        u: [0; 64],
+        v: [0; 64],
+    };
+    predict_plane(
+        &mut prediction.y,
+        luma_mode.into(),
+        edges.top_y,
+        edges.left_y,
+        edges.top_left_y,
+    )?;
+    predict_plane(
+        &mut prediction.u,
+        chroma_mode.into(),
+        edges.top_u,
+        edges.left_u,
+        edges.top_left_u,
+    )?;
+    predict_plane(
+        &mut prediction.v,
+        chroma_mode.into(),
+        edges.top_v,
+        edges.left_v,
+        edges.top_left_v,
+    )?;
+    Ok(prediction)
+}
+
+#[derive(Clone, Copy)]
+enum PlanePredictionMode {
+    Dc,
+    Vertical,
+    Horizontal,
+    TrueMotion,
+}
+
+impl From<Intra16Mode> for PlanePredictionMode {
+    fn from(mode: Intra16Mode) -> Self {
+        match mode {
+            Intra16Mode::Dc => Self::Dc,
+            Intra16Mode::Vertical => Self::Vertical,
+            Intra16Mode::Horizontal => Self::Horizontal,
+            Intra16Mode::TrueMotion => Self::TrueMotion,
+        }
+    }
+}
+
+impl From<ChromaMode> for PlanePredictionMode {
+    fn from(mode: ChromaMode) -> Self {
+        match mode {
+            ChromaMode::Dc => Self::Dc,
+            ChromaMode::Vertical => Self::Vertical,
+            ChromaMode::Horizontal => Self::Horizontal,
+            ChromaMode::TrueMotion => Self::TrueMotion,
+        }
+    }
+}
+
+fn predict_plane<const SIZE: usize>(
+    output: &mut [u8],
+    mode: PlanePredictionMode,
+    top: Option<[u8; SIZE]>,
+    left: Option<[u8; SIZE]>,
+    top_left: u8,
+) -> Result<(), DecodeError> {
+    debug_assert_eq!(output.len(), SIZE * SIZE);
+    match mode {
+        PlanePredictionMode::Dc => {
+            let value = match (top, left) {
+                (Some(top), Some(left)) => {
+                    let sum = top.into_iter().map(u32::from).sum::<u32>()
+                        + left.into_iter().map(u32::from).sum::<u32>();
+                    ((sum + SIZE as u32) / (2 * SIZE) as u32) as u8
+                }
+                (Some(top), None) => {
+                    ((top.into_iter().map(u32::from).sum::<u32>() + (SIZE / 2) as u32)
+                        / SIZE as u32) as u8
+                }
+                (None, Some(left)) => {
+                    ((left.into_iter().map(u32::from).sum::<u32>() + (SIZE / 2) as u32)
+                        / SIZE as u32) as u8
+                }
+                (None, None) => 128,
+            };
+            output.fill(value);
+        }
+        PlanePredictionMode::Vertical => {
+            let top = required_edge(top, "vertical VP8 prediction requires top samples")?;
+            for row in output.chunks_exact_mut(SIZE) {
+                row.copy_from_slice(&top);
+            }
+        }
+        PlanePredictionMode::Horizontal => {
+            let left = required_edge(left, "horizontal VP8 prediction requires left samples")?;
+            for (row, &value) in output.chunks_exact_mut(SIZE).zip(left.iter()) {
+                row.fill(value);
+            }
+        }
+        PlanePredictionMode::TrueMotion => {
+            let top = required_edge(top, "true-motion VP8 prediction requires top samples")?;
+            let left = required_edge(left, "true-motion VP8 prediction requires left samples")?;
+            for (row, &left_value) in output.chunks_exact_mut(SIZE).zip(left.iter()) {
+                for (sample, &top_value) in row.iter_mut().zip(top.iter()) {
+                    *sample = (i32::from(left_value) + i32::from(top_value) - i32::from(top_left))
+                        .clamp(0, 255) as u8;
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+fn required_edge<const SIZE: usize>(
+    edge: Option<[u8; SIZE]>,
+    message: &'static str,
+) -> Result<[u8; SIZE], DecodeError> {
+    edge.ok_or_else(|| DecodeError::at(DecodeErrorKind::InvalidBitstream, 0, message))
 }
 
 fn combine_plane_blocks<const PIXELS: usize, const BLOCKS: usize>(
@@ -2052,6 +2200,54 @@ mod tests {
         assert_eq!(pixels.v[0], 0);
         assert_eq!(add_residue_and_clip(0, -1), 0);
         assert_eq!(add_residue_and_clip(255, 1), 255);
+    }
+
+    #[test]
+    fn intra16_prediction_uses_neighbours_and_dc_boundary_fallbacks() {
+        let edges = MacroblockPredictionEdges {
+            top_y: Some([10; 16]),
+            left_y: Some([30; 16]),
+            top_left_y: 5,
+            top_u: Some([50; 8]),
+            left_u: Some([70; 8]),
+            top_left_u: 20,
+            top_v: Some([80; 8]),
+            left_v: Some([90; 8]),
+            top_left_v: 30,
+        };
+        let prediction =
+            predict_intra16_macroblock(Intra16Mode::Vertical, ChromaMode::Horizontal, edges)
+                .unwrap();
+        assert_eq!(prediction.y, [10; 256]);
+        assert_eq!(prediction.u, [70; 64]);
+        assert_eq!(prediction.v, [90; 64]);
+
+        let true_motion =
+            predict_intra16_macroblock(Intra16Mode::TrueMotion, ChromaMode::TrueMotion, edges)
+                .unwrap();
+        assert_eq!(true_motion.y, [35; 256]);
+        assert_eq!(true_motion.u, [100; 64]);
+        assert_eq!(true_motion.v, [140; 64]);
+
+        let dc = predict_intra16_macroblock(
+            Intra16Mode::Dc,
+            ChromaMode::Dc,
+            MacroblockPredictionEdges::default(),
+        )
+        .unwrap();
+        assert_eq!(dc.y, [128; 256]);
+        assert_eq!(dc.u, [128; 64]);
+        assert_eq!(dc.v, [128; 64]);
+        assert_eq!(
+            predict_intra16_macroblock(
+                Intra16Mode::Vertical,
+                ChromaMode::Dc,
+                MacroblockPredictionEdges::default(),
+            )
+            .unwrap_err()
+            .kind(),
+            DecodeErrorKind::InvalidBitstream
+        );
     }
 
     #[test]
