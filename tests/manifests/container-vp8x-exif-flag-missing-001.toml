@@ -1,0 +1,9 @@
+id = "container-vp8x-exif-flag-missing-001"
+file = "../fixtures/generated/vp8x-exif-flag-missing.webp"
+sha256 = "908d77a072de360cef3bf6761e4e8c2f8c0be9ad1bb57c3f39397306c5cf658e"
+class = "MustReject"
+source = "generated: cargo xtask fixtures generate-malformed"
+license = "CC0-1.0"
+codec = "Container"
+features = ["vp8x-metadata-flag", "public-api", "no-panic"]
+notes = "EXIF is present but its VP8X feature flag is clear."

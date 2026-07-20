@@ -1,0 +1,9 @@
+id = "container-duplicate-exif-001"
+file = "../fixtures/generated/duplicate-exif.webp"
+sha256 = "fa071e48cd442418e0a01a7add085e217315f263afe8cc526f2d6941c850b290"
+class = "MustReject"
+source = "generated: cargo xtask fixtures generate-malformed"
+license = "CC0-1.0"
+codec = "Container"
+features = ["duplicate-metadata", "public-api", "no-panic"]
+notes = "Strict parsing rejects duplicate EXIF singleton chunks."

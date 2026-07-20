@@ -1,0 +1,9 @@
+id = "container-vp8x-exif-flag-without-chunk-001"
+file = "../fixtures/generated/vp8x-exif-flag-without-chunk.webp"
+sha256 = "1b41a159d5bdbe3b81b344393955c643c05220cf8b578d5e19c4a507bee63eb5"
+class = "MustReject"
+source = "generated: cargo xtask fixtures generate-malformed"
+license = "CC0-1.0"
+codec = "Container"
+features = ["vp8x-metadata-flag", "public-api", "no-panic"]
+notes = "The VP8X EXIF feature flag is set but no EXIF chunk is present."

@@ -1,0 +1,9 @@
+id = "container-metadata-without-vp8x-001"
+file = "../fixtures/generated/metadata-without-vp8x.webp"
+sha256 = "2c9b143c7f3f7ee00514e3dfc62d707cbc26f5fb780546dd6704e4ac75b031c8"
+class = "MustReject"
+source = "generated: cargo xtask fixtures generate-malformed"
+license = "CC0-1.0"
+codec = "Container"
+features = ["metadata-requires-vp8x", "public-api", "no-panic"]
+notes = "Metadata chunks require a VP8X extended header."

@@ -1,0 +1,9 @@
+id = "container-vp8x-not-first-001"
+file = "../fixtures/generated/vp8x-not-first.webp"
+sha256 = "1d5c794bdbd5118440ad3aed84d83ff7111b6a75f0b8e503cd41ad4b15d7ce14"
+class = "MustReject"
+source = "generated: cargo xtask fixtures generate-malformed"
+license = "CC0-1.0"
+codec = "Container"
+features = ["vp8x-layout", "public-api", "no-panic"]
+notes = "An extended header must be the first chunk in a strict container."

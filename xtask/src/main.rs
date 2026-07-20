@@ -136,6 +136,14 @@ fn generate_malformed_fixtures() -> Result<(), String> {
         body.extend_from_slice(&[0; 10]);
         body
     });
+    let exif_vp8x = chunk(*b"VP8X", &[1 << 3, 0, 0, 0, 0, 0, 0, 0, 0, 0], None);
+    let metadata_without_vp8x = riff_body(
+        [
+            chunk(*b"VP8 ", &[0x00, 0x00], None),
+            chunk(*b"EXIF", &[0x01], None),
+        ]
+        .concat(),
+    );
 
     let fixtures = [
         GeneratedFixture {
@@ -198,6 +206,69 @@ fn generate_malformed_fixtures() -> Result<(), String> {
             bytes: riff_body([animation_vp8x, chunk(*b"ANMF", &[0x00], Some(0xff))].concat()),
             feature: "animation-anmf-non-zero-padding",
             notes: "Strict parsing rejects non-zero alignment padding after ANMF.",
+        },
+        GeneratedFixture {
+            id: "container-duplicate-exif-001",
+            file: "duplicate-exif.webp",
+            bytes: riff_body(
+                [
+                    exif_vp8x.clone(),
+                    chunk(*b"EXIF", &[0x01], None),
+                    chunk(*b"EXIF", &[0x02], None),
+                    chunk(*b"VP8 ", &[0x00, 0x00], None),
+                ]
+                .concat(),
+            ),
+            feature: "duplicate-metadata",
+            notes: "Strict parsing rejects duplicate EXIF singleton chunks.",
+        },
+        GeneratedFixture {
+            id: "container-metadata-without-vp8x-001",
+            file: "metadata-without-vp8x.webp",
+            bytes: metadata_without_vp8x,
+            feature: "metadata-requires-vp8x",
+            notes: "Metadata chunks require a VP8X extended header.",
+        },
+        GeneratedFixture {
+            id: "container-vp8x-exif-flag-missing-001",
+            file: "vp8x-exif-flag-missing.webp",
+            bytes: riff_body(
+                [
+                    chunk(*b"VP8X", &[0; 10], None),
+                    chunk(*b"EXIF", &[0x01], None),
+                    chunk(*b"VP8 ", &[0x00, 0x00], None),
+                ]
+                .concat(),
+            ),
+            feature: "vp8x-metadata-flag",
+            notes: "EXIF is present but its VP8X feature flag is clear.",
+        },
+        GeneratedFixture {
+            id: "container-vp8x-exif-flag-without-chunk-001",
+            file: "vp8x-exif-flag-without-chunk.webp",
+            bytes: riff_body([exif_vp8x.clone(), chunk(*b"VP8 ", &[0x00, 0x00], None)].concat()),
+            feature: "vp8x-metadata-flag",
+            notes: "The VP8X EXIF feature flag is set but no EXIF chunk is present.",
+        },
+        GeneratedFixture {
+            id: "container-vp8x-not-first-001",
+            file: "vp8x-not-first.webp",
+            bytes: riff_body([chunk(*b"VP8 ", &[0x00, 0x00], None), exif_vp8x].concat()),
+            feature: "vp8x-layout",
+            notes: "An extended header must be the first chunk in a strict container.",
+        },
+        GeneratedFixture {
+            id: "container-mixed-vp8-vp8l-001",
+            file: "mixed-vp8-vp8l.webp",
+            bytes: riff_body(
+                [
+                    chunk(*b"VP8 ", &[0x00, 0x00], None),
+                    chunk(*b"VP8L", &[0x2f, 0x00, 0x00, 0x00, 0x00], None),
+                ]
+                .concat(),
+            ),
+            feature: "mixed-image-codecs",
+            notes: "A container cannot carry both a VP8 and a VP8L image chunk.",
         },
     ];
     for fixture in &fixtures {
