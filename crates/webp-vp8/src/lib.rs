@@ -892,6 +892,8 @@ pub struct MacroblockPixels {
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub struct MacroblockPredictionEdges {
     pub top_y: Option<[u8; 16]>,
+    /// Four luma samples immediately right of `top_y`, needed by B_PRED.
+    pub top_right_y: Option<[u8; 4]>,
     pub left_y: Option<[u8; 16]>,
     pub top_left_y: u8,
     pub top_u: Option<[u8; 8]>,
@@ -994,6 +996,92 @@ pub fn predict_intra16_macroblock(
         edges.top_left_v,
     )?;
     Ok(prediction)
+}
+
+/// Builds the luma prediction plane for one VP8 B_PRED macroblock.
+///
+/// Blocks are predicted in raster order, so every block after the first reads
+/// reconstructed samples written by its earlier neighbours. At a picture edge
+/// VP8 uses 127 top and 129 left sentinel samples; absent top-right samples
+/// replicate the final top sample, matching the rightmost-macroblock rule.
+#[must_use]
+pub fn predict_intra4_macroblock(
+    modes: [Intra4Mode; 16],
+    edges: MacroblockPredictionEdges,
+) -> [u8; 256] {
+    let top_boundary = edges.top_y.unwrap_or([127; 16]);
+    let left_boundary = edges.left_y.unwrap_or([129; 16]);
+    let top_right = edges.top_right_y.unwrap_or([top_boundary[15]; 4]);
+    let top_left = if edges.top_y.is_none() {
+        127
+    } else if edges.left_y.is_none() {
+        129
+    } else {
+        edges.top_left_y
+    };
+    let mut output = [0_u8; 256];
+    for (block_index, mode) in modes.into_iter().enumerate() {
+        let block_x = (block_index % 4) * 4;
+        let block_y = (block_index / 4) * 4;
+        let top = std::array::from_fn(|index| {
+            let x = block_x + index;
+            if x >= 16 {
+                top_right[x - 16]
+            } else if block_y == 0 {
+                top_boundary[x]
+            } else {
+                output[(block_y - 1) * 16 + x]
+            }
+        });
+        let left = std::array::from_fn(|index| {
+            let y = block_y + index;
+            if block_x == 0 {
+                left_boundary[y]
+            } else {
+                output[y * 16 + block_x - 1]
+            }
+        });
+        let block_top_left = if block_x == 0 {
+            if block_y == 0 {
+                top_left
+            } else {
+                left_boundary[block_y - 1]
+            }
+        } else if block_y == 0 {
+            top_boundary[block_x - 1]
+        } else {
+            output[(block_y - 1) * 16 + block_x - 1]
+        };
+        let block = predict_intra4_block(mode, block_top_left, top, left);
+        for row in 0..4 {
+            output[(block_y + row) * 16 + block_x..(block_y + row) * 16 + block_x + 4]
+                .copy_from_slice(&block[row * 4..row * 4 + 4]);
+        }
+    }
+    output
+}
+
+/// Reconstructs one complete VP8 intra macroblock from entropy tokens.
+///
+/// This combines segment dequantization, inverse transforms, intra prediction,
+/// and sample clipping. Macroblock-row orchestration owns the supplied edge
+/// cache and calls this once mode and residual token parsing are complete.
+pub fn reconstruct_intra_macroblock(
+    block: IntraMacroblock,
+    residuals: &MacroblockResiduals,
+    matrix: DequantizationMatrix,
+    edges: MacroblockPredictionEdges,
+) -> Result<MacroblockPixels, DecodeError> {
+    let spatial = inverse_transform_macroblock(dequantize_macroblock(residuals, matrix));
+    let prediction = match block.luma {
+        LumaMode::Sixteen(mode) => predict_intra16_macroblock(mode, block.chroma, edges)?,
+        LumaMode::FourByFour(modes) => {
+            let mut prediction = predict_intra16_macroblock(Intra16Mode::Dc, block.chroma, edges)?;
+            prediction.y = predict_intra4_macroblock(modes, edges);
+            prediction
+        }
+    };
+    Ok(combine_macroblock_prediction(prediction, spatial))
 }
 
 #[derive(Clone, Copy)]
@@ -2415,6 +2503,7 @@ mod tests {
     fn intra16_prediction_uses_neighbours_and_dc_boundary_fallbacks() {
         let edges = MacroblockPredictionEdges {
             top_y: Some([10; 16]),
+            top_right_y: Some([10; 4]),
             left_y: Some([30; 16]),
             top_left_y: 5,
             top_u: Some([50; 8]),
@@ -2496,6 +2585,58 @@ mod tests {
         assert_eq!(diagonal_left[15], 78);
         let horizontal_up = predict_intra4_block(Intra4Mode::HorizontalUp, 5, top, left);
         assert_eq!(horizontal_up[12..], [80; 4]);
+    }
+
+    #[test]
+    fn intra4_macroblock_and_full_reconstruction_follow_raster_neighbours() {
+        let edges = MacroblockPredictionEdges {
+            top_y: Some([10; 16]),
+            top_right_y: Some([10; 4]),
+            left_y: Some([30; 16]),
+            top_left_y: 5,
+            ..MacroblockPredictionEdges::default()
+        };
+        let prediction = predict_intra4_macroblock([Intra4Mode::Dc; 16], edges);
+        assert_eq!(prediction[0], 20);
+        assert_eq!(prediction[4], 15);
+
+        let empty = DecodedCoefficients {
+            values: [0; 16],
+            end: 0,
+            non_zero: 0,
+        };
+        let residuals = MacroblockResiduals {
+            y2: None,
+            luma: [empty; 16],
+            u: [empty; 4],
+            v: [empty; 4],
+            non_zero_y: 0,
+            non_zero_uv: 0,
+        };
+        let pixels = reconstruct_intra_macroblock(
+            IntraMacroblock {
+                segment: 0,
+                skip: true,
+                luma: LumaMode::FourByFour([Intra4Mode::Dc; 16]),
+                chroma: ChromaMode::Dc,
+            },
+            &residuals,
+            DequantizationMatrix {
+                y1_dc: 1,
+                y1_ac: 1,
+                y2_dc: 1,
+                y2_ac: 1,
+                uv_dc: 1,
+                uv_ac: 1,
+                uv_quant: 0,
+            },
+            MacroblockPredictionEdges::default(),
+        )
+        .unwrap();
+        assert!(pixels.y[..64].iter().all(|&value| value == 128));
+        assert!(pixels.y[64..].iter().all(|&value| value == 129));
+        assert_eq!(pixels.u, [128; 64]);
+        assert_eq!(pixels.v, [128; 64]);
     }
 
     #[test]
