@@ -52,6 +52,10 @@ oracle revision, and generator arguments. Metadata generation covers ICCP,
 EXIF, XMP, their combinations, boundary payload lengths, chunk order/padding,
 duplicates, incorrect declared sizes, and truncation.
 
+`tools/generate-animation-corpus.sh` creates the initial two-frame loop and a
+Rust-readable `ReadInfo` sidecar. The animation test is deliberately separate
+from pixel decode until frame composition is exposed by the public API.
+
 ## Execution profiles
 
 PR tests only assert features already implemented by the public API. A valid
