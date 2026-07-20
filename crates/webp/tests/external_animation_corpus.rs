@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use webp::{read_info, DecodeLimits};
+use webp::{DecodeLimits, read_info};
 use webp_testkit::{FixtureApi, FixtureClass, FixtureRunner};
 
 #[test]
