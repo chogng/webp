@@ -11,11 +11,17 @@ probabilities `0..=255`, fixed-width literals, byte-exact EOF reporting, and a
 deterministic work budget. `vp8_bool_raw` fuzzes the decoder directly with a
 mutated partition and probability sequence.
 
+The first-partition parser now recovers colour-space/clamp flags, segmentation
+and loop-filter controls, and safely splits the coefficient stream into 1, 2,
+4, or 8 token partitions. `vp8_partition_raw` fuzzes this complete structural
+path, including every size-table boundary.
+
 `webp::read_info` now obtains dimensions from an unextended `VP8 ` chunk. The
 public `decode` path invokes the same validation and then returns
 `UnsupportedFeature` until the macroblock, transform, loop-filter, and YUV
 stages are implemented. This avoids treating a header-only parse as a pixel
 decode.
 
-The next M2 slice is first-partition header parsing, including segmentation,
-quantization, and token-partition boundaries.
+The next M2 slice adds quantizer deltas and coefficient-probability updates to
+the first-partition parser, then connects the decoded controls to macroblock
+prediction and reconstruction.

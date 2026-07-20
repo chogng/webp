@@ -12,6 +12,7 @@ cargo +nightly fuzz run vp8l_raw -- -dict=fuzz/dictionaries/webp.dict
 cargo +nightly fuzz run vp8l_huffman
 cargo +nightly fuzz run vp8l_transforms
 cargo +nightly fuzz run vp8_bool_raw
+cargo +nightly fuzz run vp8_partition_raw
 ```
 
 `cargo-fuzz` enables AddressSanitizer with nightly-only Rust compiler options;
@@ -40,7 +41,9 @@ bounded public `decode` path, including the supported VP8L entropy decoder.
 exercises predictor, subtract-green, color, and color-indexing inverse
 transforms directly. `vp8_bool_raw` splits its input into a VP8 boolean-coded
 partition and a probability sequence, then drives the bounded boolean decoder
-until a semantic EOF or work limit.
+until a semantic EOF or work limit. `vp8_partition_raw` mutates a complete
+raw VP8 payload through key-frame parsing, first-partition controls, and token
+partition boundary validation.
 Each uses explicit byte, dimension, metadata, allocation, and work limits. Run
 `tools/update-fuzz-dictionary.sh` after refreshing the test-only oracle to copy
 the current upstream dictionary into the checked-in fuzz target.

@@ -83,6 +83,23 @@ impl<'a> BoolDecoder<'a> {
         Ok(value)
     }
 
+    /// Reads a VP8 sign-magnitude value: magnitude first, then its sign bit.
+    pub fn read_signed_literal(&mut self, count: u8) -> Result<i32, DecodeError> {
+        let raw_magnitude = self.read_literal(count)?;
+        let magnitude = i32::try_from(raw_magnitude).map_err(|_| {
+            DecodeError::at(
+                DecodeErrorKind::InvalidBitstream,
+                self.byte_position,
+                "VP8 signed literal does not fit i32",
+            )
+        })?;
+        if self.read_bool(128)? {
+            Ok(-magnitude)
+        } else {
+            Ok(magnitude)
+        }
+    }
+
     /// Number of input bytes consumed from this partition.
     #[must_use]
     pub const fn bytes_consumed(&self) -> usize {
@@ -108,6 +125,230 @@ impl<'a> BoolDecoder<'a> {
         self.bits += 8;
         Ok(())
     }
+}
+
+/// Segmentation data carried by the first VP8 partition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SegmentHeader {
+    pub enabled: bool,
+    pub update_map: bool,
+    pub absolute_delta: bool,
+    pub quantizer: [i32; 4],
+    pub filter_strength: [i32; 4],
+    pub probabilities: [u8; 3],
+}
+
+/// Loop-filter controls carried by the first VP8 partition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FilterHeader {
+    pub simple: bool,
+    pub level: u8,
+    pub sharpness: u8,
+    pub use_deltas: bool,
+    pub ref_deltas: [i32; 4],
+    pub mode_deltas: [i32; 4],
+}
+
+/// The parsed prefix of a VP8 first partition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FirstPartitionHeader {
+    /// `false` means the WebP-mandated YUV 4:2:0 colour space; `true` is the
+    /// VP8 reserved value, retained here for later strict/profile handling.
+    pub colorspace_reserved: bool,
+    pub clamp_type: bool,
+    pub segments: SegmentHeader,
+    pub filter: FilterHeader,
+    /// Number of coefficient-token partitions: always 1, 2, 4, or 8.
+    pub token_partition_count: u8,
+}
+
+/// One coefficient-token partition after its three-byte size table.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct TokenPartition<'a> {
+    pub data: &'a [u8],
+    /// Byte offset from the start of the VP8 RIFF payload.
+    pub offset: usize,
+}
+
+/// Validated first-partition controls and coefficient-token partition layout.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PartitionLayout<'a> {
+    pub header: FirstPartitionHeader,
+    pub tokens: Vec<TokenPartition<'a>>,
+}
+
+/// Parses the VP8 first-partition prefix and safely partitions token data.
+///
+/// The supplied [`Vp8Header`] must have been parsed from the same payload. No
+/// coefficient, macroblock, or pixel buffer is allocated here. The returned
+/// token slices are zero-copy and their offsets are relative to `payload`.
+pub fn parse_partition_layout<'a>(
+    payload: &'a [u8],
+    frame: &Vp8Header,
+    limits: &DecodeLimits,
+) -> Result<PartitionLayout<'a>, DecodeError> {
+    limits.check_input_len(payload.len())?;
+    let first_partition_end = FRAME_TAG_LEN
+        .checked_add(frame.first_partition_len)
+        .ok_or_else(|| {
+            DecodeError::at(
+                DecodeErrorKind::InvalidBitstream,
+                FRAME_TAG_LEN,
+                "VP8 first partition end overflows",
+            )
+        })?;
+    if first_partition_end > payload.len() || first_partition_end < KEY_FRAME_HEADER_LEN {
+        return Err(DecodeError::at(
+            DecodeErrorKind::UnexpectedEof,
+            FRAME_TAG_LEN,
+            "VP8 first partition is outside payload",
+        ));
+    }
+
+    let mut bits = BoolDecoder::new(&payload[KEY_FRAME_HEADER_LEN..first_partition_end], limits)?;
+    let colorspace_reserved = bits.read_bool(128)?;
+    let clamp_type = bits.read_bool(128)?;
+    let segments = parse_segment_header(&mut bits)?;
+    let filter = parse_filter_header(&mut bits)?;
+    let token_partition_count = 1_u8 << bits.read_literal(2)?;
+
+    let size_table_len = 3_usize * (usize::from(token_partition_count) - 1);
+    let token_data_start = first_partition_end
+        .checked_add(size_table_len)
+        .ok_or_else(|| {
+            DecodeError::at(
+                DecodeErrorKind::InvalidBitstream,
+                first_partition_end,
+                "VP8 token-partition table end overflows",
+            )
+        })?;
+    if token_data_start >= payload.len() {
+        return Err(DecodeError::at(
+            DecodeErrorKind::UnexpectedEof,
+            first_partition_end,
+            "truncated VP8 token-partition size table or final partition",
+        ));
+    }
+
+    let mut tokens = Vec::with_capacity(usize::from(token_partition_count));
+    let mut table_offset = first_partition_end;
+    let mut data_offset = token_data_start;
+    for _ in 1..token_partition_count {
+        let size = usize::from(payload[table_offset])
+            | (usize::from(payload[table_offset + 1]) << 8)
+            | (usize::from(payload[table_offset + 2]) << 16);
+        table_offset += 3;
+        let end = data_offset.checked_add(size).ok_or_else(|| {
+            DecodeError::at(
+                DecodeErrorKind::InvalidBitstream,
+                data_offset,
+                "VP8 token partition end overflows",
+            )
+        })?;
+        if end > payload.len() {
+            return Err(DecodeError::at(
+                DecodeErrorKind::UnexpectedEof,
+                data_offset,
+                "VP8 token partition exceeds payload",
+            ));
+        }
+        tokens.push(TokenPartition {
+            data: &payload[data_offset..end],
+            offset: data_offset,
+        });
+        data_offset = end;
+    }
+    tokens.push(TokenPartition {
+        data: &payload[data_offset..],
+        offset: data_offset,
+    });
+
+    Ok(PartitionLayout {
+        header: FirstPartitionHeader {
+            colorspace_reserved,
+            clamp_type,
+            segments,
+            filter,
+            token_partition_count,
+        },
+        tokens,
+    })
+}
+
+fn parse_segment_header(bits: &mut BoolDecoder<'_>) -> Result<SegmentHeader, DecodeError> {
+    let enabled = bits.read_bool(128)?;
+    if !enabled {
+        return Ok(SegmentHeader {
+            enabled: false,
+            update_map: false,
+            absolute_delta: true,
+            quantizer: [0; 4],
+            filter_strength: [0; 4],
+            probabilities: [255; 3],
+        });
+    }
+    let update_map = bits.read_bool(128)?;
+    let mut absolute_delta = true;
+    let mut quantizer = [0; 4];
+    let mut filter_strength = [0; 4];
+    if bits.read_bool(128)? {
+        absolute_delta = bits.read_bool(128)?;
+        for value in &mut quantizer {
+            if bits.read_bool(128)? {
+                *value = bits.read_signed_literal(7)?;
+            }
+        }
+        for value in &mut filter_strength {
+            if bits.read_bool(128)? {
+                *value = bits.read_signed_literal(6)?;
+            }
+        }
+    }
+    let mut probabilities = [255; 3];
+    if update_map {
+        for value in &mut probabilities {
+            if bits.read_bool(128)? {
+                *value = bits.read_literal(8)? as u8;
+            }
+        }
+    }
+    Ok(SegmentHeader {
+        enabled,
+        update_map,
+        absolute_delta,
+        quantizer,
+        filter_strength,
+        probabilities,
+    })
+}
+
+fn parse_filter_header(bits: &mut BoolDecoder<'_>) -> Result<FilterHeader, DecodeError> {
+    let simple = bits.read_bool(128)?;
+    let level = bits.read_literal(6)? as u8;
+    let sharpness = bits.read_literal(3)? as u8;
+    let use_deltas = bits.read_bool(128)?;
+    let mut ref_deltas = [0; 4];
+    let mut mode_deltas = [0; 4];
+    if use_deltas && bits.read_bool(128)? {
+        for value in &mut ref_deltas {
+            if bits.read_bool(128)? {
+                *value = bits.read_signed_literal(6)?;
+            }
+        }
+        for value in &mut mode_deltas {
+            if bits.read_bool(128)? {
+                *value = bits.read_signed_literal(6)?;
+            }
+        }
+    }
+    Ok(FilterHeader {
+        simple,
+        level,
+        sharpness,
+        use_deltas,
+        ref_deltas,
+        mode_deltas,
+    })
 }
 
 /// Parsed VP8 frame tag and the fixed portion of a key-frame header.
@@ -277,6 +518,11 @@ mod tests {
             for shift in (0..count).rev() {
                 self.write_bool(((value >> shift) & 1) != 0, 128);
             }
+        }
+
+        fn write_signed_literal(&mut self, value: i32, count: u8) {
+            self.write_literal(value.unsigned_abs(), count);
+            self.write_bool(value.is_negative(), 128);
         }
 
         fn finish(mut self) -> Vec<u8> {
@@ -467,10 +713,13 @@ mod tests {
         let mut writer = TestBoolWriter::new();
         writer.write_literal(0b10110, 5);
         writer.write_literal(0x1234, 16);
+        writer.write_signed_literal(-17, 7);
+        writer.write_bool(false, 128); // Keep the signed value away from EOF.
         let bytes = writer.finish();
         let mut decoder = BoolDecoder::new(&bytes, &DecodeLimits::default()).unwrap();
         assert_eq!(decoder.read_literal(5), Ok(0b10110));
         assert_eq!(decoder.read_literal(16), Ok(0x1234));
+        assert_eq!(decoder.read_signed_literal(7), Ok(-17));
         assert_eq!(
             decoder.read_literal(33).unwrap_err().kind(),
             DecodeErrorKind::InvalidParameter
@@ -495,5 +744,144 @@ mod tests {
             decoder.read_bool(128).unwrap_err().kind(),
             DecodeErrorKind::LimitExceeded
         );
+    }
+
+    #[test]
+    fn parses_first_partition_controls_and_four_token_partitions() {
+        let mut writer = TestBoolWriter::new();
+        writer.write_bool(false, 128); // colour space
+        writer.write_bool(true, 128); // clamp type
+        writer.write_bool(true, 128); // segmentation enabled
+        writer.write_bool(true, 128); // update segment map
+        writer.write_bool(true, 128); // update segment data
+        writer.write_bool(false, 128); // delta rather than absolute values
+        for value in [-5, 0, 3, 0] {
+            writer.write_bool(value != 0, 128);
+            if value != 0 {
+                writer.write_signed_literal(value, 7);
+            }
+        }
+        for value in [-4, 0, 0, 0] {
+            writer.write_bool(value != 0, 128);
+            if value != 0 {
+                writer.write_signed_literal(value, 6);
+            }
+        }
+        for value in [11_u8, 255, 77] {
+            writer.write_bool(value != 255, 128);
+            if value != 255 {
+                writer.write_literal(u32::from(value), 8);
+            }
+        }
+        writer.write_bool(false, 128); // normal filter
+        writer.write_literal(17, 6);
+        writer.write_literal(4, 3);
+        writer.write_bool(true, 128); // loop-filter deltas enabled
+        writer.write_bool(true, 128); // update deltas
+        for value in [2, 0, 0, 0] {
+            writer.write_bool(value != 0, 128);
+            if value != 0 {
+                writer.write_signed_literal(value, 6);
+            }
+        }
+        for value in [0, 0, 0, -1] {
+            writer.write_bool(value != 0, 128);
+            if value != 0 {
+                writer.write_signed_literal(value, 6);
+            }
+        }
+        writer.write_literal(2, 2); // four coefficient-token partitions
+        writer.write_literal(0, 8); // parser intentionally stops before quantization
+        let partition_zero = writer.finish();
+
+        let mut payload = key_frame(3, 5, 0, true, 7 + partition_zero.len() as u32).to_vec();
+        payload.extend_from_slice(&partition_zero);
+        payload.extend_from_slice(&[1, 0, 0, 2, 0, 0, 0, 0, 0]);
+        payload.extend_from_slice(&[0xaa, 0xbb, 0xcc, 0xdd]);
+        let frame = parse_riff_payload(&payload, None, &DecodeLimits::default()).unwrap();
+        let layout = parse_partition_layout(&payload, &frame, &DecodeLimits::default()).unwrap();
+
+        assert!(!layout.header.colorspace_reserved);
+        assert!(layout.header.clamp_type);
+        assert_eq!(layout.header.token_partition_count, 4);
+        assert_eq!(layout.header.segments.quantizer, [-5, 0, 3, 0]);
+        assert_eq!(layout.header.segments.filter_strength, [-4, 0, 0, 0]);
+        assert_eq!(layout.header.segments.probabilities, [11, 255, 77]);
+        assert_eq!(layout.header.filter.level, 17);
+        assert_eq!(layout.header.filter.sharpness, 4);
+        assert_eq!(layout.header.filter.ref_deltas, [2, 0, 0, 0]);
+        assert_eq!(layout.header.filter.mode_deltas, [0, 0, 0, -1]);
+        assert_eq!(
+            layout
+                .tokens
+                .iter()
+                .map(|part| part.data)
+                .collect::<Vec<_>>(),
+            vec![&[0xaa][..], &[0xbb, 0xcc], &[], &[0xdd]],
+        );
+    }
+
+    #[test]
+    fn rejects_truncated_or_oversized_token_partition_tables() {
+        let mut writer = TestBoolWriter::new();
+        writer.write_bool(false, 128); // colour space
+        writer.write_bool(false, 128); // clamp type
+        writer.write_bool(false, 128); // no segmentation
+        writer.write_bool(false, 128); // normal filter
+        writer.write_literal(0, 6);
+        writer.write_literal(0, 3);
+        writer.write_bool(false, 128); // no filter deltas
+        writer.write_literal(2, 2); // four token partitions
+        writer.write_literal(0, 8);
+        let partition_zero = writer.finish();
+        let mut payload = key_frame(1, 1, 0, true, 7 + partition_zero.len() as u32).to_vec();
+        payload.extend_from_slice(&partition_zero);
+        let frame = parse_riff_payload(&payload, None, &DecodeLimits::default()).unwrap();
+        assert_eq!(
+            parse_partition_layout(&payload, &frame, &DecodeLimits::default())
+                .unwrap_err()
+                .kind(),
+            DecodeErrorKind::UnexpectedEof
+        );
+
+        payload.extend_from_slice(&[5, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
+        assert_eq!(
+            parse_partition_layout(&payload, &frame, &DecodeLimits::default())
+                .unwrap_err()
+                .kind(),
+            DecodeErrorKind::UnexpectedEof
+        );
+    }
+
+    #[test]
+    fn parses_each_legal_token_partition_count() {
+        for partition_bits in 0..4_u32 {
+            let mut writer = TestBoolWriter::new();
+            writer.write_bool(false, 128); // colour space
+            writer.write_bool(false, 128); // clamp type
+            writer.write_bool(false, 128); // no segmentation
+            writer.write_bool(false, 128); // normal filter
+            writer.write_literal(0, 6);
+            writer.write_literal(0, 3);
+            writer.write_bool(false, 128); // no filter deltas
+            writer.write_literal(partition_bits, 2);
+            writer.write_literal(0, 8);
+            let partition_zero = writer.finish();
+            let partition_count = 1_usize << partition_bits;
+            let mut payload = key_frame(1, 1, 0, true, 7 + partition_zero.len() as u32).to_vec();
+            payload.extend_from_slice(&partition_zero);
+            payload.resize(payload.len() + 3 * (partition_count - 1), 0);
+            payload.push(0);
+
+            let frame = parse_riff_payload(&payload, None, &DecodeLimits::default()).unwrap();
+            let layout =
+                parse_partition_layout(&payload, &frame, &DecodeLimits::default()).unwrap();
+            assert_eq!(
+                layout.header.token_partition_count as usize,
+                partition_count
+            );
+            assert_eq!(layout.tokens.len(), partition_count);
+            assert_eq!(layout.tokens.last().unwrap().data, &[0]);
+        }
     }
 }

@@ -65,3 +65,10 @@ path = "fuzz_targets/vp8_bool_raw.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "vp8_partition_raw"
+path = "fuzz_targets/vp8_partition_raw.rs"
+test = false
+doc = false
+bench = false
