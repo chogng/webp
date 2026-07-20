@@ -75,6 +75,11 @@ from pixel decode until frame composition is exposed by the public API.
 `python3 tools/generate-animation-state-corpus.py` adds blend/dispose, offset,
 duration, loop-count, and background-color container states using `webpmux`.
 
+For fuzzing, run `python3 tools/bootstrap-fuzz-corpus.py` to materialize the
+ignored target-specific seed directories from the committed fixtures. It also
+provides minimal raw VP8L entropy seeds; findings are minimized and promoted
+through `tools/promote-regression.sh`, not committed directly from a fuzzer.
+
 ## Execution profiles
 
 PR tests only assert features already implemented by the public API. A valid
