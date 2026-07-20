@@ -185,13 +185,35 @@ mod tests {
                 for count in 0..=32 {
                     let expected = slow_read(data, start, count);
                     let mut reader = BitReader::with_bit_position(data, start).unwrap();
+                    assert_eq!(reader.bit_position(), start);
+                    assert_eq!(reader.remaining_bits(), data.len() * 8 - start);
                     match expected {
-                        Some(expected) => assert_eq!(reader.read_bits(count).unwrap(), expected),
-                        None => assert!(reader.read_bits(count).is_err()),
+                        Some(expected) => {
+                            assert_eq!(reader.read_bits(count).unwrap(), expected);
+                            assert_eq!(reader.bit_position(), start + usize::from(count));
+                            assert_eq!(
+                                reader.remaining_bits(),
+                                data.len() * 8 - start - usize::from(count)
+                            );
+                        }
+                        None => {
+                            assert!(reader.read_bits(count).is_err());
+                            assert_eq!(reader.bit_position(), start);
+                        }
                     }
                 }
             }
         }
+    }
+
+    #[test]
+    fn read_bit_reports_each_boolean_value_and_advances_once() {
+        let mut reader = BitReader::new(&[0b0000_0010]);
+        assert_eq!(reader.read_bit(), Ok(false));
+        assert_eq!(reader.bit_position(), 1);
+        assert_eq!(reader.read_bit(), Ok(true));
+        assert_eq!(reader.bit_position(), 2);
+        assert_eq!(reader.remaining_bits(), 6);
     }
 
     #[test]
@@ -224,9 +246,13 @@ mod tests {
             (0xffff_ffff, 32),
         ];
         let mut writer = BitWriter::new();
+        let mut expected_bits = 0;
         for &(value, width) in &values {
             writer.write_bits(value, width).unwrap();
+            expected_bits += usize::from(width);
+            assert_eq!(writer.bit_len(), expected_bits);
         }
+        let encoded = writer.as_bytes().to_vec();
         let mut reader = BitReader::new(writer.as_bytes());
         for &(value, width) in &values {
             let mask = if width == 32 {
@@ -236,15 +262,18 @@ mod tests {
             };
             assert_eq!(reader.read_bits(width), Ok(value & mask));
         }
+        assert_eq!(writer.into_bytes(), encoded);
     }
 
     #[test]
     fn invalid_width_is_rejected() {
-        let mut reader = BitReader::new(&[]);
-        assert_eq!(
-            reader.read_bits(33).unwrap_err().kind(),
-            DecodeErrorKind::InvalidParameter
-        );
+        let mut reader = BitReader::with_bit_position(&[0; 3], 17).unwrap();
+        let invalid_width = reader.read_bits(33).unwrap_err();
+        assert_eq!(invalid_width.kind(), DecodeErrorKind::InvalidParameter);
+        assert_eq!(invalid_width.offset(), Some(2));
+        let truncated = reader.read_bits(8).unwrap_err();
+        assert_eq!(truncated.kind(), DecodeErrorKind::UnexpectedEof);
+        assert_eq!(truncated.offset(), Some(2));
         let mut writer = BitWriter::new();
         assert_eq!(
             writer.write_bits(0, 33).unwrap_err().kind(),

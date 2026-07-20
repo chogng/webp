@@ -343,7 +343,25 @@ mod tests {
     #[test]
     fn every_distance_prefix_is_accepted_and_prefix_bounds_are_checked() {
         for prefix in 0..DISTANCE_PREFIX_COUNT {
-            assert!(decode_with_extra(prefix, 0, DISTANCE_PREFIX_COUNT) >= 1);
+            let extra_bits = if prefix < 4 { 0 } else { (prefix - 2) >> 1 };
+            for extra in [0, (1_u32 << extra_bits).saturating_sub(1)] {
+                let mut writer = BitWriter::new();
+                writer.write_bits(extra, extra_bits).unwrap();
+                let bytes = writer.into_bytes();
+                let mut reader = BitReader::new(&bytes);
+                let mut budget = WorkBudget::new(1);
+                let expected = if prefix < 4 {
+                    usize::from(prefix) + 1
+                } else {
+                    let offset = (2_usize + usize::from(prefix & 1)) << extra_bits;
+                    offset + extra as usize + 1
+                };
+                assert_eq!(
+                    decode_distance(&mut reader, &mut budget, prefix),
+                    Ok(expected),
+                    "prefix={prefix}, extra={extra}"
+                );
+            }
         }
         let mut reader = BitReader::new(&[]);
         let mut budget = WorkBudget::new(1);
@@ -374,13 +392,30 @@ mod tests {
 
     #[test]
     fn plane_distance_and_linear_distance_follow_spec() {
-        assert_eq!(distance_code_to_distance(1, 10), Ok(10));
-        assert_eq!(distance_code_to_distance(2, 10), Ok(1));
-        assert_eq!(distance_code_to_distance(3, 10), Ok(11));
-        assert_eq!(distance_code_to_distance(4, 10), Ok(9));
-        assert_eq!(distance_code_to_distance(121, 10), Ok(1));
+        // Independent scan-line distances for all 120 plane codes at width
+        // 32, transcribed from the normative VP8L distance-code table.
+        let expected = [
+            32, 1, 33, 31, 64, 2, 65, 63, 34, 30, 66, 62, 96, 3, 97, 95, 35, 29, 98, 94, 67, 61,
+            128, 4, 129, 127, 36, 28, 99, 93, 130, 126, 68, 60, 160, 131, 125, 100, 92, 5, 161,
+            159, 37, 27, 162, 158, 69, 59, 132, 124, 163, 157, 101, 91, 192, 6, 193, 191, 38, 26,
+            194, 190, 70, 58, 164, 156, 133, 123, 195, 189, 102, 90, 224, 7, 225, 223, 165, 155,
+            39, 25, 196, 188, 134, 122, 226, 222, 71, 57, 227, 221, 103, 89, 197, 187, 166, 154, 8,
+            228, 220, 135, 121, 40, 72, 198, 186, 104, 229, 219, 167, 153, 136, 230, 218, 199, 185,
+            168, 231, 217, 200, 232,
+        ];
+        for (index, expected) in expected.into_iter().enumerate() {
+            assert_eq!(
+                distance_code_to_distance(index + 1, 32),
+                Ok(expected),
+                "plane distance code {}",
+                index + 1
+            );
+        }
+        assert_eq!(distance_code_to_distance(121, 32), Ok(1));
+        assert_eq!(distance_code_to_distance(122, 32), Ok(2));
+        assert_eq!(distance_code_to_distance(200, 32), Ok(80));
         assert_eq!(
-            distance_code_to_distance(0, 10).unwrap_err().kind(),
+            distance_code_to_distance(0, 32).unwrap_err().kind(),
             DecodeErrorKind::InvalidBitstream
         );
     }
@@ -422,15 +457,46 @@ mod tests {
     }
 
     #[test]
-    fn invalid_or_over_budget_copy_does_not_mutate_output() {
-        let original = vec![1, 2, 3];
-        for (length, distance, limit, budget_units) in
-            [(1, 0, 4, 1), (1, 4, 4, 1), (2, 1, 4, 1), (1, 1, 4, 0)]
-        {
-            let mut output = original.clone();
-            let mut budget = WorkBudget::new(budget_units);
-            assert!(copy_lz77_pixels(&mut output, length, distance, limit, &mut budget).is_err());
-            assert_eq!(output, original);
+    fn copy_validation_accepts_exact_bounds_and_rejects_each_invalid_field() {
+        for (produced, length, distance, limit) in [
+            (1, 1, 1, 2),
+            (8, 1, 8, 9),
+            (
+                1,
+                MAX_BACKWARD_REFERENCE_LENGTH,
+                1,
+                MAX_BACKWARD_REFERENCE_LENGTH + 1,
+            ),
+        ] {
+            assert_eq!(validate_copy(produced, length, distance, limit), Ok(()));
         }
+
+        for (produced, length, distance, limit) in [
+            (1, 0, 1, 1),
+            (
+                1,
+                MAX_BACKWARD_REFERENCE_LENGTH + 1,
+                1,
+                MAX_BACKWARD_REFERENCE_LENGTH + 2,
+            ),
+            (1, 1, 0, 2),
+            (1, 1, 2, 2),
+            (3, 2, 1, 4),
+            (usize::MAX, 1, 1, usize::MAX),
+        ] {
+            assert!(
+                validate_copy(produced, length, distance, limit).is_err(),
+                "produced={produced}, length={length}, distance={distance}, limit={limit}"
+            );
+        }
+    }
+
+    #[test]
+    fn over_budget_copy_does_not_mutate_output() {
+        let original = vec![1, 2, 3];
+        let mut output = original.clone();
+        let mut budget = WorkBudget::new(0);
+        assert!(copy_lz77_pixels(&mut output, 1, 1, 4, &mut budget).is_err());
+        assert_eq!(output, original);
     }
 }

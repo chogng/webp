@@ -193,6 +193,7 @@ mod tests {
     fn arithmetic_boundaries_are_checked() {
         assert_eq!(checked_image_bytes(0, u32::MAX, 4), Ok(0));
         assert_eq!(checked_image_bytes(1, 1, 4), Ok(4));
+        assert_eq!(checked_image_bytes(2, 3, 4), Ok(24));
         assert_eq!(checked_rect_end(3, 4, 7), Ok(7));
         assert!(checked_rect_end(u32::MAX, 1, u32::MAX).is_err());
         assert!(checked_rect_end(7, 1, 7).is_err());
@@ -212,6 +213,7 @@ mod tests {
     #[test]
     fn work_budget_is_transactional() {
         let mut budget = WorkBudget::new(3);
+        assert_eq!(budget.remaining(), 3);
         budget.consume(3).unwrap();
         assert_eq!(budget.remaining(), 0);
         assert_eq!(
@@ -224,10 +226,32 @@ mod tests {
     #[test]
     fn configured_limits_apply_before_use() {
         let limits = DecodeLimits {
+            max_input_bytes: 5,
+            max_width: 4,
+            max_height: 3,
             max_pixels: 3,
             ..DecodeLimits::default()
         };
+        assert_eq!(limits.check_input_len(4), Ok(()));
+        assert_eq!(limits.check_input_len(5), Ok(()));
+        assert!(limits.check_input_len(6).is_err());
+        assert_eq!(limits.check_image(1, 3), Ok(()));
         assert!(limits.check_image(2, 2).is_err());
         assert!(limits.check_image(3, 1).is_ok());
+        assert!(limits.check_image(5, 1).is_err());
+        assert!(limits.check_image(1, 4).is_err());
+
+        let zero = DecodeLimits {
+            max_input_bytes: 0,
+            max_width: 0,
+            max_height: 0,
+            max_pixels: 0,
+            ..DecodeLimits::default()
+        };
+        assert_eq!(zero.check_input_len(0), Ok(()));
+        assert!(zero.check_input_len(1).is_err());
+        assert_eq!(zero.check_image(0, 0), Ok(()));
+        assert!(zero.check_image(1, 0).is_err());
+        assert!(zero.check_image(0, 1).is_err());
     }
 }

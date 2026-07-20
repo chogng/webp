@@ -468,6 +468,17 @@ mod tests {
     }
 
     #[test]
+    fn palette_accessors_and_pixel_count_report_validated_state() {
+        let palette = palette(3);
+        assert!(!palette.is_empty());
+        assert_eq!(palette.get(0), Some(Rgba::new(0, 1, 2, 255)));
+        assert_eq!(palette.get(2), Some(Rgba::new(2, 3, 4, 253)));
+        assert_eq!(palette.get(3), None);
+        assert_eq!(pixel_count(0, 9), Ok(0));
+        assert_eq!(pixel_count(3, 7), Ok(21));
+    }
+
+    #[test]
     fn rejects_bad_palette_sizes_and_wrong_indexed_dimensions() {
         for size in [0, 257] {
             assert!(matches!(
@@ -484,5 +495,9 @@ mod tests {
                 ..
             })
         ));
+        assert_eq!(
+            ColorIndexError::InvalidPaletteSize { actual: 0 }.to_string(),
+            "VP8L color-indexing palette has 0 entries; expected 1..=256"
+        );
     }
 }

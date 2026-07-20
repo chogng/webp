@@ -64,3 +64,35 @@ impl fmt::Display for DecodeError {
 }
 
 impl std::error::Error for DecodeError {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accessors_and_display_preserve_diagnostic_fields() {
+        let with_offset = DecodeError::at(
+            DecodeErrorKind::InvalidBitstream,
+            17,
+            "invalid entropy code",
+        );
+        assert_eq!(with_offset.kind(), DecodeErrorKind::InvalidBitstream);
+        assert_eq!(with_offset.offset(), Some(17));
+        assert_eq!(with_offset.context(), "invalid entropy code");
+        assert_eq!(
+            with_offset.to_string(),
+            "InvalidBitstream: invalid entropy code at byte offset 17"
+        );
+
+        let without_offset = DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "work budget exhausted",
+        );
+        assert_eq!(without_offset.offset(), None);
+        assert_eq!(
+            without_offset.to_string(),
+            "LimitExceeded: work budget exhausted"
+        );
+    }
+}

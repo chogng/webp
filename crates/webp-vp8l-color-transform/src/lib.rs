@@ -421,6 +421,27 @@ mod tests {
     }
 
     #[test]
+    fn image_and_transform_accessors_report_the_validated_configuration() {
+        let mut image = RgbaImage::new(
+            2,
+            3,
+            (0..6)
+                .map(|value| Rgba::new(value, value + 10, value + 20, value + 30))
+                .collect(),
+        )
+        .unwrap();
+        assert_eq!(image.width(), 2);
+        assert_eq!(image.height(), 3);
+        image.pixels_mut()[4] = Rgba::new(90, 91, 92, 93);
+        assert_eq!(image.pixels()[4], Rgba::new(90, 91, 92, 93));
+
+        let transform =
+            ColorTransform::new(2, 2, 3, vec![ColorTransformMultipliers::default(); 6]).unwrap();
+        assert_eq!(transform.bits(), 2);
+        assert_eq!(transform.block_dimensions(), (2, 3));
+    }
+
+    #[test]
     fn construction_rejects_unrepresentable_tables() {
         assert!(matches!(
             ColorTransform::new(8, 1, 1, vec![ColorTransformMultipliers::default()]),
@@ -434,5 +455,9 @@ mod tests {
             RgbaImage::new(2, 2, vec![Rgba::default(); 3]),
             Err(ColorTransformError::InvalidBufferLength { .. })
         ));
+        assert_eq!(
+            ColorTransformError::InvalidBlockBits(8).to_string(),
+            "VP8L color-transform block bits 8 exceed 7"
+        );
     }
 }
