@@ -266,6 +266,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "webp-vp8l-color-cache"
+version = "0.1.0"
+dependencies = [
+ "webp-core",
+]
+
+[[package]]
 name = "webp-vp8l-entropy"
 version = "0.1.0"
 dependencies = [

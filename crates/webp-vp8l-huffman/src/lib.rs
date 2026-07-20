@@ -11,6 +11,111 @@ use webp_core::{BitReader, DecodeError, DecodeErrorKind};
 /// The longest code allowed by the VP8L format.
 pub const MAX_CODE_LENGTH: u8 = 15;
 
+/// Permutation used to transmit the code lengths of a normal VP8L Huffman
+/// header.  The first `4 + ReadBits(4)` entries are present on the wire.
+pub const CODE_LENGTH_CODE_ORDER: [usize; 19] = [
+    17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+];
+
+const CODE_LENGTH_ALPHABET_SIZE: usize = CODE_LENGTH_CODE_ORDER.len();
+
+/// Reads the code lengths for a normal (non-simple) VP8L Huffman code.
+///
+/// `alphabet_size` is the number of symbols in the code that is being
+/// described.  The returned vector has exactly that many entries.  Repeat
+/// symbols are checked before extending the output, so an attacker-controlled
+/// repeat can never grow it beyond this bound.
+///
+/// This routine parses only the normal representation.  The leading
+/// `simple_code_flag` belongs to the enclosing Huffman-code parser and must be
+/// consumed by that caller before invoking this function.
+pub fn read_normal_code_lengths(
+    bits: &mut BitReader<'_>,
+    alphabet_size: usize,
+) -> Result<Vec<u8>, DecodeError> {
+    if alphabet_size == 0 {
+        return Err(invalid("VP8L Huffman alphabet must contain a symbol"));
+    }
+
+    let num_code_lengths = usize::try_from(bits.read_bits(4)?)
+        .map_err(|_| invalid("VP8L code-length count does not fit usize"))?
+        + 4;
+    debug_assert!((4..=CODE_LENGTH_ALPHABET_SIZE).contains(&num_code_lengths));
+
+    let mut code_length_lengths = [0_u8; CODE_LENGTH_ALPHABET_SIZE];
+    for &symbol in CODE_LENGTH_CODE_ORDER.iter().take(num_code_lengths) {
+        code_length_lengths[symbol] = bits.read_bits(3)? as u8;
+    }
+
+    // Besides decoding the following stream, construction validates that this
+    // compact header cannot represent an over-subscribed or incomplete tree.
+    let code_length_table = HuffmanTable::from_code_lengths(&code_length_lengths)?;
+
+    let mut lengths = Vec::new();
+    lengths.try_reserve_exact(alphabet_size).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::AllocationFailed,
+            None,
+            "VP8L code-length output allocation failed",
+        )
+    })?;
+    let mut previous_nonzero = None;
+
+    while lengths.len() < alphabet_size {
+        let symbol = code_length_table.decode(bits)?;
+        match symbol {
+            0..=15 => {
+                lengths.push(symbol as u8);
+                if symbol != 0 {
+                    previous_nonzero = Some(symbol as u8);
+                }
+            }
+            16 => {
+                let repeat = usize::try_from(bits.read_bits(2)?)
+                    .map_err(|_| invalid("VP8L repeat-16 count does not fit usize"))?
+                    + 3;
+                // VP8L assigns the value eight when repeat-16 occurs before
+                // any nonzero length.  Keep the last nonzero value separately
+                // so leading zero runs do not change that default.
+                let value = previous_nonzero.unwrap_or(8);
+                extend_repeat(&mut lengths, alphabet_size, value, repeat)?;
+            }
+            17 => {
+                let repeat = usize::try_from(bits.read_bits(3)?)
+                    .map_err(|_| invalid("VP8L repeat-17 count does not fit usize"))?
+                    + 3;
+                extend_repeat(&mut lengths, alphabet_size, 0, repeat)?;
+            }
+            18 => {
+                let repeat = usize::try_from(bits.read_bits(7)?)
+                    .map_err(|_| invalid("VP8L repeat-18 count does not fit usize"))?
+                    + 11;
+                extend_repeat(&mut lengths, alphabet_size, 0, repeat)?;
+            }
+            _ => return Err(invalid("VP8L code-length symbol is out of range")),
+        }
+    }
+
+    Ok(lengths)
+}
+
+fn extend_repeat(
+    lengths: &mut Vec<u8>,
+    alphabet_size: usize,
+    value: u8,
+    repeat: usize,
+) -> Result<(), DecodeError> {
+    let end = lengths
+        .len()
+        .checked_add(repeat)
+        .ok_or_else(|| invalid("VP8L code-length repeat count overflow"))?;
+    if end > alphabet_size {
+        return Err(invalid("VP8L code-length repeat exceeds alphabet"));
+    }
+    lengths.resize(end, value);
+    Ok(())
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 struct Code {
     bits: u16,
@@ -220,6 +325,68 @@ mod tests {
         writer.into_bytes()
     }
 
+    fn write_normal_header(writer: &mut BitWriter, includes_one: bool) {
+        // Use all entries through index eight in CODE_LENGTH_CODE_ORDER so the
+        // code-length alphabet contains 0, 16, 17 and 18.  The optional 1
+        // makes it possible to exercise repeat-16 after a nonzero length.
+        writer.write_bits(5, 4).unwrap(); // 4 + 5 == 9 entries.
+        let on_wire_lengths = if includes_one {
+            // symbols 17, 18, 0 have length 2; 1 and 16 have length 3.
+            [2, 2, 2, 3, 0, 0, 0, 0, 3]
+        } else {
+            // symbols 17, 18, 0 and 16 form a balanced length-two tree.
+            [2, 2, 2, 0, 0, 0, 0, 0, 2]
+        };
+        for length in on_wire_lengths {
+            writer.write_bits(length, 3).unwrap();
+        }
+    }
+
+    fn write_code_length_symbol(writer: &mut BitWriter, includes_one: bool, symbol: usize) {
+        let mut lengths = [0_u8; CODE_LENGTH_ALPHABET_SIZE];
+        lengths[0] = 2;
+        lengths[16] = if includes_one { 3 } else { 2 };
+        lengths[17] = 2;
+        lengths[18] = 2;
+        if includes_one {
+            lengths[1] = 3;
+        }
+        let (code, width) = wire_code(&lengths, symbol);
+        writer.write_bits(code, width).unwrap();
+    }
+
+    fn normal_stream(includes_one: bool, entries: &[(usize, u32, u8)]) -> Vec<u8> {
+        let mut writer = BitWriter::new();
+        write_normal_header(&mut writer, includes_one);
+        for &(symbol, extra, width) in entries {
+            write_code_length_symbol(&mut writer, includes_one, symbol);
+            writer.write_bits(extra, width).unwrap();
+        }
+        writer.into_bytes()
+    }
+
+    fn normal_stream_with_all_literal_lengths() -> Vec<u8> {
+        // A complete 19-symbol code-length alphabet: 13 leaves at depth four
+        // and six at depth five.  Writing the lengths in wire order makes this
+        // test fail if even one kCodeLengthCodeOrder position is changed.
+        let mut table_lengths = [5_u8; CODE_LENGTH_ALPHABET_SIZE];
+        for length in table_lengths.iter_mut().take(13) {
+            *length = 4;
+        }
+        let mut writer = BitWriter::new();
+        writer.write_bits(15, 4).unwrap(); // 4 + 15 == all 19 entries.
+        for &symbol in &CODE_LENGTH_CODE_ORDER {
+            writer
+                .write_bits(u32::from(table_lengths[symbol]), 3)
+                .unwrap();
+        }
+        for symbol in 0..=15 {
+            let (code, width) = wire_code(&table_lengths, symbol);
+            writer.write_bits(code, width).unwrap();
+        }
+        writer.into_bytes()
+    }
+
     #[test]
     fn decodes_single_symbol_without_consuming_a_bit() {
         let table = HuffmanTable::from_code_lengths(&[0, 1, 0]).unwrap();
@@ -291,5 +458,108 @@ mod tests {
         let mut input = BitReader::with_bit_position(&[0b1100_0000], 6).unwrap();
         let error = table.decode(&mut input).unwrap_err();
         assert_eq!(error.kind(), DecodeErrorKind::UnexpectedEof);
+    }
+
+    #[test]
+    fn normal_code_lengths_use_the_wire_order_and_decode_repeats() {
+        // 17 with extra=7 means ten zeros, exactly filling the alphabet.
+        let stream = normal_stream(false, &[(17, 7, 3)]);
+        assert_eq!(
+            read_normal_code_lengths(&mut BitReader::new(&stream), 10).unwrap(),
+            vec![0; 10]
+        );
+    }
+
+    #[test]
+    fn normal_code_lengths_decode_every_literal_length_and_all_order_slots() {
+        let stream = normal_stream_with_all_literal_lengths();
+        assert_eq!(
+            read_normal_code_lengths(&mut BitReader::new(&stream), 16).unwrap(),
+            (0_u8..=15).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn repeat_sixteen_defaults_to_eight_before_any_nonzero_length() {
+        // Leading zeros deliberately do not replace the required default.
+        let stream = normal_stream(false, &[(17, 0, 3), (16, 0, 2)]);
+        assert_eq!(
+            read_normal_code_lengths(&mut BitReader::new(&stream), 6).unwrap(),
+            vec![0, 0, 0, 8, 8, 8]
+        );
+    }
+
+    #[test]
+    fn repeat_sixteen_uses_the_previous_nonzero_length() {
+        let stream = normal_stream(true, &[(1, 0, 0), (16, 0, 2)]);
+        assert_eq!(
+            read_normal_code_lengths(&mut BitReader::new(&stream), 4).unwrap(),
+            vec![1, 1, 1, 1]
+        );
+    }
+
+    #[test]
+    fn repeat_seventeen_and_eighteen_cover_their_format_bounds() {
+        let minimum_zero_run = normal_stream(false, &[(17, 0, 3)]);
+        assert_eq!(
+            read_normal_code_lengths(&mut BitReader::new(&minimum_zero_run), 3).unwrap(),
+            vec![0; 3]
+        );
+
+        let maximum_zero_run = normal_stream(false, &[(18, 127, 7)]);
+        assert_eq!(
+            read_normal_code_lengths(&mut BitReader::new(&maximum_zero_run), 138).unwrap(),
+            vec![0; 138]
+        );
+    }
+
+    #[test]
+    fn repeat_bounds_are_checked_before_the_output_is_extended() {
+        let stream = normal_stream(false, &[(16, 3, 2)]); // repeat 6
+        assert_eq!(
+            read_normal_code_lengths(&mut BitReader::new(&stream), 6).unwrap(),
+            vec![8; 6]
+        );
+        for alphabet_size in [5, 2] {
+            let error =
+                read_normal_code_lengths(&mut BitReader::new(&stream), alphabet_size).unwrap_err();
+            assert_eq!(error.kind(), DecodeErrorKind::InvalidBitstream);
+            assert_eq!(error.context(), "VP8L code-length repeat exceeds alphabet");
+        }
+    }
+
+    #[test]
+    fn normal_header_truncation_is_never_treated_as_a_valid_tree() {
+        let stream = normal_stream(false, &[(16, 0, 2)]);
+        for cut in 0..stream.len() {
+            let error =
+                read_normal_code_lengths(&mut BitReader::new(&stream[..cut]), 3).unwrap_err();
+            assert_eq!(error.kind(), DecodeErrorKind::UnexpectedEof, "cut={cut}");
+        }
+    }
+
+    #[test]
+    fn normal_header_rejects_over_and_under_subscribed_code_length_trees() {
+        let mut over = BitWriter::new();
+        over.write_bits(0, 4).unwrap();
+        for length in [1, 1, 1, 0] {
+            over.write_bits(length, 3).unwrap();
+        }
+        let error = read_normal_code_lengths(&mut BitReader::new(over.as_bytes()), 1).unwrap_err();
+        assert_eq!(error.context(), "VP8L Huffman tree is oversubscribed");
+
+        let mut under = BitWriter::new();
+        under.write_bits(0, 4).unwrap();
+        for length in [2, 2, 0, 0] {
+            under.write_bits(length, 3).unwrap();
+        }
+        let error = read_normal_code_lengths(&mut BitReader::new(under.as_bytes()), 1).unwrap_err();
+        assert_eq!(error.context(), "VP8L Huffman tree is incomplete");
+    }
+
+    #[test]
+    fn normal_code_lengths_reject_an_empty_target_alphabet() {
+        let error = read_normal_code_lengths(&mut BitReader::new(&[]), 0).unwrap_err();
+        assert_eq!(error.kind(), DecodeErrorKind::InvalidBitstream);
     }
 }
