@@ -45,6 +45,12 @@ their SHA-256 manifests. A discovered failure is minimized before being moved
 to `tests/fixtures/regressions/`, with its issue/source, expected result, and
 the API path that previously failed.
 
+Use `tools/promote-regression.sh <input.webp> <id> <issue-or-source> <license>`
+to create the fixture and its SHA-256 sidecar together. The first manifest is
+`MustReject`, so it immediately runs one-shot, `ReadInfo`, and incremental
+public API rejection checks; valid-image regressions must be upgraded with the
+appropriate accepted API and golden fields.
+
 Animation and metadata vectors must be generated from libwebp tools, retaining
 the resolved oracle commit, raw RGBA input, WebP output, per-frame composed RGBA hashes,
 rectangles, duration, blend/dispose flags, loop count, background color,
