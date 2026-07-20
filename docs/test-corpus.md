@@ -66,7 +66,9 @@ not a bitstream-conformance or pixel-golden corpus. The source registry intentio
 starts with the validation split; download it outside Git only when the encoder
 benchmark harness lands.
 
-Fetch and normalize the configured validation split with
-`python3 tools/fetch-clic-validation.py`. It writes ignored PNG inputs plus a
-SHA-256/geometry manifest for the Rust benchmark harness; no CLIC image enters
-the release crate or conformance fixture set.
+TFDS must download the whole 7.48 GiB CLIC archive (about 14.96 GiB of
+workspace after preparation) before exposing validation. To make that explicit,
+fetch and normalize it with
+`python3 tools/fetch-clic-validation.py --allow-full-download`. It writes
+ignored PNG inputs plus a SHA-256/geometry manifest for the Rust benchmark
+harness; no CLIC image enters the release crate or conformance fixture set.

@@ -21,3 +21,6 @@ purpose = "upstream conformance vectors"
 version = "tfds:clic:1.0.0"
 splits = ["validation"]
 purpose = "rate-distortion and performance benchmark"
+# TFDS downloads the source archive before exposing the validation split.
+estimated_download_gib = 7.48
+estimated_workspace_gib = 14.96

@@ -1,11 +1,25 @@
 #!/usr/bin/env python3
-"""Fetch the locked CLIC validation split and export deterministic PNG inputs."""
+"""Fetch the CLIC validation split and export deterministic PNG inputs."""
+import argparse
 from pathlib import Path
 import hashlib
 import json
 
 import tensorflow_datasets as tfds
 from PIL import Image
+
+parser = argparse.ArgumentParser()
+parser.add_argument(
+    "--allow-full-download",
+    action="store_true",
+    help="download the 7.48 GiB source archive (about 14.96 GiB after TFDS preparation)",
+)
+args = parser.parse_args()
+if not args.allow_full_download:
+    parser.error(
+        "CLIC validation requires a 7.48 GiB download and about 14.96 GiB of workspace; "
+        "rerun with --allow-full-download"
+    )
 
 root = Path("third_party/benchdata/clic")
 images = root / "validation-png"
