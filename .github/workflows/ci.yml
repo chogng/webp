@@ -3,6 +3,9 @@ name: CI
 on:
   pull_request:
   push:
+  workflow_dispatch:
+  schedule:
+    - cron: "23 4 * * *"
 
 jobs:
   test:
@@ -18,3 +21,10 @@ jobs:
       - run: cargo run -p xtask -- corpus verify
       - run: cargo run -p xtask -- feature-matrix check
 
+  upstream-corpus:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: tools/fetch-libwebp-test-data.sh
+      - run: tools/verify-upstream-smoke.sh
