@@ -17,8 +17,9 @@ and loop-filter controls, and safely splits the coefficient stream into 1, 2,
 path, including every size-table boundary.
 
 Quantizer parsing now recovers the base index and all five signed deltas. The
-coefficient-probability-update flag is exposed so the next parser slice can
-consume the remaining first-partition entropy data with its canonical tables.
+remaining first-partition entropy data is consumed using the canonical 4 × 8 ×
+3 × 11 coefficient-probability defaults and update probabilities from RFC
+6386; the resulting table and skip probability are retained for token decode.
 
 `webp::read_info` now obtains dimensions from an unextended `VP8 ` chunk. The
 public `decode` path invokes the same validation and then returns
@@ -26,6 +27,5 @@ public `decode` path invokes the same validation and then returns
 stages are implemented. This avoids treating a header-only parse as a pixel
 decode.
 
-The next M2 slice adds the canonical coefficient-probability tables and their
-updates, then connects decoded controls to macroblock prediction and
-reconstruction.
+The next M2 slice derives dequantization matrices from the parsed controls,
+then connects them to macroblock prediction and reconstruction.

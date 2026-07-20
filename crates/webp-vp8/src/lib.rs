@@ -8,6 +8,10 @@
 
 use webp_core::{DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget};
 
+mod coefficients;
+
+use coefficients::{COEFFICIENT_DEFAULTS, COEFFICIENT_UPDATE_PROBABILITIES};
+
 const FRAME_TAG_LEN: usize = 3;
 const KEY_FRAME_HEADER_LEN: usize = 10;
 const KEY_FRAME_START_CODE: [u8; 3] = [0x9d, 0x01, 0x2a];
@@ -160,6 +164,33 @@ pub struct QuantizationHeader {
     pub uv_ac_delta: i32,
 }
 
+/// Canonical VP8 coefficient probabilities after first-partition updates.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CoefficientProbabilities {
+    values: [[[[u8; 11]; 3]; 8]; 4],
+    pub use_skip_probability: bool,
+    pub skip_probability: u8,
+}
+
+impl Default for CoefficientProbabilities {
+    fn default() -> Self {
+        Self {
+            values: COEFFICIENT_DEFAULTS,
+            use_skip_probability: false,
+            skip_probability: 0,
+        }
+    }
+}
+
+impl CoefficientProbabilities {
+    /// Reads one canonical probability by coefficient type, band, context, and
+    /// tree node. All indices are specification-bounded: `4 × 8 × 3 × 11`.
+    #[must_use]
+    pub fn get(&self, coefficient_type: usize, band: usize, context: usize, node: usize) -> u8 {
+        self.values[coefficient_type][band][context][node]
+    }
+}
+
 /// The parsed prefix of a VP8 first partition.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FirstPartitionHeader {
@@ -172,9 +203,10 @@ pub struct FirstPartitionHeader {
     /// Number of coefficient-token partitions: always 1, 2, 4, or 8.
     pub token_partition_count: u8,
     pub quantization: QuantizationHeader,
-    /// Whether the remaining first-partition entropy data carries coefficient
-    /// probability updates. The table entries are parsed by the next M2 slice.
-    pub coefficient_probability_update: bool,
+    /// VP8's `refresh_entropy_probs` bit. Key frames have no prior state to
+    /// retain, but this remains observable for future inter-frame support.
+    pub refresh_entropy_probabilities: bool,
+    pub coefficients: CoefficientProbabilities,
 }
 
 /// One coefficient-token partition after its three-byte size table.
@@ -227,7 +259,8 @@ pub fn parse_partition_layout<'a>(
     let filter = parse_filter_header(&mut bits)?;
     let token_partition_count = 1_u8 << bits.read_literal(2)?;
     let quantization = parse_quantization_header(&mut bits)?;
-    let coefficient_probability_update = bits.read_bool(128)?;
+    let refresh_entropy_probabilities = bits.read_bool(128)?;
+    let coefficients = parse_coefficient_probabilities(&mut bits)?;
 
     let size_table_len = 3_usize * (usize::from(token_partition_count) - 1);
     let token_data_start = first_partition_end
@@ -288,7 +321,8 @@ pub fn parse_partition_layout<'a>(
             filter,
             token_partition_count,
             quantization,
-            coefficient_probability_update,
+            refresh_entropy_probabilities,
+            coefficients,
         },
         tokens,
     })
@@ -388,6 +422,29 @@ fn parse_quantization_header(
         uv_dc_delta: deltas[3],
         uv_ac_delta: deltas[4],
     })
+}
+
+fn parse_coefficient_probabilities(
+    bits: &mut BoolDecoder<'_>,
+) -> Result<CoefficientProbabilities, DecodeError> {
+    let mut probabilities = CoefficientProbabilities::default();
+    for (coefficient_type, bands) in COEFFICIENT_UPDATE_PROBABILITIES.iter().enumerate() {
+        for (band, contexts) in bands.iter().enumerate() {
+            for (context, nodes) in contexts.iter().enumerate() {
+                for (node, &update_probability) in nodes.iter().enumerate() {
+                    if bits.read_bool(update_probability)? {
+                        probabilities.values[coefficient_type][band][context][node] =
+                            bits.read_literal(8)? as u8;
+                    }
+                }
+            }
+        }
+    }
+    probabilities.use_skip_probability = bits.read_bool(128)?;
+    if probabilities.use_skip_probability {
+        probabilities.skip_probability = bits.read_literal(8)? as u8;
+    }
+    Ok(probabilities)
 }
 
 /// Parsed VP8 frame tag and the fixed portion of a key-frame header.
@@ -596,7 +653,7 @@ mod tests {
         writer: &mut TestBoolWriter,
         base_index: u8,
         deltas: [i32; 5],
-        coefficient_probability_update: bool,
+        refresh_entropy_probabilities: bool,
     ) {
         writer.write_literal(u32::from(base_index), 7);
         for value in deltas {
@@ -605,7 +662,34 @@ mod tests {
                 writer.write_signed_literal(value, 4);
             }
         }
-        writer.write_bool(coefficient_probability_update, 128);
+        writer.write_bool(refresh_entropy_probabilities, 128);
+    }
+
+    fn write_coefficient_updates(
+        writer: &mut TestBoolWriter,
+        updates: &[(usize, usize, usize, usize, u8)],
+        use_skip_probability: bool,
+        skip_probability: u8,
+    ) {
+        for (coefficient_type, bands) in COEFFICIENT_UPDATE_PROBABILITIES.iter().enumerate() {
+            for (band, contexts) in bands.iter().enumerate() {
+                for (context, nodes) in contexts.iter().enumerate() {
+                    for (node, &update_probability) in nodes.iter().enumerate() {
+                        let update = updates.iter().find(|&&(t, b, c, n, _)| {
+                            (t, b, c, n) == (coefficient_type, band, context, node)
+                        });
+                        writer.write_bool(update.is_some(), update_probability);
+                        if let Some(&(_, _, _, _, value)) = update {
+                            writer.write_literal(u32::from(value), 8);
+                        }
+                    }
+                }
+            }
+        }
+        writer.write_bool(use_skip_probability, 128);
+        if use_skip_probability {
+            writer.write_literal(u32::from(skip_probability), 8);
+        }
         writer.write_literal(0, 8); // Leave structural fields away from EOF.
     }
 
@@ -847,8 +931,10 @@ mod tests {
             }
         }
         writer.write_literal(2, 2); // four coefficient-token partitions
-        write_quantization_header(&mut writer, 63, [-7, 0, 4, 0, -3], true);
-        let partition_zero = writer.finish();
+        write_quantization_header(&mut writer, 63, [-7, 0, 4, 0, -3], false);
+        write_coefficient_updates(&mut writer, &[], false, 0);
+        let mut partition_zero = writer.finish();
+        partition_zero.extend_from_slice(&[0; 8]);
 
         let mut payload = key_frame(3, 5, 0, true, 7 + partition_zero.len() as u32).to_vec();
         payload.extend_from_slice(&partition_zero);
@@ -878,7 +964,12 @@ mod tests {
                 uv_ac_delta: -3,
             }
         );
-        assert!(layout.header.coefficient_probability_update);
+        assert!(!layout.header.refresh_entropy_probabilities);
+        assert_eq!(layout.header.coefficients.get(0, 0, 0, 0), 128);
+        assert_eq!(layout.header.coefficients.get(0, 1, 0, 0), 253);
+        assert_eq!(layout.header.coefficients.get(3, 7, 2, 10), 128);
+        assert!(!layout.header.coefficients.use_skip_probability);
+        assert_eq!(layout.header.coefficients.skip_probability, 0);
         assert_eq!(
             layout
                 .tokens
@@ -901,6 +992,7 @@ mod tests {
         writer.write_bool(false, 128); // no filter deltas
         writer.write_literal(2, 2); // four token partitions
         write_quantization_header(&mut writer, 0, [0; 5], false);
+        write_coefficient_updates(&mut writer, &[], false, 0);
         let partition_zero = writer.finish();
         let mut payload = key_frame(1, 1, 0, true, 7 + partition_zero.len() as u32).to_vec();
         payload.extend_from_slice(&partition_zero);
@@ -934,6 +1026,7 @@ mod tests {
             writer.write_bool(false, 128); // no filter deltas
             writer.write_literal(partition_bits, 2);
             write_quantization_header(&mut writer, 0, [0; 5], false);
+            write_coefficient_updates(&mut writer, &[], false, 0);
             let partition_zero = writer.finish();
             let partition_count = 1_usize << partition_bits;
             let mut payload = key_frame(1, 1, 0, true, 7 + partition_zero.len() as u32).to_vec();
