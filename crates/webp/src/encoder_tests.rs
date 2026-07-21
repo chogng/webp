@@ -176,6 +176,36 @@ fn encoder_selects_and_round_trips_a_strong_global_color_transform() {
 }
 
 #[test]
+fn bounded_lossy_vp8_api_encodes_opaque_macroblocks_at_explicit_quality() {
+    let mut rgba = Vec::new();
+    for y in 0_u8..16 {
+        for x in 0_u8..16 {
+            rgba.extend_from_slice(&[
+                x.wrapping_mul(15),
+                y.wrapping_mul(15),
+                x.wrapping_add(y).wrapping_mul(7),
+                255,
+            ]);
+        }
+    }
+    for quality in [0, 75, 100] {
+        let encoded = encode_lossy_rgba_with_options(16, 16, &rgba, LossyEncodeOptions { quality })
+            .expect("encode bounded lossy VP8 profile");
+        let decoded = decode(&encoded, &DecodeOptions::default()).expect("decode lossy VP8");
+        assert_eq!((decoded.width, decoded.height), (16, 16));
+        assert!(decoded.rgba.chunks_exact(4).all(|pixel| pixel[3] == 255));
+    }
+    assert_eq!(
+        encode_lossy_rgba_with_options(16, 16, &rgba, LossyEncodeOptions { quality: 101 }),
+        Err(EncodeError::invalid_quality())
+    );
+    assert_eq!(
+        encode_lossy_rgba(15, 16, &rgba[..15 * 16 * 4]),
+        Err(EncodeError::unsupported_lossy_profile())
+    );
+}
+
+#[test]
 fn encoder_round_trips_static_vp8l_geometry_and_alpha_matrix() {
     let cases = [
         (1, 1),

@@ -15,6 +15,10 @@ pub enum EncodeError {
     AllocationFailed,
     /// Animation frame geometry, timing, or composition flags are invalid.
     InvalidAnimation,
+    /// The requested VP8 quality is outside the supported 0 through 100 range.
+    InvalidQuality,
+    /// The selected lossy VP8 profile is not implemented by the current encoder.
+    UnsupportedLossyProfile,
 }
 
 impl EncodeError {
@@ -36,6 +40,12 @@ impl EncodeError {
     pub(crate) const fn invalid_animation() -> Self {
         Self::InvalidAnimation
     }
+    pub(crate) const fn invalid_quality() -> Self {
+        Self::InvalidQuality
+    }
+    pub(crate) const fn unsupported_lossy_profile() -> Self {
+        Self::UnsupportedLossyProfile
+    }
 }
 
 impl core::fmt::Display for EncodeError {
@@ -48,11 +58,28 @@ impl core::fmt::Display for EncodeError {
             Self::SizeOverflow => formatter.write_str("WebP output size overflow"),
             Self::AllocationFailed => formatter.write_str("WebP output allocation failed"),
             Self::InvalidAnimation => formatter.write_str("invalid WebP animation frame"),
+            Self::InvalidQuality => formatter.write_str("VP8 quality must be in 0 through 100"),
+            Self::UnsupportedLossyProfile => {
+                formatter.write_str("the requested lossy VP8 profile is not implemented")
+            }
         }
     }
 }
 
 impl std::error::Error for EncodeError {}
+
+/// Explicit configuration for the bounded static lossy VP8 encoder.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LossyEncodeOptions {
+    /// VP8 quantization quality on a 0 (smallest output) through 100 scale.
+    pub quality: u8,
+}
+
+impl Default for LossyEncodeOptions {
+    fn default() -> Self {
+        Self { quality: 75 }
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodeOptions {

@@ -6,7 +6,9 @@
 //! frequency-ranked balanced Huffman codes. Small palette images use color
 //! indexing.
 
-use crate::{AnimationEncodeFrame, AnimationEncodeOptions, EncodeError, Metadata};
+use crate::{
+    AnimationEncodeFrame, AnimationEncodeOptions, EncodeError, LossyEncodeOptions, Metadata,
+};
 use webp_core::BitWriter;
 use webp_vp8l::{MAX_DIMENSION, SIGNATURE};
 
@@ -89,6 +91,43 @@ struct ColorTransformPlan {
 pub fn encode_lossless_rgba(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, EncodeError> {
     let (payload, _) = encode_vp8l_payload(width, height, rgba)?;
     wrap_vp8l(payload)
+}
+
+/// Encodes a bounded opaque 16×16 RGBA8 image as a lossy VP8 WebP file.
+///
+/// This first public M7 profile uses DC intra prediction with quantized
+/// residuals. Alpha, non-16×16 geometry, metadata, and animation are rejected
+/// until their corresponding VP8 encoder profiles are implemented.
+pub fn encode_lossy_rgba(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, EncodeError> {
+    encode_lossy_rgba_with_options(width, height, rgba, LossyEncodeOptions::default())
+}
+
+/// Encodes the currently supported static lossy VP8 profile with explicit quality.
+pub fn encode_lossy_rgba_with_options(
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+    options: LossyEncodeOptions,
+) -> Result<Vec<u8>, EncodeError> {
+    if options.quality > 100 {
+        return Err(EncodeError::invalid_quality());
+    }
+    if width != 16 || height != 16 {
+        return Err(EncodeError::unsupported_lossy_profile());
+    }
+    validate_input(width, height, rgba)?;
+    if rgba.chunks_exact(4).any(|pixel| pixel[3] != u8::MAX) {
+        return Err(EncodeError::unsupported_lossy_profile());
+    }
+    let source = webp_vp8::rgba_to_yuv420(width, height, rgba)
+        .map_err(map_vp8_encode_error)?;
+    let quantizer = u8::try_from((u16::from(100 - options.quality) * 127) / 100)
+        .map_err(|_| EncodeError::invalid_quality())?;
+    let payload = webp_vp8::encode_dc_predicted_macroblock_key_frame_with_quantizer(
+        &source, quantizer,
+    )
+    .map_err(map_vp8_encode_error)?;
+    wrap_vp8(payload)
 }
 
 /// Encodes a static RGBA8 image as a lossless WebP file with raw metadata.
@@ -1088,6 +1127,38 @@ fn make_anmf_payload(
 
 fn wrap_vp8l(payload: Vec<u8>) -> Result<Vec<u8>, EncodeError> {
     wrap_vp8l_with_metadata(payload, 0, 0, false, &Metadata::default())
+}
+
+fn wrap_vp8(payload: Vec<u8>) -> Result<Vec<u8>, EncodeError> {
+    let chunk_size = chunk_storage_len(payload.len())?;
+    let riff_size = 4_usize
+        .checked_add(chunk_size)
+        .ok_or_else(EncodeError::output_size_overflow)?;
+    let riff_size = u32::try_from(riff_size).map_err(|_| EncodeError::output_size_overflow())?;
+    let capacity = usize::try_from(riff_size)
+        .ok()
+        .and_then(|size| size.checked_add(8))
+        .ok_or_else(EncodeError::output_size_overflow)?;
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(capacity)
+        .map_err(|_| EncodeError::allocation_failed())?;
+    output.extend_from_slice(b"RIFF");
+    output.extend_from_slice(&riff_size.to_le_bytes());
+    output.extend_from_slice(b"WEBP");
+    push_chunk(&mut output, b"VP8 ", &payload)?;
+    Ok(output)
+}
+
+fn map_vp8_encode_error(error: webp_vp8::Vp8EncodeError) -> EncodeError {
+    match error {
+        webp_vp8::Vp8EncodeError::InvalidDimensions => EncodeError::invalid_dimensions(),
+        webp_vp8::Vp8EncodeError::InvalidRgbaLength => EncodeError::invalid_rgba_length(),
+        webp_vp8::Vp8EncodeError::AllocationFailed => EncodeError::allocation_failed(),
+        webp_vp8::Vp8EncodeError::FirstPartitionTooLarge
+        | webp_vp8::Vp8EncodeError::InvalidPlaneLayout
+        | webp_vp8::Vp8EncodeError::InvalidQuantizer => EncodeError::unsupported_lossy_profile(),
+    }
 }
 
 fn wrap_lossless_animation(

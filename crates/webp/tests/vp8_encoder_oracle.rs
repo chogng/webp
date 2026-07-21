@@ -7,6 +7,8 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use webp::{DecodeOptions, LossyEncodeOptions, decode, encode_lossy_rgba_with_options};
+
 #[test]
 fn neutral_vp8_key_frame_is_accepted_by_pinned_dwebp() {
     let Some(dwebp) = pinned_dwebp() else {
@@ -98,6 +100,44 @@ fn dc_residual_vp8_key_frame_is_accepted_by_pinned_dwebp() {
     assert!(pixels > 0, "oracle produced a PAM header");
 }
 
+#[test]
+fn public_lossy_vp8_profile_matches_pinned_dwebp_pixels() {
+    let Some(dwebp) = pinned_dwebp() else {
+        eprintln!("skip VP8 encoder oracle: fetch the pinned libwebp oracle");
+        return;
+    };
+    let mut rgba = Vec::new();
+    for y in 0_u8..16 {
+        for x in 0_u8..16 {
+            rgba.extend_from_slice(&[
+                x.wrapping_mul(15),
+                y.wrapping_mul(15),
+                x.wrapping_add(y).wrapping_mul(7),
+                255,
+            ]);
+        }
+    }
+    let encoded = encode_lossy_rgba_with_options(16, 16, &rgba, LossyEncodeOptions { quality: 75 })
+        .expect("encode public lossy VP8 profile");
+    let rust = decode(&encoded, &DecodeOptions::default()).expect("decode public lossy VP8 profile");
+    let scratch = ScratchDirectory::new();
+    let source = scratch.0.join("public-lossy.webp");
+    let target = scratch.0.join("public-lossy.pam");
+    fs::write(&source, encoded).expect("write public lossy WebP");
+    let output = Command::new(dwebp)
+        .arg(&source)
+        .args(["-pam", "-o"])
+        .arg(&target)
+        .output()
+        .expect("run pinned dwebp");
+    assert!(
+        output.status.success(),
+        "pinned dwebp rejected public lossy VP8: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(pam_rgba(&target, 16, 16), rust.rgba);
+}
+
 fn webp_from_vp8_payload(payload: &[u8]) -> Vec<u8> {
     let mut body = b"WEBP".to_vec();
     body.extend_from_slice(b"VP8 ");
@@ -110,6 +150,23 @@ fn webp_from_vp8_payload(payload: &[u8]) -> Vec<u8> {
     webp.extend_from_slice(&(body.len() as u32).to_le_bytes());
     webp.extend_from_slice(&body);
     webp
+}
+
+fn pam_rgba(path: &std::path::Path, width: u32, height: u32) -> Vec<u8> {
+    let pam = fs::read(path).expect("read oracle PAM");
+    let marker = b"ENDHDR\n";
+    let start = pam
+        .windows(marker.len())
+        .position(|window| window == marker)
+        .map(|offset| offset + marker.len())
+        .expect("oracle PAM has an ENDHDR marker");
+    let rgba = pam[start..].to_vec();
+    assert_eq!(
+        rgba.len(),
+        usize::try_from(width * height * 4).expect("small oracle dimensions"),
+        "oracle PAM has expected RGBA byte count"
+    );
+    rgba
 }
 
 fn pinned_dwebp() -> Option<PathBuf> {

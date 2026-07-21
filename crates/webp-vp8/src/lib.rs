@@ -19,7 +19,9 @@ pub use bitstream::{BoolDecoder, BoolEncodeError, BoolEncoder};
 pub use coefficients::COEFFICIENT_ZIGZAG;
 pub use encoder::{
     Vp8DcMacroblockCoefficients, Vp8EncodeError, Vp8SourceYuv, encode_neutral_key_frame,
-    encode_dc_predicted_macroblock_key_frame, quantize_dc_macroblock, rgba_to_yuv420,
+    encode_dc_predicted_macroblock_key_frame,
+    encode_dc_predicted_macroblock_key_frame_with_quantizer, quantize_dc_macroblock,
+    rgba_to_yuv420,
 };
 pub use entropy::CoefficientBlockType;
 pub use entropy::CoefficientEncodeError;

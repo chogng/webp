@@ -8,8 +8,9 @@
 use crate::coefficients::{COEFFICIENT_DEFAULTS, COEFFICIENT_UPDATE_PROBABILITIES};
 use crate::{
     BoolEncodeError, BoolEncoder, CoefficientBlockType, CoefficientEncodeError,
-    CoefficientProbabilities, DequantizationMatrix, encode_coefficients, forward_dct_4x4_i32,
-    forward_wht_4x4_i32, quantize_block,
+    CoefficientProbabilities, DequantizationMatrix, QuantizationHeader, SegmentHeader,
+    derive_dequantization, encode_coefficients, forward_dct_4x4_i32, forward_wht_4x4_i32,
+    quantize_block,
 };
 
 const KEY_FRAME_HEADER_LEN: usize = 10;
@@ -23,6 +24,7 @@ pub enum Vp8EncodeError {
     AllocationFailed,
     FirstPartitionTooLarge,
     InvalidPlaneLayout,
+    InvalidQuantizer,
 }
 
 /// Macroblock-aligned VP8 YUV420 source planes prepared from straight RGBA8.
@@ -76,7 +78,7 @@ pub fn encode_neutral_key_frame(width: u32, height: u32) -> Result<Vec<u8>, Vp8E
     let macroblock_count = macroblock_width
         .checked_mul(macroblock_height)
         .ok_or(Vp8EncodeError::AllocationFailed)?;
-    let first_partition = write_first_partition(macroblock_count)?;
+    let first_partition = write_first_partition(macroblock_count, 0)?;
     let token_partition = write_zero_token_partition(macroblock_count)?;
     assemble_key_frame(width, height, first_partition, token_partition)
 }
@@ -90,18 +92,42 @@ pub fn encode_neutral_key_frame(width: u32, height: u32) -> Result<Vec<u8>, Vp8E
 pub fn encode_dc_predicted_macroblock_key_frame(
     source: &Vp8SourceYuv,
 ) -> Result<Vec<u8>, Vp8EncodeError> {
+    encode_dc_predicted_macroblock_key_frame_with_quantizer(source, 0)
+}
+
+/// Emits a 16×16 VP8 key frame with the supplied VP8 base quantizer.
+///
+/// `quantizer` is the exact 0 through 127 value written into the first
+/// partition. The output remains limited to one DC-predicted macroblock while
+/// the general frame writer is developed.
+pub fn encode_dc_predicted_macroblock_key_frame_with_quantizer(
+    source: &Vp8SourceYuv,
+    quantizer: u8,
+) -> Result<Vec<u8>, Vp8EncodeError> {
     if source.width != 16 || source.height != 16 {
         return Err(Vp8EncodeError::InvalidDimensions);
     }
-    let matrix = DequantizationMatrix {
-        y1_dc: 4,
-        y1_ac: 4,
-        y2_dc: 8,
-        y2_ac: 8,
-        uv_dc: 4,
-        uv_ac: 4,
-        uv_quant: 0,
-    };
+    if quantizer > 127 {
+        return Err(Vp8EncodeError::InvalidQuantizer);
+    }
+    let matrix = derive_dequantization(
+        QuantizationHeader {
+            base_index: quantizer,
+            y1_dc_delta: 0,
+            y2_dc_delta: 0,
+            y2_ac_delta: 0,
+            uv_dc_delta: 0,
+            uv_ac_delta: 0,
+        },
+        &SegmentHeader {
+            enabled: false,
+            update_map: false,
+            absolute_delta: false,
+            quantizer: [0; 4],
+            filter_strength: [0; 4],
+            probabilities: [255; 3],
+        },
+    )[0];
     let coefficients = quantize_dc_macroblock(
         &source.y,
         source.y_stride,
@@ -111,7 +137,7 @@ pub fn encode_dc_predicted_macroblock_key_frame(
         [128; 3],
         matrix,
     )?;
-    let first_partition = write_first_partition(1)?;
+    let first_partition = write_first_partition(1, quantizer)?;
     let token_partition = write_dc_macroblock_token_partition(coefficients)?;
     assemble_key_frame(16, 16, first_partition, token_partition)
 }
@@ -350,7 +376,10 @@ const fn rgb_to_v(red: u8, green: u8, blue: u8) -> u8 {
     (((112 * red as i32 - 94 * green as i32 - 18 * blue as i32 + 128) >> 8) + 128) as u8
 }
 
-fn write_first_partition(macroblock_count: usize) -> Result<Vec<u8>, Vp8EncodeError> {
+fn write_first_partition(
+    macroblock_count: usize,
+    quantizer: u8,
+) -> Result<Vec<u8>, Vp8EncodeError> {
     let mut bits = BoolEncoder::new();
     bits.write_bool(false, 128)?; // WebP YUV color space.
     bits.write_bool(false, 128)?; // Clamp type.
@@ -360,7 +389,7 @@ fn write_first_partition(macroblock_count: usize) -> Result<Vec<u8>, Vp8EncodeEr
     bits.write_literal(0, 3)?; // Sharpness.
     bits.write_bool(false, 128)?; // Filter deltas disabled.
     bits.write_literal(0, 2)?; // One token partition.
-    bits.write_literal(0, 7)?; // Quantizer index.
+    bits.write_literal(u32::from(quantizer), 7)?; // Quantizer index.
     for _ in 0..5 {
         bits.write_bool(false, 128)?; // Quantizer delta absent.
     }

@@ -15,7 +15,7 @@ mod info;
 
 pub use api::{
     Animation, AnimationEncodeFrame, AnimationEncodeOptions, AnimationFrame, DecodeOptions,
-    EncodeError, Image, ImageInfo, Metadata, Progress,
+    EncodeError, Image, ImageInfo, LossyEncodeOptions, Metadata, Progress,
 };
 pub use incremental::IncrementalDecoder;
 pub use info::{read_info, read_metadata};
@@ -50,5 +50,5 @@ pub fn decode_animation(data: &[u8], options: &DecodeOptions) -> Result<Animatio
 /// lossless, without a compression-ratio or throughput guarantee.
 pub use encoder::{
     encode_lossless_animation, encode_lossless_animation_with_metadata, encode_lossless_rgba,
-    encode_lossless_rgba_with_metadata,
+    encode_lossless_rgba_with_metadata, encode_lossy_rgba, encode_lossy_rgba_with_options,
 };
