@@ -314,7 +314,7 @@ fn decode_entropy_image(
             color_cache_size,
         )?)?)
     };
-    let code_cursor = codes.cursor(width)?;
+    let mut code_cursor = codes.cursor(width)?;
     let mut output = PixelOutput::new(color_cache_bits, pixels)?;
     let mut shifted_bits = bits.shifted();
 
@@ -1863,6 +1863,9 @@ enum EntropyCodeCursor<'a> {
     Meta {
         codes: &'a MetaHuffmanCodes,
         image_width: usize,
+        pixel: usize,
+        x: usize,
+        y: usize,
     },
 }
 
@@ -1885,23 +1888,50 @@ impl<'a> EntropyCodeCursor<'a> {
                         "VP8L image width does not fit usize",
                     )
                 })?,
+                pixel: 0,
+                x: 0,
+                y: 0,
             }),
         }
     }
 
     fn run_for_pixel(
-        &self,
+        &mut self,
         pixel: usize,
         pixel_limit: usize,
     ) -> Result<(&'a HuffmanCodes, usize), DecodeError> {
         match self {
             Self::Single(codes) => Ok((codes, pixel_limit)),
-            Self::Meta { codes, image_width } => {
-                let x = pixel % *image_width;
-                let y = pixel / *image_width;
+            Self::Meta {
+                codes,
+                image_width,
+                pixel: cursor_pixel,
+                x,
+                y,
+            } => {
+                let advance = pixel.checked_sub(*cursor_pixel).ok_or_else(|| {
+                    DecodeError::new(
+                        DecodeErrorKind::InvalidBitstream,
+                        None,
+                        "VP8L meta-prefix group cursor moved backward",
+                    )
+                })?;
+                let row_remaining = *image_width - *x;
+                if advance < row_remaining {
+                    *x += advance;
+                } else if advance == row_remaining {
+                    *x = 0;
+                    *y += 1;
+                } else {
+                    let following_rows = advance - row_remaining;
+                    *y += 1 + following_rows / *image_width;
+                    *x = following_rows % *image_width;
+                }
+                *cursor_pixel = pixel;
+
                 let block_size = 1_usize << codes.prefix_bits;
-                let block_x = x >> codes.prefix_bits;
-                let block_y = y >> codes.prefix_bits;
+                let block_x = *x >> codes.prefix_bits;
+                let block_y = *y >> codes.prefix_bits;
                 let map_index = block_y
                     .checked_mul(codes.prefix_image_width)
                     .and_then(|value| value.checked_add(block_x))
@@ -1912,20 +1942,13 @@ impl<'a> EntropyCodeCursor<'a> {
                             "VP8L meta-prefix image index overflow",
                         )
                     })?;
-                let group_id = *codes.group_map.get(map_index).ok_or_else(|| {
+                let group_index = usize::from(*codes.group_map.get(map_index).ok_or_else(|| {
                     DecodeError::new(
                         DecodeErrorKind::InvalidBitstream,
                         None,
                         "VP8L meta-prefix image does not cover output pixel",
                     )
-                })?;
-                let group_index = codes.group_ids.binary_search(&group_id).map_err(|_| {
-                    DecodeError::new(
-                        DecodeErrorKind::InvalidBitstream,
-                        None,
-                        "VP8L meta-prefix group was not retained",
-                    )
-                })?;
+                })?);
                 let group = codes.groups.get(group_index).ok_or_else(|| {
                     DecodeError::new(
                         DecodeErrorKind::InvalidBitstream,
@@ -1934,8 +1957,8 @@ impl<'a> EntropyCodeCursor<'a> {
                     )
                 })?;
 
-                let run_in_block = block_size - (x & (block_size - 1));
-                let run_in_row = *image_width - x;
+                let run_in_block = block_size - (*x & (block_size - 1));
+                let run_in_row = *image_width - *x;
                 let run_end = pixel
                     .checked_add(run_in_block.min(run_in_row))
                     .ok_or_else(|| {
@@ -1979,8 +2002,8 @@ fn box_huffman_codes(codes: HuffmanCodes) -> Result<Box<[HuffmanCodes]>, DecodeE
 struct MetaHuffmanCodes {
     prefix_bits: u8,
     prefix_image_width: usize,
+    /// Dense indices into `groups`, remapped once from the sparse wire ids.
     group_map: Vec<u16>,
-    group_ids: Vec<u16>,
     groups: Vec<HuffmanCodes>,
 }
 
@@ -2135,6 +2158,23 @@ fn read_meta_huffman_codes(
     }
     debug_assert_eq!(next_used_group, group_ids.len());
 
+    for group in &mut group_map {
+        let group_index = group_ids.binary_search(group).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::InvalidBitstream,
+                None,
+                "VP8L meta-prefix group was not retained",
+            )
+        })?;
+        *group = u16::try_from(group_index).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L meta-prefix dense group index exceeds u16",
+            )
+        })?;
+    }
+
     Ok(MetaHuffmanCodes {
         prefix_bits,
         prefix_image_width: usize::try_from(prefix_image_width).map_err(|_| {
@@ -2145,7 +2185,6 @@ fn read_meta_huffman_codes(
             )
         })?,
         group_map,
-        group_ids,
         groups,
     })
 }
@@ -2292,13 +2331,14 @@ fn read_huffman_codes(
     })
 }
 
-enum PixelOutput {
-    Plain(Vec<u32>),
-    Cached {
-        pixels: Vec<u32>,
-        cache: ColorCache,
-        cached_pixels: usize,
-    },
+struct PixelOutput {
+    pixels: Vec<u32>,
+    cache: Option<DeferredColorCache>,
+}
+
+struct DeferredColorCache {
+    cache: ColorCache,
+    cached_pixels: usize,
 }
 
 impl PixelOutput {
@@ -2311,64 +2351,48 @@ impl PixelOutput {
                 "packed VP8L output allocation failed",
             )
         })?;
-        match color_cache_bits {
-            Some(bits) => Ok(Self::Cached {
-                pixels: output,
-                cache: ColorCache::new(bits)?,
-                cached_pixels: 0,
-            }),
-            None => Ok(Self::Plain(output)),
-        }
+        let cache = color_cache_bits
+            .map(|bits| {
+                Ok(DeferredColorCache {
+                    cache: ColorCache::new(bits)?,
+                    cached_pixels: 0,
+                })
+            })
+            .transpose()?;
+        Ok(Self {
+            pixels: output,
+            cache,
+        })
     }
 
     fn len(&self) -> usize {
-        match self {
-            Self::Plain(pixels) => pixels.len(),
-            Self::Cached { pixels, .. } => pixels.len(),
-        }
+        self.pixels.len()
     }
 
     fn emit_literal(&mut self, color: u32) -> Result<(), DecodeError> {
-        match self {
-            Self::Plain(pixels) => {
-                // `PixelOutput::new` reserved the complete, already
-                // validated image size. The enclosing entropy loop cannot
-                // emit past that size, so this push never grows the vector.
-                pixels.push(color);
-                Ok(())
-            }
-            Self::Cached { pixels, .. } => {
-                // Cache population is deferred until a cache symbol actually
-                // needs the state. Most photographic streams declare a cache
-                // but rarely read it, so eagerly hashing every literal only
-                // creates dependent arithmetic and scattered stores.
-                pixels.push(color);
-                Ok(())
-            }
-        }
+        // `PixelOutput::new` reserved the complete, already validated image
+        // size. The enclosing entropy loop cannot emit past that size, so
+        // this push never grows the vector. Cache population is deferred
+        // until a cache symbol actually needs the state.
+        self.pixels.push(color);
+        Ok(())
     }
 
     fn emit_cache_hit(&mut self, index: usize) -> Result<(), DecodeError> {
-        match self {
-            Self::Plain(_) => Err(DecodeError::new(
+        let deferred = self.cache.as_mut().ok_or_else(|| {
+            DecodeError::new(
                 DecodeErrorKind::InvalidBitstream,
                 None,
                 "VP8L color-cache symbol appeared without a color cache",
-            )),
-            Self::Cached {
-                pixels,
-                cache,
-                cached_pixels,
-            } => {
-                for &color in &pixels[*cached_pixels..] {
-                    cache.insert(color);
-                }
-                *cached_pixels = pixels.len();
-                let color = cache.get(index)?;
-                pixels.push(color);
-                Ok(())
-            }
+            )
+        })?;
+        for &color in &self.pixels[deferred.cached_pixels..] {
+            deferred.cache.insert(color);
         }
+        deferred.cached_pixels = self.pixels.len();
+        let color = deferred.cache.get(index)?;
+        self.pixels.push(color);
+        Ok(())
     }
 
     fn copy_lz77(
@@ -2378,21 +2402,17 @@ impl PixelOutput {
         output_limit: usize,
         budget: &mut WorkBudget,
     ) -> Result<(), DecodeError> {
-        match self {
-            Self::Plain(pixels) => {
-                copy_lz77_pixels_preallocated(pixels, length, distance, output_limit, budget)
-            }
-            Self::Cached { pixels, .. } => {
-                copy_lz77_pixels_preallocated(pixels, length, distance, output_limit, budget)
-            }
-        }
+        copy_lz77_pixels_preallocated(
+            &mut self.pixels,
+            length,
+            distance,
+            output_limit,
+            budget,
+        )
     }
 
     fn into_pixels(self) -> Vec<u32> {
-        match self {
-            Self::Plain(pixels) => pixels,
-            Self::Cached { pixels, .. } => pixels,
-        }
+        self.pixels
     }
 }
 

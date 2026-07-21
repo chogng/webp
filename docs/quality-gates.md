@@ -403,31 +403,23 @@ bash tools/benchmark-vp8l-clic.sh 1 4
 The runner rejects any libwebp checkout other than the commit in
 `tools/corpus-lock.toml`, compiles the C benchmark against that checkout's
 static library, and passes the identical ordered input set to both decoders.
-The 2026-07-20 run used libwebp commit
+The 2026-07-21 run used libwebp commit
 `733c91e461c18cf1127c9ed0a80dccbcfed599d3`. Both implementations produced
 3,022,297,644 RGBA bytes and checksum `997056` per aggregate pass.
 
-Three alternating full-corpus runs measured libwebp at 14.604 s median and
-Rust at 20.863 s median. Rust is therefore 1.429x the libwebp time, or 42.9%
-slower. A method split shows that this is not one encoder setting: method 0
-measured 4.759 s versus 7.879 s (Rust 65.6% slower), method 3 measured 4.885 s
-versus 6.708 s (37.3% slower), and method 6 measured 4.769 s versus 6.323 s
-(32.6% slower), with libwebp listed first in each pair.
+Three full-corpus runs measured libwebp at 14.234 s median and Rust at 16.427 s
+median. Rust is therefore 1.154x the libwebp time, or 15.4% slower. The Rust
+decoder is 21.3% faster than its previous 20.863 s median. A method split shows
+median pairs of 4.684 s versus 5.228 s for method 0 (Rust 11.6% slower), 4.905 s
+versus 5.646 s for method 3 (15.1% slower), and 4.682 s versus 5.488 s for method
+6 (17.2% slower), with libwebp listed first in each pair.
 
-Grouping each source's three streams by source resolution also rules out
-process startup or tiny-file overhead. The Rust/libwebp time ratios were
-1.322x for the seven images below one megapixel, 1.445x for 63 images from one
-to three megapixels, and 1.453x for 32 images from three to six megapixels.
-The slowest individual ratio was 1.983x, and the worst cases span both mobile
-and professional subsets.
-
-Sampling 200 decodes of the worst method-0 stream attributes roughly 60% of
-Rust samples to inverse predictor reconstruction and 33% to entropy expansion,
-mostly LZ77 copies and prefix-distance work. Huffman lookup contributes only
-about 1--2%, and meta-group cursor work is negligible. This broader result
-supersedes the conformance-corpus-only hotspot ordering: predictor structure
-is the primary next target, with entropy expansion secondary. Huffman-specific
-micro-optimization is not currently justified.
+The retained optimization keeps the output pixel vector outside the optional
+deferred color-cache branch and remaps sparse wire meta-Huffman ids to dense
+group indices once during setup. This removes a per-literal enum branch and a
+per-meta-run binary search. Test-instrumented phase measurements still assign
+roughly 56--59% of decode time to entropy expansion and 24--28% to predictor
+reconstruction, so both remain active optimization owners.
 
 M1 correctness and its original conformance-corpus performance gate are
 complete. The reviewed M9 thresholds below explicitly accept this measured
@@ -463,14 +455,14 @@ within the same run to reduce host and load sensitivity.
 | Public path | Reproduction | Reviewed threshold |
 | --- | --- | --- |
 | VP8L conformance decode | `bash tools/benchmark-vp8l.sh 5` | Rust median <= 0.735 s, checksum `96355`, and <= 1.40x pinned-libwebp time |
-| VP8L CLIC decode | `bash tools/benchmark-vp8l-clic.sh 1 4` | aggregate Rust median <= 21.91 s and <= 1.50x pinned-libwebp time |
+| VP8L CLIC decode | `bash tools/benchmark-vp8l-clic.sh 1 4` | aggregate Rust median <= 17.25 s and <= 1.25x pinned-libwebp time |
 | VP8L static encode | `bash tools/benchmark-vp8l-encode.sh 5` | Rust median <= 3.132 s, exact round trips, and output <= 1.35x pinned libwebp |
 | VP8 static encode | `bash tools/benchmark-vp8-encode.sh 5` | Rust median <= 371.341 ms, output <= 1.40x pinned libwebp, and PSNR floors 25.807/37.326/48.600 dB at quality 0/75/100 |
 | VP8L-frame animation encode | `bash tools/benchmark-animation-encode.sh 5` | Rust median <= 95.409 ms, output <= 406,862 bytes per six-frame animation, and locked `webpmux`/`dwebp` acceptance |
 
-The CLIC decoder's measured 1.429x gap is explicitly accepted for M9 because
-it is reproducible, stays inside the 1.50x threshold, and has a profiled owner:
-predictor reconstruction first, entropy expansion second. It remains a future
+The CLIC decoder's measured 1.154x gap is explicitly accepted for M9 because
+it is reproducible, stays inside the 1.25x threshold, and retains profiled
+entropy-expansion and predictor-reconstruction owners. It remains a future
 optimization target, not an unprofiled milestone blocker. Output-size and PSNR
 thresholds are product guards, not bitstream freezes; a reviewed coding-tool
 change may update their baselines when conformance and resource gates pass.
