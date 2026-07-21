@@ -500,7 +500,7 @@
           "FILE:@@//webp-rs/Cargo.lock 7de0a761c7b67458d11e44e0f08799a3f0025bc2170f4149a6073b3a298e3053",
           "FILE:@@//webp-rs/Cargo.toml 3ecdf4a4e73ff3f3ff1eb076db31a14c9b4a6c606e4b0f4bb637db671dee6c49",
           "FILE:@@//webp-rs/core/Cargo.toml 4db72a9d62294ad0d962c37fb7b84769ecc3fbcf04759785801700b034656a69",
-          "FILE:@@//webp-rs/alpha/Cargo.toml bc74e552e882963d326282a20635c7c6b01572363359eb1477b7d72c0b873dae",
+          "FILE:@@//webp-rs/alpha/Cargo.toml c069a3b30ff6928d9c7e0d0405b2d7ab8512df8ee92e086b96d97be8d0ce99b2",
           "FILE:@@//webp-rs/vp8l-literal/Cargo.toml 78d68f383f84caff224cf2a67a4d83540801a27e5a0690f12f6adf653b85be89",
           "FILE:@@//webp-rs/vp8l/Cargo.toml 59745a2e03837c78f87b79d5598496531c7ed7c819798f8c7d37d224bfd6f844",
           "FILE:@@//webp-rs/vp8l-color-cache/Cargo.toml 92f1038152eddbc9e390d99fe27ac0fcbb2c0fb00f6ec0b0bf76066a03fcef41",

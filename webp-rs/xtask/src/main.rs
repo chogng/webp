@@ -1,5 +1,7 @@
 #![forbid(unsafe_code)]
 
+mod bazel_deps;
+
 use std::env;
 use std::fs;
 use std::path::Path;
@@ -14,6 +16,11 @@ fn main() {
     };
 
     let result = match command.as_str() {
+        "bazel-deps" => bazel_deps::run(
+            env::args().nth(2).as_deref(),
+            &repository_root().join("webp-rs"),
+            &repository_root().join("cargo_deps.bzl"),
+        ),
         "corpus" => corpus(env::args().nth(2).as_deref()),
         "fixtures" => fixtures(env::args().nth(2).as_deref()),
         "feature-matrix" => feature_matrix(env::args().nth(2).as_deref()),
@@ -35,7 +42,7 @@ fn repository_root() -> &'static Path {
 
 fn print_usage() {
     eprintln!(
-        "usage: cargo run -p xtask -- <corpus verify|fixtures generate-malformed|feature-matrix check>\n\
+        "usage: cargo run -p xtask -- <bazel-deps generate|check|corpus verify|fixtures generate-malformed|feature-matrix check>\n\
          External corpus fetch/index commands live in tools/ and follow the configured upstream branches."
     );
 }

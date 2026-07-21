@@ -21,6 +21,8 @@ jobs:
         working-directory: webp-rs
       - run: cargo test --workspace
         working-directory: webp-rs
+      - run: cargo run -p xtask -- bazel-deps check
+        working-directory: webp-rs
       - uses: bazelbuild/setup-bazelisk@v3
       - run: bash tools/check-module-bazel-lock.sh
       - run: bazel test --test_output=errors --test_tag_filters=-external-corpus //...

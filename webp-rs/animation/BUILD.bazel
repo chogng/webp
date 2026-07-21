@@ -1,6 +1,6 @@
 load("//:defs.bzl", "webp_rust_crate")
 
 webp_rust_crate(
-    name = "webp_animation",
-    deps = ["//webp-rs/core:webp_core"],
+    name = "animation",
+    crate_name = "webp_animation",
 )

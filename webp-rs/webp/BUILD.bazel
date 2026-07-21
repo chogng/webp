@@ -3,15 +3,7 @@ load("@rules_rust//rust:defs.bzl", "rust_test")
 
 webp_rust_crate(
     name = "webp",
-    deps = [
-        "//webp-rs/alpha:webp_alpha",
-        "//webp-rs/animation:webp_animation",
-        "//webp-rs/container:webp_container",
-        "//webp-rs/core:webp_core",
-        "//webp-rs/vp8:webp_vp8",
-        "//webp-rs/vp8l:webp_vp8l",
-        "//webp-rs/vp8l-literal:webp_vp8l_literal",
-    ],
+    crate_name = "webp",
     test_compile_data = ["//:test_data"],
     test_data = ["//:test_data"],
 )
@@ -36,7 +28,7 @@ rust_test(
     data = ["//:external_corpus_data"],
     deps = [
         ":webp",
-        "//webp-rs/container:webp_container",
+        "//webp-rs/container",
     ],
     tags = ["external-corpus", "manual"],
 )

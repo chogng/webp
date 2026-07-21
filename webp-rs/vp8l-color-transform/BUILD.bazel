@@ -1,5 +1,6 @@
 load("//:defs.bzl", "webp_rust_crate")
 
 webp_rust_crate(
-    name = "webp_vp8l_color_transform",
+    name = "vp8l-color-transform",
+    crate_name = "webp_vp8l_color_transform",
 )
