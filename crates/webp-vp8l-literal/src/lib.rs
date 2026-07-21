@@ -21,7 +21,7 @@ use webp_vp8l_huffman::{
     HuffmanTable, MAX_SECONDARY_TABLE_STORAGE_BYTES, ROOT_TABLE_STORAGE_BYTES, read_huffman_code,
 };
 use webp_vp8l_indexing::{Palette, TRANSPARENT_BLACK};
-use webp_vp8l_transform::{PredictorMode, Rgba, predict};
+use webp_vp8l_transform::{PredictorMode, Rgba};
 
 const GREEN_ALPHABET_SIZE: usize = 256 + 24;
 const CHANNEL_ALPHABET_SIZE: usize = 256;
@@ -934,10 +934,10 @@ const fn color_delta(multiplier: i8, channel: i8) -> i32 {
 /// Inverts a predictor transform without a second full-image allocation.
 ///
 /// The public transform primitives operate on `RgbaImage`, whose owned pixel
-/// buffer would overlap the already bounded packed output. This adapter keeps
-/// the same `Rgba`/`predict` arithmetic while reconstructing in place. VP8L's
-/// special top-left, top-row, and left-column predictor rules deliberately
-/// ignore the coded block mode at those coordinates.
+/// buffer would overlap the already bounded packed output. This adapter works
+/// directly on packed ARGB rows. It dispatches the predictor once per coded
+/// tile instead of converting the mode and four neighboring pixels for every
+/// output sample.
 fn inverse_predictor_argb(
     pixels: &mut [u32],
     descriptor: BlockTransformDescriptor,
@@ -1008,45 +1008,196 @@ fn inverse_predictor_argb(
             "VP8L predictor block size does not fit usize",
         )
     })?;
-    for y in 0..height {
-        for x in 0..width {
-            let offset = y * width + x;
-            let residual = argb_to_rgba(pixels[offset]);
-            let prediction = if x == 0 && y == 0 {
-                Rgba::OPAQUE_BLACK
-            } else if y == 0 {
-                argb_to_rgba(pixels[offset - 1])
-            } else if x == 0 {
-                argb_to_rgba(pixels[offset - width])
-            } else {
-                let mode_index = (y / block_size) * mode_width + (x / block_size);
-                let mode = PredictorMode::try_from(((mode_pixels[mode_index] >> 8) & 0x0f) as u8)
+
+    // VP8L fixes the top-left predictor to opaque black and the remainder of
+    // the first row to the reconstructed pixel on the left.
+    pixels[0] = add_argb_pixels(pixels[0], 0xff00_0000);
+    for x in 1..width {
+        pixels[x] = add_argb_pixels(pixels[x], pixels[x - 1]);
+    }
+
+    for y in 1..height {
+        let row_start = y * width;
+        // The first pixel of every later row always predicts from above.
+        pixels[row_start] = add_argb_pixels(pixels[row_start], pixels[row_start - width]);
+
+        let mode_row = (y / block_size) * mode_width;
+        let mut x = 1;
+        while x < width {
+            let block_x = x / block_size;
+            let mode =
+                PredictorMode::try_from(((mode_pixels[mode_row + block_x] >> 8) & 0x0f) as u8)
                     .map_err(|_| {
-                    DecodeError::new(
-                        DecodeErrorKind::InvalidBitstream,
-                        None,
-                        "VP8L predictor mode must be in 0..=13",
-                    )
-                })?;
-                let left = argb_to_rgba(pixels[offset - 1]);
-                let top = argb_to_rgba(pixels[offset - width]);
-                let top_left = argb_to_rgba(pixels[offset - width - 1]);
-                let top_right = if x + 1 == width {
-                    argb_to_rgba(pixels[y * width])
-                } else {
-                    argb_to_rgba(pixels[(y - 1) * width + x + 1])
-                };
-                predict(mode, left, top, top_left, top_right)
-            };
-            pixels[offset] = pack_argb(
-                residual.red.wrapping_add(prediction.red),
-                residual.green.wrapping_add(prediction.green),
-                residual.blue.wrapping_add(prediction.blue),
-                residual.alpha.wrapping_add(prediction.alpha),
-            );
+                        DecodeError::new(
+                            DecodeErrorKind::InvalidBitstream,
+                            None,
+                            "VP8L predictor mode must be in 0..=13",
+                        )
+                    })?;
+            let x_end = (x & !(block_size - 1))
+                .saturating_add(block_size)
+                .min(width);
+            apply_predictor_run(pixels, row_start + x, row_start + x_end, width, mode);
+            x = x_end;
         }
     }
     Ok(())
+}
+
+fn apply_predictor_run(
+    pixels: &mut [u32],
+    start: usize,
+    end: usize,
+    width: usize,
+    mode: PredictorMode,
+) {
+    macro_rules! reconstruct {
+        ($offset:ident, $prediction:expr) => {
+            for $offset in start..end {
+                pixels[$offset] = add_argb_pixels(pixels[$offset], $prediction);
+            }
+        };
+    }
+
+    match mode {
+        PredictorMode::OpaqueBlack => reconstruct!(offset, 0xff00_0000),
+        PredictorMode::Left => reconstruct!(offset, pixels[offset - 1]),
+        PredictorMode::Top => reconstruct!(offset, pixels[offset - width]),
+        PredictorMode::TopRight => reconstruct!(offset, pixels[offset + 1 - width]),
+        PredictorMode::TopLeft => reconstruct!(offset, pixels[offset - 1 - width]),
+        PredictorMode::AverageLeftTopRightTop => reconstruct!(
+            offset,
+            average_argb3(
+                pixels[offset - 1],
+                pixels[offset + 1 - width],
+                pixels[offset - width],
+            )
+        ),
+        PredictorMode::AverageLeftTopLeft => reconstruct!(
+            offset,
+            average_argb2(pixels[offset - 1], pixels[offset - 1 - width])
+        ),
+        PredictorMode::AverageLeftTop => reconstruct!(
+            offset,
+            average_argb2(pixels[offset - 1], pixels[offset - width])
+        ),
+        PredictorMode::AverageTopLeftTop => reconstruct!(
+            offset,
+            average_argb2(pixels[offset - 1 - width], pixels[offset - width])
+        ),
+        PredictorMode::AverageTopTopRight => reconstruct!(
+            offset,
+            average_argb2(pixels[offset - width], pixels[offset + 1 - width])
+        ),
+        PredictorMode::AverageLeftTopLeftTopTopRight => reconstruct!(
+            offset,
+            average_argb4(
+                pixels[offset - 1],
+                pixels[offset - 1 - width],
+                pixels[offset - width],
+                pixels[offset + 1 - width],
+            )
+        ),
+        PredictorMode::Select => reconstruct!(
+            offset,
+            select_argb(
+                pixels[offset - 1],
+                pixels[offset - width],
+                pixels[offset - 1 - width],
+            )
+        ),
+        PredictorMode::ClampAddSubtractFull => reconstruct!(
+            offset,
+            clamp_add_subtract_full_argb(
+                pixels[offset - 1],
+                pixels[offset - width],
+                pixels[offset - 1 - width],
+            )
+        ),
+        PredictorMode::ClampAddSubtractHalf => reconstruct!(
+            offset,
+            clamp_add_subtract_half_argb(
+                pixels[offset - 1],
+                pixels[offset - width],
+                pixels[offset - 1 - width],
+            )
+        ),
+    }
+}
+
+#[inline]
+fn add_argb_pixels(first: u32, second: u32) -> u32 {
+    const ALPHA_GREEN: u32 = 0xff00_ff00;
+    const RED_BLUE: u32 = 0x00ff_00ff;
+    let alpha_green = (first & ALPHA_GREEN).wrapping_add(second & ALPHA_GREEN);
+    let red_blue = (first & RED_BLUE).wrapping_add(second & RED_BLUE);
+    (alpha_green & ALPHA_GREEN) | (red_blue & RED_BLUE)
+}
+
+#[inline]
+fn average_argb2(first: u32, second: u32) -> u32 {
+    (((first ^ second) & 0xfefe_fefe) >> 1).wrapping_add(first & second)
+}
+
+#[inline]
+fn average_argb3(first: u32, second: u32, third: u32) -> u32 {
+    average_argb2(average_argb2(first, second), third)
+}
+
+#[inline]
+fn average_argb4(first: u32, second: u32, third: u32, fourth: u32) -> u32 {
+    average_argb2(average_argb2(first, second), average_argb2(third, fourth))
+}
+
+#[inline]
+fn select_argb(left: u32, top: u32, top_left: u32) -> u32 {
+    let distance_difference = select_component(top >> 24, left >> 24, top_left >> 24)
+        + select_component(
+            (top >> 16) & 0xff,
+            (left >> 16) & 0xff,
+            (top_left >> 16) & 0xff,
+        )
+        + select_component(
+            (top >> 8) & 0xff,
+            (left >> 8) & 0xff,
+            (top_left >> 8) & 0xff,
+        )
+        + select_component(top & 0xff, left & 0xff, top_left & 0xff);
+    if distance_difference <= 0 { top } else { left }
+}
+
+#[inline]
+fn select_component(first: u32, second: u32, reference: u32) -> i32 {
+    let first = first as i32 - reference as i32;
+    let second = second as i32 - reference as i32;
+    second.abs() - first.abs()
+}
+
+fn clamp_add_subtract_full_argb(first: u32, second: u32, third: u32) -> u32 {
+    pack_argb_components(|shift| {
+        component(first, shift) + component(second, shift) - component(third, shift)
+    })
+}
+
+fn clamp_add_subtract_half_argb(first: u32, second: u32, third: u32) -> u32 {
+    let average = average_argb2(first, second);
+    pack_argb_components(|shift| {
+        let value = component(average, shift);
+        value + (value - component(third, shift)) / 2
+    })
+}
+
+#[inline]
+fn component(pixel: u32, shift: u32) -> i32 {
+    ((pixel >> shift) & 0xff) as i32
+}
+
+fn pack_argb_components(mut value_at: impl FnMut(u32) -> i32) -> u32 {
+    let blue = value_at(0).clamp(0, 255) as u32;
+    let green = value_at(8).clamp(0, 255) as u32;
+    let red = value_at(16).clamp(0, 255) as u32;
+    let alpha = value_at(24).clamp(0, 255) as u32;
+    (alpha << 24) | (red << 16) | (green << 8) | blue
 }
 
 const fn argb_to_rgba(pixel: u32) -> Rgba {
@@ -2208,6 +2359,63 @@ mod tests {
                 96, 96, 0, 255, // mode one uses left
             ]
         );
+    }
+
+    #[test]
+    fn packed_predictor_rows_match_the_scalar_reference_for_every_mode() {
+        let descriptor = BlockTransformDescriptor {
+            image_width: 3,
+            image_height: 2,
+            block_size_bits: 2,
+            transform_width: 1,
+            transform_height: 1,
+        };
+        let residuals = vec![
+            0x1020_3040,
+            0x5060_7080,
+            0x90a0_b0c0,
+            0xd0e0_f001,
+            0x1234_5678,
+            0x9abc_def0,
+        ];
+
+        for mode_value in 0_u8..=13 {
+            let mode = PredictorMode::try_from(mode_value).unwrap();
+            let mut expected = residuals.clone();
+            for y in 0..2 {
+                for x in 0..3 {
+                    let offset = y * 3 + x;
+                    let residual = argb_to_rgba(expected[offset]);
+                    let prediction = if x == 0 && y == 0 {
+                        Rgba::OPAQUE_BLACK
+                    } else if y == 0 {
+                        argb_to_rgba(expected[offset - 1])
+                    } else if x == 0 {
+                        argb_to_rgba(expected[offset - 3])
+                    } else {
+                        let left = argb_to_rgba(expected[offset - 1]);
+                        let top = argb_to_rgba(expected[offset - 3]);
+                        let top_left = argb_to_rgba(expected[offset - 4]);
+                        let top_right = if x == 2 {
+                            argb_to_rgba(expected[y * 3])
+                        } else {
+                            argb_to_rgba(expected[offset - 2])
+                        };
+                        webp_vp8l_transform::predict(mode, left, top, top_left, top_right)
+                    };
+                    expected[offset] = pack_argb(
+                        residual.red.wrapping_add(prediction.red),
+                        residual.green.wrapping_add(prediction.green),
+                        residual.blue.wrapping_add(prediction.blue),
+                        residual.alpha.wrapping_add(prediction.alpha),
+                    );
+                }
+            }
+
+            let mut actual = residuals.clone();
+            inverse_predictor_argb(&mut actual, descriptor, &[u32::from(mode_value) << 8]).unwrap();
+            assert_eq!(actual, expected, "predictor mode {mode_value}");
+        }
     }
 
     #[test]

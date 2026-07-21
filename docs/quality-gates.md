@@ -87,8 +87,9 @@ File-level measurements show `lossless_big_random_alpha.webp` accounts for
 roughly 92% of the complete benchmark time. It is a 2048x2048, 13 MB lossless
 stream with subtract-green and spatial meta-Huffman coding; its dominant code
 group has full green and alpha alphabets and nontrivial red and blue trees.
-The remaining work is therefore entropy decoding rather than inverse color
-transforms or final RGBA packing.
+This localized the cost to the main VP8L decode path rather than container
+parsing, but did not yet distinguish entropy decoding from predictor work.
+The phase measurement below makes that distinction.
 
 The next pass keeps a safe 64-bit LSB-first input window and reloads it only
 after approximately 32 consumed bits, caches the active meta-Huffman group to
@@ -107,10 +108,42 @@ gap. The dominating image measured 4.331 s, 4.362 s, and 4.410 s over 20
 decodes, with a 4.362 s median. Every complete run retained checksum `96355`.
 
 Wider ten-bit roots and a full-size secondary-table prototype regressed due
-to cache pressure; predictor-block traversal and subtract-green/RGBA fusion
-were neutral or slower. Closing the remaining gap requires reducing the four
-independent checked symbol decodes per literal, while preserving work-budget
-and truncation semantics, rather than further transform-loop tuning.
+to cache pressure; subtract-green/RGBA fusion was neutral or slower. This left
+both checked entropy decoding and the still-scalar predictor adapter as
+candidates requiring direct phase measurement.
+
+## VP8L block-oriented predictor refinement
+
+Phase timing on `lossless_big_random_alpha.webp` identified two material gaps,
+not a long list of small loops. Before this refinement, one decode spent about
+97.3 ms in entropy expansion and 109.5 ms in the predictor transform. Color
+inversion used about 7.7 ms, subtract-green 0.7 ms, RGBA packing 2.8 ms, and
+header/transform parsing 0.1 ms. The predictor and entropy paths were therefore
+the only large optimization targets.
+
+The predictor adapter now follows the reference decoder's block-oriented
+shape: it handles the fixed first-row and first-column rules separately,
+walks horizontal predictor tiles, dispatches the predictor once per tile, and
+reconstructs directly in packed ARGB. This removes per-pixel block division,
+mode validation, enum dispatch, and repeated conversion of the residual and
+four neighbors to channel structs. The implementation remains portable safe
+Rust with no architecture-specific intrinsics or unsafe code. A differential
+unit test checks the packed implementation against the scalar reference for
+all fourteen predictor modes, including the right-edge top-right rule.
+
+Three complete five-iteration runs measured Rust at 0.879 s, 0.903 s, and
+0.892 s. The 0.892 s median is 128.7 MB/s, 24.5% faster than the preceding
+1.181 s result and 52.9% faster than the original 1.894 s baseline. The
+corresponding libwebp runs were 0.516 s, 0.533 s, and 0.525 s, with a 0.525 s
+median (218.4 MB/s) and a remaining 1.70x gap. Every run retained checksum
+`96355` over all 41 accepted VP8L files.
+
+After the rewrite, the same image's predictor phase fell to roughly 51.5 ms,
+a 53% reduction. The next structural target is the entropy core: libwebp keeps
+one refillable bit window and compact Huffman-table pointers in the decode
+loop, advances them without a `Result` boundary per symbol, and checks stream
+state at grouped decode boundaries. Parser and final RGBA packing costs are
+too small to warrant dedicated optimization work.
 
 ## Applying the gates to later milestones
 
