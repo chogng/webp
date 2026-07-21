@@ -2,6 +2,10 @@
 
 use crate::{FilterHeader, SegmentHeader};
 
+#[cfg(test)]
+#[path = "loop_filter_tests.rs"]
+mod tests;
+
 /// Precomputed VP8 loop-filter controls for one segment and luma mode class.
 ///
 /// The values match the scalar controls used by VP8's simple and normal
