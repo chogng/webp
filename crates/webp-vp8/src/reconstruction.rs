@@ -12,6 +12,10 @@ use crate::{
     MacroblockResiduals,
 };
 
+#[cfg(test)]
+#[path = "reconstruction_tests.rs"]
+mod tests;
+
 /// Dequantized frequency-domain coefficients for one VP8 macroblock.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct DequantizedMacroblock {
