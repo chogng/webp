@@ -7,9 +7,30 @@
 use webp_core::{DecodeError, DecodeErrorKind, DecodeLimits};
 
 use crate::{
-    BoolDecoder, COEFFICIENT_UPDATE_PROBABILITIES, CoefficientProbabilities, FilterHeader,
-    QuantizationHeader, SegmentHeader,
+    BoolDecoder, COEFFICIENT_UPDATE_PROBABILITIES, CoefficientProbabilities, QuantizationHeader,
 };
+
+/// Segmentation data carried by the first VP8 partition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct SegmentHeader {
+    pub enabled: bool,
+    pub update_map: bool,
+    pub absolute_delta: bool,
+    pub quantizer: [i32; 4],
+    pub filter_strength: [i32; 4],
+    pub probabilities: [u8; 3],
+}
+
+/// Loop-filter controls carried by the first VP8 partition.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FilterHeader {
+    pub simple: bool,
+    pub level: u8,
+    pub sharpness: u8,
+    pub use_deltas: bool,
+    pub ref_deltas: [i32; 4],
+    pub mode_deltas: [i32; 4],
+}
 
 const FRAME_TAG_LEN: usize = 3;
 pub(crate) const KEY_FRAME_HEADER_LEN: usize = 10;

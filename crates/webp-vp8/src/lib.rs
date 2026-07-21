@@ -6,8 +6,11 @@
 //! macroblock storage is allocated.  Pixel decoding is intentionally kept out
 //! of this crate's first slice.
 
-use webp_core::{DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget};
+#[cfg(test)]
+use webp_core::DecodeLimits;
+use webp_core::{DecodeError, DecodeErrorKind};
 
+mod bitstream;
 mod coefficients;
 mod entropy;
 mod frame;
@@ -22,8 +25,8 @@ use coefficients::{COEFFICIENT_DEFAULTS, COEFFICIENT_UPDATE_PROBABILITIES};
 use intra::B_MODE_PROBABILITIES;
 #[cfg(test)]
 use partition::{KEY_FRAME_HEADER_LEN, KEY_FRAME_START_CODE};
-use quantization::{AC as DEQUANT_AC, DC as DEQUANT_DC};
 
+pub use bitstream::BoolDecoder;
 pub use entropy::{
     CoefficientBlockType, CoefficientProbabilities, DecodedCoefficients, MacroblockResiduals,
     ResidualContext, decode_coefficients, decode_intra_residuals,
@@ -33,9 +36,10 @@ pub use loop_filter::{
     LoopFilterStrength, derive_loop_filter_strengths, filter_normal_edge, filter_simple_edge,
 };
 pub use partition::{
-    FirstPartitionHeader, PartitionLayout, TokenPartition, Vp8Header, parse_partition_layout,
-    parse_riff_payload,
+    FilterHeader, FirstPartitionHeader, PartitionLayout, SegmentHeader, TokenPartition, Vp8Header,
+    parse_partition_layout, parse_riff_payload,
 };
+pub use quantization::{DequantizationMatrix, QuantizationHeader, derive_dequantization};
 pub use reconstruction::{
     add_residue_and_clip, combine_macroblock_prediction, dequantize_macroblock,
     inverse_transform_macroblock, predict_intra4_block, predict_intra4_macroblock,
@@ -58,229 +62,6 @@ pub(crate) const CATEGORY_PROBABILITIES: [&[u8]; 4] = [
     &[180, 157, 141, 134, 130],
     &[254, 254, 243, 230, 196, 177, 153, 140, 133, 130, 129],
 ];
-
-/// VP8's most-significant-bit-first arithmetic boolean decoder.
-///
-/// The decoder owns a deterministic work budget: every decoded boolean value
-/// consumes one unit. It never fabricates zero-padding beyond the supplied
-/// partition; callers receive [`DecodeErrorKind::UnexpectedEof`] instead.
-#[derive(Clone, Debug)]
-pub struct BoolDecoder<'a> {
-    data: &'a [u8],
-    byte_position: usize,
-    value: u64,
-    /// VP8 stores the active interval as `range - 1`.
-    range: u32,
-    /// Number of cached low bits usable as the comparison position.
-    bits: i32,
-    work: WorkBudget,
-}
-
-impl<'a> BoolDecoder<'a> {
-    /// Creates a decoder over one already-bounded VP8 partition.
-    pub fn new(data: &'a [u8], limits: &DecodeLimits) -> Result<Self, DecodeError> {
-        limits.check_input_len(data.len())?;
-        Ok(Self {
-            data,
-            byte_position: 0,
-            value: 0,
-            range: 254,
-            bits: -8,
-            work: limits.work_budget(),
-        })
-    }
-
-    /// Decodes one boolean value with the supplied VP8 probability.
-    pub fn read_bool(&mut self, probability: u8) -> Result<bool, DecodeError> {
-        self.work.consume(1)?;
-        if self.bits < 0 {
-            self.load_byte()?;
-        }
-
-        let split = (self.range * u32::from(probability)) >> 8;
-        let value = (self.value >> self.bits) as u32;
-        let bit = value > split;
-        if bit {
-            self.range -= split;
-            self.value -= u64::from(split + 1) << self.bits;
-        } else {
-            self.range = split + 1;
-        }
-
-        let shift = 7 - self.range.ilog2() as i32;
-        self.range <<= shift;
-        self.bits -= shift;
-        self.range -= 1;
-        Ok(bit)
-    }
-
-    /// Reads a fixed-width, most-significant-bit-first VP8 literal.
-    pub fn read_literal(&mut self, count: u8) -> Result<u32, DecodeError> {
-        if count > 32 {
-            return Err(DecodeError::at(
-                DecodeErrorKind::InvalidParameter,
-                self.byte_position,
-                "VP8 literal width exceeds 32 bits",
-            ));
-        }
-        let mut value = 0_u32;
-        for _ in 0..count {
-            value = (value << 1) | u32::from(self.read_bool(128)?);
-        }
-        Ok(value)
-    }
-
-    /// Reads a VP8 sign-magnitude value: magnitude first, then its sign bit.
-    pub fn read_signed_literal(&mut self, count: u8) -> Result<i32, DecodeError> {
-        let raw_magnitude = self.read_literal(count)?;
-        let magnitude = i32::try_from(raw_magnitude).map_err(|_| {
-            DecodeError::at(
-                DecodeErrorKind::InvalidBitstream,
-                self.byte_position,
-                "VP8 signed literal does not fit i32",
-            )
-        })?;
-        if self.read_bool(128)? {
-            Ok(-magnitude)
-        } else {
-            Ok(magnitude)
-        }
-    }
-
-    /// Number of input bytes consumed from this partition.
-    #[must_use]
-    pub const fn bytes_consumed(&self) -> usize {
-        self.byte_position
-    }
-
-    /// Remaining deterministic decoder work units.
-    #[must_use]
-    pub const fn remaining_work(&self) -> u64 {
-        self.work.remaining()
-    }
-
-    fn load_byte(&mut self) -> Result<(), DecodeError> {
-        let byte = *self.data.get(self.byte_position).ok_or_else(|| {
-            DecodeError::at(
-                DecodeErrorKind::UnexpectedEof,
-                self.byte_position,
-                "truncated VP8 boolean-coded partition",
-            )
-        })?;
-        self.byte_position += 1;
-        self.value = u64::from(byte) | (self.value << 8);
-        self.bits += 8;
-        Ok(())
-    }
-}
-
-/// Segmentation data carried by the first VP8 partition.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct SegmentHeader {
-    pub enabled: bool,
-    pub update_map: bool,
-    pub absolute_delta: bool,
-    pub quantizer: [i32; 4],
-    pub filter_strength: [i32; 4],
-    pub probabilities: [u8; 3],
-}
-
-/// Loop-filter controls carried by the first VP8 partition.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct FilterHeader {
-    pub simple: bool,
-    pub level: u8,
-    pub sharpness: u8,
-    pub use_deltas: bool,
-    pub ref_deltas: [i32; 4],
-    pub mode_deltas: [i32; 4],
-}
-
-/// Quantizer controls carried by the first VP8 partition.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct QuantizationHeader {
-    pub base_index: u8,
-    pub y1_dc_delta: i32,
-    pub y2_dc_delta: i32,
-    pub y2_ac_delta: i32,
-    pub uv_dc_delta: i32,
-    pub uv_ac_delta: i32,
-}
-
-/// Dequantization multipliers for one VP8 segment.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct DequantizationMatrix {
-    pub y1_dc: u16,
-    pub y1_ac: u16,
-    pub y2_dc: u16,
-    pub y2_ac: u16,
-    pub uv_dc: u16,
-    pub uv_ac: u16,
-    /// Unclamped UV AC index, retained for later dithering decisions.
-    pub uv_quant: i32,
-}
-
-/// Derives the four VP8 scalar dequantization matrices from first-partition
-/// quantizer and segmentation controls.
-///
-/// When segmentation is disabled, all four output entries equal segment zero,
-/// exactly matching VP8's state inheritance rule.
-#[must_use]
-pub fn derive_dequantization(
-    quantization: QuantizationHeader,
-    segments: &SegmentHeader,
-) -> [DequantizationMatrix; 4] {
-    let base = i32::from(quantization.base_index);
-    let mut matrices = [DequantizationMatrix {
-        y1_dc: 0,
-        y1_ac: 0,
-        y2_dc: 0,
-        y2_ac: 0,
-        uv_dc: 0,
-        uv_ac: 0,
-        uv_quant: 0,
-    }; 4];
-    for (segment, matrix) in matrices.iter_mut().enumerate() {
-        let index = if segments.enabled {
-            let segment_quantizer = segments.quantizer[segment];
-            if segments.absolute_delta {
-                segment_quantizer
-            } else {
-                base + segment_quantizer
-            }
-        } else {
-            base
-        };
-        *matrix = dequantization_matrix(index, quantization);
-    }
-    matrices
-}
-
-fn dequantization_matrix(index: i32, quantization: QuantizationHeader) -> DequantizationMatrix {
-    let y1_dc = DEQUANT_DC[clamp_quantizer(index + quantization.y1_dc_delta, 127)];
-    let y1_ac = DEQUANT_AC[clamp_quantizer(index, 127)];
-    let y2_dc = DEQUANT_DC[clamp_quantizer(index + quantization.y2_dc_delta, 127)] * 2;
-    let y2_ac = ((u32::from(DEQUANT_AC[clamp_quantizer(index + quantization.y2_ac_delta, 127)])
-        * 101_581)
-        >> 16)
-        .max(8) as u16;
-    let uv_dc = DEQUANT_DC[clamp_quantizer(index + quantization.uv_dc_delta, 117)];
-    let uv_quant = index + quantization.uv_ac_delta;
-    let uv_ac = DEQUANT_AC[clamp_quantizer(uv_quant, 127)];
-    DequantizationMatrix {
-        y1_dc,
-        y1_ac,
-        y2_dc,
-        y2_ac,
-        uv_dc,
-        uv_ac,
-        uv_quant,
-    }
-}
-
-fn clamp_quantizer(index: i32, maximum: usize) -> usize {
-    index.clamp(0, maximum as i32) as usize
-}
 
 /// One VP8 intra 4×4 prediction mode.
 ///
@@ -834,80 +615,6 @@ mod tests {
     }
 
     #[test]
-    fn boolean_decoder_recovers_mixed_probability_vectors() {
-        let probabilities = [1_u8, 2, 127, 128, 254, 1, 128, 254, 2];
-        let expected = [true, false, true, true, false, false, true, true, false];
-        let mut writer = TestBoolWriter::new();
-        for (&bit, &probability) in expected.iter().zip(probabilities.iter()) {
-            writer.write_bool(bit, probability);
-        }
-        let bytes = writer.finish();
-        assert!(!bytes.is_empty());
-
-        let mut decoder = BoolDecoder::new(&bytes, &DecodeLimits::default()).unwrap();
-        for (index, (&bit, &probability)) in expected.iter().zip(probabilities.iter()).enumerate() {
-            assert_eq!(
-                decoder.read_bool(probability).unwrap(),
-                bit,
-                "symbol {index}"
-            );
-        }
-        assert_eq!(
-            decoder.remaining_work(),
-            DecodeLimits::default().max_work_units - expected.len() as u64
-        );
-        assert!(decoder.bytes_consumed() <= bytes.len());
-    }
-
-    #[test]
-    fn boolean_decoder_handles_extreme_probabilities() {
-        let mut true_values = BoolDecoder::new(&[0xff], &DecodeLimits::default()).unwrap();
-        assert_eq!(true_values.read_bool(0), Ok(true));
-        assert_eq!(true_values.read_bool(255), Ok(true));
-
-        let mut false_value = BoolDecoder::new(&[0], &DecodeLimits::default()).unwrap();
-        assert_eq!(false_value.read_bool(255), Ok(false));
-    }
-
-    #[test]
-    fn boolean_decoder_reads_msb_first_literals() {
-        let mut writer = TestBoolWriter::new();
-        writer.write_literal(0b10110, 5);
-        writer.write_literal(0x1234, 16);
-        writer.write_signed_literal(-17, 7);
-        writer.write_bool(false, 128); // Keep the signed value away from EOF.
-        let bytes = writer.finish();
-        let mut decoder = BoolDecoder::new(&bytes, &DecodeLimits::default()).unwrap();
-        assert_eq!(decoder.read_literal(5), Ok(0b10110));
-        assert_eq!(decoder.read_literal(16), Ok(0x1234));
-        assert_eq!(decoder.read_signed_literal(7), Ok(-17));
-        assert_eq!(
-            decoder.read_literal(33).unwrap_err().kind(),
-            DecodeErrorKind::InvalidParameter
-        );
-    }
-
-    #[test]
-    fn boolean_decoder_reports_eof_and_work_budget_exhaustion() {
-        let mut empty = BoolDecoder::new(&[], &DecodeLimits::default()).unwrap();
-        assert_eq!(
-            empty.read_bool(128).unwrap_err().kind(),
-            DecodeErrorKind::UnexpectedEof
-        );
-
-        let limited = DecodeLimits {
-            max_work_units: 1,
-            ..DecodeLimits::default()
-        };
-        let mut decoder = BoolDecoder::new(&[0], &limited).unwrap();
-        assert!(decoder.read_bool(128).is_ok());
-        assert_eq!(
-            decoder.read_bool(128).unwrap_err().kind(),
-            DecodeErrorKind::LimitExceeded
-        );
-    }
-
-    #[test]
     fn parses_first_partition_controls_and_four_token_partitions() {
         let mut writer = TestBoolWriter::new();
         writer.write_bool(false, 128); // colour space
@@ -1068,94 +775,6 @@ mod tests {
             assert_eq!(layout.tokens.len(), partition_count);
             assert_eq!(layout.tokens.last().unwrap().data, &[0]);
         }
-    }
-
-    #[test]
-    fn derives_default_dequantization_for_each_disabled_segment() {
-        let matrices = derive_dequantization(
-            QuantizationHeader {
-                base_index: 0,
-                y1_dc_delta: 0,
-                y2_dc_delta: 0,
-                y2_ac_delta: 0,
-                uv_dc_delta: 0,
-                uv_ac_delta: 0,
-            },
-            &SegmentHeader {
-                enabled: false,
-                update_map: false,
-                absolute_delta: true,
-                quantizer: [0; 4],
-                filter_strength: [0; 4],
-                probabilities: [255; 3],
-            },
-        );
-        let expected = DequantizationMatrix {
-            y1_dc: 4,
-            y1_ac: 4,
-            y2_dc: 8,
-            y2_ac: 8,
-            uv_dc: 4,
-            uv_ac: 4,
-            uv_quant: 0,
-        };
-        assert_eq!(matrices, [expected; 4]);
-    }
-
-    #[test]
-    fn derives_segment_delta_and_absolute_dequantization_with_clamps() {
-        let quantization = QuantizationHeader {
-            base_index: 126,
-            y1_dc_delta: 7,
-            y2_dc_delta: -7,
-            y2_ac_delta: 7,
-            uv_dc_delta: 7,
-            uv_ac_delta: -7,
-        };
-        let delta = derive_dequantization(
-            quantization,
-            &SegmentHeader {
-                enabled: true,
-                update_map: false,
-                absolute_delta: false,
-                quantizer: [2, -127, 0, 1],
-                filter_strength: [0; 4],
-                probabilities: [255; 3],
-            },
-        );
-        assert_eq!(delta[0].y1_dc, 157);
-        assert_eq!(delta[0].y1_ac, 284);
-        assert_eq!(delta[0].uv_dc, 132);
-        assert_eq!(delta[0].uv_ac, 254);
-        assert_eq!(delta[0].uv_quant, 121);
-        assert_eq!(
-            delta[1],
-            DequantizationMatrix {
-                y1_dc: 10,
-                y1_ac: 4,
-                y2_dc: 8,
-                y2_ac: 15,
-                uv_dc: 10,
-                uv_ac: 4,
-                uv_quant: -8,
-            }
-        );
-
-        let absolute = derive_dequantization(
-            quantization,
-            &SegmentHeader {
-                enabled: true,
-                update_map: false,
-                absolute_delta: true,
-                quantizer: [-5, 5, 127, 0],
-                filter_strength: [0; 4],
-                probabilities: [255; 3],
-            },
-        );
-        assert_eq!(absolute[0].uv_quant, -12);
-        assert_eq!(absolute[0].y1_ac, 4);
-        assert_eq!(absolute[2].y1_ac, 284);
-        assert_eq!(absolute[2].uv_dc, 132);
     }
 
     #[test]
