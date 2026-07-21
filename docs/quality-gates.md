@@ -117,6 +117,24 @@ The 273.375 ms median is 12.6% faster than the preceding 312.921 ms result and
 54.675 ms per complete quality matrix, 61.6% faster than the original M7
 baseline. Output remains 288,010 bytes with checksum `293176` per matrix.
 
+## VP8 pinned-libwebp encoder comparison
+
+`benchmark-vp8-encode.sh` now builds a native helper against the exact
+libwebp commit in `corpus-lock.toml`. Both encoders retain the same 21 decoded
+RGBA inputs, encode quality 0/75/100 in the same order, include output
+allocation, and exclude input I/O and process launch from timing. The Rust
+profile is the documented bounded intra16 encoder; libwebp uses its public
+`WebPEncodeRGBA` default profile, so size and speed are product comparisons
+rather than claims of identical encoder effort.
+
+Across three five-iteration runs, Rust measured 265.411 ms, 263.926 ms, and
+263.045 ms; libwebp measured 328.294 ms, 335.329 ms, and 331.320 ms. The
+median Rust run is 20.3% faster. Rust produced 288,010 bytes per matrix versus
+135,226 bytes for libwebp, however, making the bounded profile 2.13x larger.
+VP8 encoder speed therefore has no material remediation gap on this matrix;
+rate/quality tooling and coefficient/probability decisions own the remaining
+encoder gap.
+
 ## VP8L entropy-path optimization record
 
 The 2026-07-20 optimization pass retained the same 41-file corpus, five

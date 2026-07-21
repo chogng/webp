@@ -87,8 +87,9 @@ Lossy VP8 animation frames naturally remain gated on M7.
 **Status: in progress.** VP8 encoder profiling removed redundant cross-product
 work and plane reconstruction from intra16 mode search while preserving
 bit-for-bit output, improving the locked quality matrix by 61.6% in total.
-Cross-encoder comparisons, reviewed regression thresholds, and the remaining
-public paths are still open.
+The pinned libwebp comparison shows Rust 20.3% faster but producing 2.13x as
+many bytes, so VP8 encoder work now shifts from speed to rate/quality.
+Reviewed regression thresholds and the remaining public paths are still open.
 
 Each milestone is independently shippable; a later performance or coding-tool
 milestone must not silently change the public correctness contract established
