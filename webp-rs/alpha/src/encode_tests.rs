@@ -1,4 +1,5 @@
 use super::*;
+use crate::AlphaFilter;
 use crate::decode;
 use crate::parse_header;
 use webp_core::CompatibilityProfile;
@@ -9,8 +10,8 @@ const SAMPLES: [u8; 12] = [0, 1, 2, 255, 17, 9, 200, 4, 88, 88, 99, 3];
 fn round_trip(compression: AlphaCompression, filter: AlphaFilter) {
     let options = AlphaEncodeOptions {
         compression,
-        filter,
-        preprocessing: AlphaPreprocessing::None,
+        filter: filter.into(),
+        quality: 100,
     };
     let payload = encode(&SAMPLES, 4, 3, options).expect("encode alpha plane");
     assert_eq!(
@@ -44,16 +45,16 @@ fn every_compression_and_filter_round_trips() {
 fn header_serialization_preserves_every_field() {
     let options = AlphaEncodeOptions {
         compression: AlphaCompression::Lossless,
-        filter: AlphaFilter::Gradient,
-        preprocessing: AlphaPreprocessing::LevelReduction,
+        filter: AlphaFilter::Gradient.into(),
+        quality: 80,
     };
-    let payload = encode(&[37], 1, 1, options).unwrap();
+    let payload = encode(&vec![37; 64 * 64], 64, 64, options).unwrap();
     assert_eq!(
         parse_header(&payload, CompatibilityProfile::SpecStrict).unwrap(),
         crate::AlphaHeader {
             compression: options.compression,
-            filter: options.filter,
-            preprocessing: options.preprocessing,
+            filter: AlphaFilter::Gradient,
+            preprocessing: AlphaPreprocessing::LevelReduction,
         }
     );
 }
@@ -80,4 +81,58 @@ fn validates_dimensions_and_sample_length() {
         ),
         Err(AlphaEncodeError::InvalidDimensions)
     );
+    assert_eq!(
+        encode(
+            &[1],
+            1,
+            1,
+            AlphaEncodeOptions {
+                quality: 101,
+                ..AlphaEncodeOptions::default()
+            }
+        ),
+        Err(AlphaEncodeError::InvalidQuality)
+    );
+}
+
+#[test]
+fn lossless_falls_back_to_raw_when_compression_expands() {
+    let payload = encode(
+        &[37],
+        1,
+        1,
+        AlphaEncodeOptions {
+            compression: AlphaCompression::Lossless,
+            filter: AlphaFilter::Gradient.into(),
+            quality: 100,
+        },
+    )
+    .unwrap();
+    assert_eq!(
+        parse_header(&payload, CompatibilityProfile::SpecStrict)
+            .unwrap()
+            .compression,
+        AlphaCompression::Raw
+    );
+}
+
+#[test]
+fn best_filter_selects_the_smallest_lossless_payload() {
+    let samples = (0..64)
+        .flat_map(|_| (0..64).map(|x| (x * 3) as u8))
+        .collect::<Vec<_>>();
+    let payload = encode(
+        &samples,
+        64,
+        64,
+        AlphaEncodeOptions {
+            compression: AlphaCompression::Lossless,
+            filter: AlphaFilterSelection::Best,
+            quality: 100,
+        },
+    )
+    .unwrap();
+    let header = parse_header(&payload, CompatibilityProfile::SpecStrict).unwrap();
+    assert_eq!(header.compression, AlphaCompression::Lossless);
+    assert_eq!(header.filter, AlphaFilter::Horizontal);
 }

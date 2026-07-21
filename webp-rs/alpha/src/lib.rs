@@ -3,6 +3,8 @@
 
 mod alpha;
 mod encode;
+mod encode_filter;
+mod level_reduction;
 
 pub use alpha::AlphaCompression;
 pub use alpha::AlphaFilter;
@@ -14,3 +16,4 @@ pub use alpha::parse_header;
 pub use encode::AlphaEncodeError;
 pub use encode::AlphaEncodeOptions;
 pub use encode::encode;
+pub use encode_filter::AlphaFilterSelection;

@@ -16,8 +16,11 @@ encoding; performance work remains deliberately deferred.
   are connected to the static VP8L public pixel decoder.
 - VP8 key frames decode through bounded entropy, reconstruction, loop
   filtering, and YUV-to-RGBA conversion.
-- `ALPH` supports raw and headerless-VP8L compression with all four spatial
-  filters; strict parsing checks alpha feature flags in static and animated
+- `webp-alpha` owns complete `ALPH` payload encoding and decoding: raw and
+  headerless-VP8L compression, fixed/fast/best spatial-filter selection,
+  quality-driven level reduction, compressed-size comparison with raw
+  fallback, preprocessing/header fields, and bounded decode resources. Strict
+  container parsing checks alpha feature flags in static and animated
   containers.
 - Animated `ANIM`/`ANMF` containers validate frame geometry and resources;
   `decode_animation` returns full display-order RGBA canvas snapshots after
@@ -39,6 +42,13 @@ Run the workspace test suite with:
 
 ```sh
 cd webp-rs && cargo test --workspace
+```
+
+Compare the lossy-RGB/lossless-ALPH encoder against the pinned libwebp
+public API over the upstream transparent corpus with:
+
+```sh
+tools/benchmark-alpha-encode.sh 50
 ```
 
 Codec milestones also require the conformance, robustness, performance, and

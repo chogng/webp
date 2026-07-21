@@ -5,6 +5,10 @@
 //! frames to canonical RGBA8. M3 adds `ALPH` planes and animation decoding.
 //! M4 begins static lossless VP8L encoding.
 
+pub use webp_alpha::AlphaCompression;
+pub use webp_alpha::AlphaEncodeOptions;
+pub use webp_alpha::AlphaFilter;
+pub use webp_alpha::AlphaFilterSelection;
 pub use webp_core::CompatibilityProfile;
 pub use webp_core::DecodeError;
 pub use webp_core::DecodeErrorKind;
@@ -59,4 +63,5 @@ pub use encoder::encode_lossless_animation_with_metadata;
 pub use encoder::encode_lossless_rgba;
 pub use encoder::encode_lossless_rgba_with_metadata;
 pub use encoder::encode_lossy_rgba;
+pub use encoder::encode_lossy_rgba_with_alpha_options;
 pub use encoder::encode_lossy_rgba_with_options;

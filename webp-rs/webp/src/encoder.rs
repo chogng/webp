@@ -112,6 +112,25 @@ pub fn encode_lossy_rgba_with_options(
     rgba: &[u8],
     options: LossyEncodeOptions,
 ) -> Result<Vec<u8>, EncodeError> {
+    encode_lossy_rgba_with_alpha_options(
+        width,
+        height,
+        rgba,
+        options,
+        webp_alpha::AlphaEncodeOptions::default(),
+    )
+}
+
+/// Encodes the lossy VP8 profile with an explicit `ALPH` payload policy.
+///
+/// The alpha policy is used only when the input contains a non-opaque sample.
+pub fn encode_lossy_rgba_with_alpha_options(
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+    options: LossyEncodeOptions,
+    alpha_options: webp_alpha::AlphaEncodeOptions,
+) -> Result<Vec<u8>, EncodeError> {
     if options.quality > 100 {
         return Err(EncodeError::invalid_quality());
     }
@@ -132,7 +151,7 @@ pub fn encode_lossy_rgba_with_options(
         .map_err(|_| EncodeError::invalid_quality())?;
     let payload = webp_vp8::encode_dc_predicted_key_frame_with_quantizer(&source, quantizer)
         .map_err(map_vp8_encode_error)?;
-    wrap_vp8(payload, width, height, alpha)
+    wrap_vp8(payload, width, height, alpha, alpha_options)
 }
 
 /// Encodes a static RGBA8 image as a lossless WebP file with raw metadata.
@@ -1139,16 +1158,12 @@ fn wrap_vp8(
     width: u32,
     height: u32,
     alpha: Option<Vec<u8>>,
+    alpha_options: webp_alpha::AlphaEncodeOptions,
 ) -> Result<Vec<u8>, EncodeError> {
     let alpha_payload = alpha
         .map(|samples| {
-            webp_alpha::encode(
-                &samples,
-                width,
-                height,
-                webp_alpha::AlphaEncodeOptions::default(),
-            )
-            .map_err(map_alpha_encode_error)
+            webp_alpha::encode(&samples, width, height, alpha_options)
+                .map_err(map_alpha_encode_error)
         })
         .transpose()?;
     let mut chunk_size = chunk_storage_len(payload.len())?;
@@ -1202,6 +1217,7 @@ fn map_alpha_encode_error(error: webp_alpha::AlphaEncodeError) -> EncodeError {
         webp_alpha::AlphaEncodeError::InvalidSampleLength => EncodeError::invalid_rgba_length(),
         webp_alpha::AlphaEncodeError::SizeOverflow => EncodeError::output_size_overflow(),
         webp_alpha::AlphaEncodeError::AllocationFailed => EncodeError::allocation_failed(),
+        webp_alpha::AlphaEncodeError::InvalidQuality => EncodeError::invalid_quality(),
     }
 }
 

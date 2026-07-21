@@ -22,3 +22,11 @@ filegroup(
         allow_empty = True,
     ),
 )
+
+filegroup(
+    name = "external_oracle_data",
+    srcs = glob(
+        ["third_party/oracle/libwebp/build/dwebp"],
+        allow_empty = True,
+    ) + ["tools/corpus-lock.toml"],
+)

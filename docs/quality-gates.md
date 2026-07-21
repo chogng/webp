@@ -219,6 +219,34 @@ Pinned libwebp measured 335.518 ms, 331.127 ms, and 335.493 ms, with a
 remaining duplicate work is the intentionally retained default/adapted boolean
 encoding required by the exact no-expansion decision.
 
+## ALPH encode benchmark record
+
+The ALPH encoder is checked independently against the pinned `dwebp` oracle on
+all nine transparent `ALPH` vectors in `libwebp-test-data`. Each source is
+decoded to RGBA, re-encoded through the public Rust API with lossless alpha,
+and decoded by `dwebp`; all decoded alpha samples must match exactly. The test
+also requires at least one emitted payload to retain headerless-VP8L
+compression so raw fallback cannot make the oracle pass vacuously. The same
+nine-vector matrix at alpha qualities 0, 70, and 99 requires Rust and `dwebp`
+to decode identical level-reduced alpha planes.
+
+Pinned libwebp does not provide a standalone public ALPH encoder benchmark, so
+`tools/benchmark-alpha-encode.sh` compares both public whole-image APIs using
+the same retained RGBA inputs: VP8 quality 75, lossless alpha, fast filter
+selection, alpha quality 100, nine files, and 50 iterations. RGB and alpha
+encoding are both inside the timed interval; the ALPH chunk byte count is
+reported separately to expose the alpha-specific size result.
+
+Three runs measured Rust at 635.681 ms, 618.958 ms, and 611.623 ms, with a
+618.958 ms median. Pinned libwebp measured 1,134.364 ms, 1,157.257 ms, and
+1,104.171 ms, with a 1,134.364 ms median. Rust therefore used 45.4% less
+whole-image encode time for this profile. Every run produced 5,277,700 Rust
+bytes, including 3,348,150 ALPH payload bytes, versus 4,752,900 libwebp bytes,
+including 2,605,250 ALPH bytes. Rust's whole output is 11.0% larger and its
+ALPH payloads are 28.5% larger. The size gap remains an explicit optimization
+target for LZ77 and color-cache coding; the timing result must not be presented
+as an isolated ALPH speedup because the two public RGB encoders also differ.
+
 ## VP8L entropy-path optimization record
 
 The 2026-07-20 optimization pass retained the same 41-file corpus, five
@@ -465,6 +493,7 @@ within the same run to reduce host and load sensitivity.
 | VP8L CLIC decode | `bash tools/benchmark-vp8l-clic.sh 1 4` | aggregate Rust median <= 14.71 s and <= 1.03x pinned-libwebp time |
 | VP8L static encode | `bash tools/benchmark-vp8l-encode.sh 5` | Rust median <= 3.132 s, exact round trips, and output <= 1.35x pinned libwebp |
 | VP8 static encode | `bash tools/benchmark-vp8-encode.sh 5` | Rust median <= 371.341 ms, output <= 1.40x pinned libwebp, and PSNR floors 25.807/37.326/48.600 dB at quality 0/75/100 |
+| VP8/ALPH static encode | `bash tools/benchmark-alpha-encode.sh 50` | Rust median <= 650 ms, whole output <= 1.15x pinned libwebp, ALPH payload <= 1.30x pinned libwebp, and exact pinned-`dwebp` alpha oracle |
 | VP8L-frame animation encode | `bash tools/benchmark-animation-encode.sh 5` | Rust median <= 95.409 ms, output <= 406,862 bytes per six-frame animation, and locked `webpmux`/`dwebp` acceptance |
 
 The CLIC decoder's measured 0.975x ratio is explicitly accepted for M9 because

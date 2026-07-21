@@ -32,3 +32,16 @@ rust_test(
     ],
     tags = ["external-corpus", "manual"],
 )
+
+rust_test(
+    name = "alpha_encoder_oracle_test",
+    crate_root = "tests/alpha_encoder_oracle.rs",
+    srcs = ["tests/alpha_encoder_oracle.rs"],
+    edition = "2024",
+    data = [
+        "//:external_corpus_data",
+        "//:external_oracle_data",
+    ],
+    deps = [":webp"],
+    tags = ["external-corpus", "manual"],
+)
