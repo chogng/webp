@@ -7,6 +7,10 @@ use crate::coefficients::{
     CATEGORY_PROBABILITIES, COEFFICIENT_BANDS, COEFFICIENT_DEFAULTS, COEFFICIENT_ZIGZAG,
 };
 
+#[cfg(test)]
+#[path = "entropy_tests.rs"]
+mod tests;
+
 /// Canonical VP8 coefficient probabilities after first-partition updates.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct CoefficientProbabilities {
