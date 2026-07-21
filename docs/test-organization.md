@@ -1,11 +1,5 @@
 # Module and test organization guidelines
 
-These are project guidelines, not compiler-enforced rules. They adopt the
-relevant Rust organization practices from the
-[OpenAI Codex repository](https://github.com/openai/codex/blob/main/AGENTS.md)
-and apply them to this codec workspace. Departures are acceptable when they
-make ownership or the public API clearer; document the reason in the change.
-
 ## Crate root is a facade
 
 Each crate's `src/lib.rs` should normally be a facade, not an implementation
