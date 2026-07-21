@@ -430,8 +430,50 @@ is the primary next target, with entropy expansion secondary. Huffman-specific
 micro-optimization is not currently justified.
 
 M1 correctness and its original conformance-corpus performance gate are
-complete, but representative real-image performance remains **performance
-pending** until this material CLIC gap is reduced or explicitly accepted.
+complete. The reviewed M9 thresholds below explicitly accept this measured
+real-image gap while retaining its profiled optimization owners.
+
+## VP8L-frame animation encoder baseline
+
+The public animation encoder has a deterministic synthetic release profile:
+
+```sh
+bash tools/benchmark-animation-encode.sh 5
+```
+
+It encodes six VP8L rectangles on a 320x240 canvas, covering full and partial
+frames, even offsets, transparency, blend/replace, dispose/background, frame
+durations, and loop count. Three five-iteration runs measured 90.866 ms,
+93.220 ms, and 81.504 ms, with a 90.866 ms median. Each run consumes 2,923,520
+RGBA bytes and produces 1,937,440 bytes with checksum `1937850`.
+
+The encoder's retained working data is bounded by the caller-owned 584,704
+RGBA bytes, one VP8L frame workspace at a time, the completed compressed frame
+payloads, and the final RIFF output. All size arithmetic and allocations use
+the existing checked encoder paths. CPU time is dominated by the six VP8L
+frame encodes; `VP8X`/`ANIM`/`ANMF` serialization is linear in payload size.
+
+## Reviewed M9 regression thresholds
+
+The following thresholds accept the measured product profiles while retaining
+the global rule that a changed path may not regress its committed median by
+more than 5% without an explicit review. Cross-libwebp ratios are evaluated
+within the same run to reduce host and load sensitivity.
+
+| Public path | Reproduction | Reviewed threshold |
+| --- | --- | --- |
+| VP8L conformance decode | `bash tools/benchmark-vp8l.sh 5` | Rust median <= 0.735 s, checksum `96355`, and <= 1.40x pinned-libwebp time |
+| VP8L CLIC decode | `bash tools/benchmark-vp8l-clic.sh 1 4` | aggregate Rust median <= 21.91 s and <= 1.50x pinned-libwebp time |
+| VP8L static encode | `bash tools/benchmark-vp8l-encode.sh 5` | Rust median <= 3.132 s, exact round trips, and output <= 1.35x pinned libwebp |
+| VP8 static encode | `bash tools/benchmark-vp8-encode.sh 5` | Rust median <= 371.341 ms, output <= 1.40x pinned libwebp, and PSNR floors 25.807/37.326/48.600 dB at quality 0/75/100 |
+| VP8L-frame animation encode | `bash tools/benchmark-animation-encode.sh 5` | Rust median <= 95.409 ms, output <= 406,862 bytes per six-frame animation, and locked `webpmux`/`dwebp` acceptance |
+
+The CLIC decoder's measured 1.429x gap is explicitly accepted for M9 because
+it is reproducible, stays inside the 1.50x threshold, and has a profiled owner:
+predictor reconstruction first, entropy expansion second. It remains a future
+optimization target, not an unprofiled milestone blocker. Output-size and PSNR
+thresholds are product guards, not bitstream freezes; a reviewed coding-tool
+change may update their baselines when conformance and resource gates pass.
 
 ## Applying the gates to later milestones
 

@@ -85,7 +85,7 @@ Lossy VP8 animation frames naturally remain gated on M7.
 - Record allocation and CPU hotspots, run external oracle comparisons where
   applicable, and set reviewed regression thresholds.
 
-**Status: in progress.** VP8 encoder profiling removed redundant cross-product
+**Status: complete.** VP8 encoder profiling removed redundant cross-product
 work and plane reconstruction from intra16 mode search while preserving
 bit-for-bit output, improving the locked quality matrix by 61.6% in total.
 The pinned libwebp comparison shows Rust 20.3% faster but producing 2.13x as
@@ -98,7 +98,10 @@ rate/distortion gate now records all three public qualities, and fused token
 emission/statistics recovers 5.4%, leaving Rust 5.4% slower with identical
 output. VP8 encoder work therefore shifts to prediction/quantization efficiency
 under that gate and the remaining candidate-encoding CPU cost. Reviewed
-regression thresholds and the remaining public paths are still open.
+regression thresholds now cover the VP8L conformance and CLIC decoders, static
+VP8L and VP8 encoders, and the VP8L-frame animation encoder. The measured CLIC
+gap is explicitly accepted within a 1.50x cross-oracle ceiling with predictor
+reconstruction and entropy expansion retained as named future owners.
 
 Each milestone is independently shippable; a later performance or coding-tool
 milestone must not silently change the public correctness contract established
