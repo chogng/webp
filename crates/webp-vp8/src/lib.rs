@@ -16,26 +16,49 @@ mod transform;
 
 pub use bitstream::BoolDecoder;
 pub use coefficients::COEFFICIENT_ZIGZAG;
-pub use entropy::{
-    CoefficientBlockType, CoefficientProbabilities, DecodedCoefficients, MacroblockResiduals,
-    ResidualContext, decode_coefficients, decode_intra_residuals,
-};
-pub use frame::{Vp8YuvImage, decode_intra_frame};
-pub use intra::{
-    ChromaMode, Intra4Mode, Intra16Mode, IntraMacroblock, LumaMode, parse_intra_mode_row,
-};
-pub use loop_filter::{
-    LoopFilterStrength, derive_loop_filter_strengths, filter_normal_edge, filter_simple_edge,
-};
-pub use partition::{
-    FilterHeader, FirstPartitionHeader, PartitionLayout, SegmentHeader, TokenPartition, Vp8Header,
-    parse_partition_layout, parse_riff_payload,
-};
-pub use quantization::{DequantizationMatrix, QuantizationHeader, derive_dequantization};
-pub use reconstruction::{
-    DequantizedMacroblock, MacroblockPixels, MacroblockPredictionEdges, MacroblockSpatialResidues,
-    add_residue_and_clip, combine_macroblock_prediction, dequantize_macroblock,
-    inverse_transform_macroblock, predict_intra4_block, predict_intra4_macroblock,
-    predict_intra16_macroblock, reconstruct_intra_macroblock,
-};
-pub use transform::{inverse_dct_4x4, inverse_dct_4x4_i32, inverse_wht_4x4, inverse_wht_4x4_i32};
+pub use entropy::CoefficientBlockType;
+pub use entropy::CoefficientProbabilities;
+pub use entropy::DecodedCoefficients;
+pub use entropy::MacroblockResiduals;
+pub use entropy::ResidualContext;
+pub use entropy::decode_coefficients;
+pub use entropy::decode_intra_residuals;
+pub use frame::Vp8YuvImage;
+pub use frame::decode_intra_frame;
+pub use intra::ChromaMode;
+pub use intra::Intra4Mode;
+pub use intra::Intra16Mode;
+pub use intra::IntraMacroblock;
+pub use intra::LumaMode;
+pub use intra::parse_intra_mode_row;
+pub use loop_filter::LoopFilterStrength;
+pub use loop_filter::derive_loop_filter_strengths;
+pub use loop_filter::filter_normal_edge;
+pub use loop_filter::filter_simple_edge;
+pub use partition::FilterHeader;
+pub use partition::FirstPartitionHeader;
+pub use partition::PartitionLayout;
+pub use partition::SegmentHeader;
+pub use partition::TokenPartition;
+pub use partition::Vp8Header;
+pub use partition::parse_partition_layout;
+pub use partition::parse_riff_payload;
+pub use quantization::DequantizationMatrix;
+pub use quantization::QuantizationHeader;
+pub use quantization::derive_dequantization;
+pub use reconstruction::DequantizedMacroblock;
+pub use reconstruction::MacroblockPixels;
+pub use reconstruction::MacroblockPredictionEdges;
+pub use reconstruction::MacroblockSpatialResidues;
+pub use reconstruction::add_residue_and_clip;
+pub use reconstruction::combine_macroblock_prediction;
+pub use reconstruction::dequantize_macroblock;
+pub use reconstruction::inverse_transform_macroblock;
+pub use reconstruction::predict_intra4_block;
+pub use reconstruction::predict_intra4_macroblock;
+pub use reconstruction::predict_intra16_macroblock;
+pub use reconstruction::reconstruct_intra_macroblock;
+pub use transform::inverse_dct_4x4;
+pub use transform::inverse_dct_4x4_i32;
+pub use transform::inverse_wht_4x4;
+pub use transform::inverse_wht_4x4_i32;
