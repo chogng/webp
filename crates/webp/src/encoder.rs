@@ -1,10 +1,10 @@
 //! Minimal static VP8L lossless encoding.
 //!
-//! This M4 slice writes a single entropy group with reversible subtract-green
-//! and predictor transforms, a bounded color cache, and no backward
-//! references. Entropy tables use deterministic frequency-ranked balanced
-//! Huffman codes. Small palette images use color indexing; LZ77 remains later
-//! encoder work.
+//! This M6 slice writes a single entropy group with reversible color,
+//! subtract-green, and predictor transforms, a bounded color cache, and
+//! distance-one backward references. Entropy tables use deterministic
+//! frequency-ranked balanced Huffman codes. Small palette images use color
+//! indexing.
 
 use crate::{AnimationEncodeFrame, AnimationEncodeOptions, EncodeError, Metadata};
 use webp_core::BitWriter;
@@ -26,6 +26,8 @@ const CODE_LENGTH_CODE_ORDER: [usize; 19] = [
 const MAX_ANIMATION_DIMENSION: u32 = 1 << 24;
 const MAX_ANIMATION_DURATION_MS: u32 = (1 << 24) - 1;
 const MAX_ENCODER_PALETTE_SIZE: usize = 16;
+const COLOR_TRANSFORM_BLOCK_BITS: u8 = 7;
+const MIN_COLOR_TRANSFORM_PIXELS: usize = 256;
 
 #[derive(Clone, Copy)]
 enum EntropyToken {
@@ -63,6 +65,13 @@ struct PalettePlan {
     entries: Vec<[u8; 4]>,
     indexed_rgba: Vec<u8>,
     indexed_width: usize,
+}
+
+#[derive(Clone, Copy)]
+struct ColorTransformPlan {
+    green_to_red: i8,
+    green_to_blue: i8,
+    red_to_blue: i8,
 }
 
 /// Encodes a static RGBA8 image as a lossless WebP file.
@@ -191,12 +200,24 @@ fn encode_vp8l_payload(
         return encode_palette_vp8l_payload(width, height, has_alpha, palette);
     }
 
+    let color_transform = select_color_transform(rgba);
+    let transformed = match color_transform {
+        Some(plan) => apply_forward_color_transform(rgba, plan)?,
+        None => rgba.to_vec(),
+    };
+
     let mut bits = BitWriter::new();
     write_vp8l_header(&mut bits, width, height, has_alpha)?;
 
+    if let Some(plan) = color_transform {
+        write_bits(&mut bits, 1, 1)?; // Color transform follows.
+        write_bits(&mut bits, 1, 2)?; // VP8L color transform type.
+        write_bits(&mut bits, u32::from(COLOR_TRANSFORM_BLOCK_BITS), 3)?;
+        write_color_transform_image(&mut bits, width, height, plan)?;
+    }
     write_bits(&mut bits, 1, 1)?; // Subtract-green transform follows.
     write_bits(&mut bits, 2, 2)?; // VP8L subtract-green transform type.
-    let use_left_predictor = select_left_predictor(rgba, width_usize);
+    let use_left_predictor = select_left_predictor(&transformed, width_usize);
     if use_left_predictor {
         write_bits(&mut bits, 1, 1)?; // Predictor transform follows.
         write_bits(&mut bits, 0, 2)?; // VP8L predictor transform type.
@@ -205,9 +226,10 @@ fn encode_vp8l_payload(
     }
     write_bits(&mut bits, 0, 1)?; // Transform-list terminator.
 
-    let color_cache_bits = select_color_cache_bits(rgba, width_usize, true, use_left_predictor);
+    let color_cache_bits =
+        select_color_cache_bits(&transformed, width_usize, true, use_left_predictor);
     let (tokens, frequencies) = collect_entropy_tokens(
-        rgba,
+        &transformed,
         width_usize,
         true,
         use_left_predictor,
@@ -391,6 +413,37 @@ fn write_predictor_mode_image(
         // Predictor mode is carried in green; all transform-image channels
         // still use the ordinary literal entropy syntax.
         for channel in [LEFT_PREDICTOR_MODE, 0, 0, u8::MAX] {
+            write_fixed_symbol(writer, channel)?;
+        }
+    }
+    Ok(())
+}
+
+/// Writes a single, global VP8L color-transform table. A seven-bit block size
+/// makes the table one pixel for images up to 128 by 128, while still keeping
+/// its dimensions and edge behaviour valid for all VP8L image sizes.
+fn write_color_transform_image(
+    writer: &mut BitWriter,
+    width: u32,
+    height: u32,
+    plan: ColorTransformPlan,
+) -> Result<(), EncodeError> {
+    write_literal_entropy_image_prefix(writer, false)?;
+    let block_size = 1_u32 << COLOR_TRANSFORM_BLOCK_BITS;
+    let block_width = width.div_ceil(block_size);
+    let block_height = height.div_ceil(block_size);
+    let pixels = u64::from(block_width)
+        .checked_mul(u64::from(block_height))
+        .ok_or_else(EncodeError::input_size_overflow)?;
+    for _ in 0..pixels {
+        // VP8L stores green-to-red in blue, green-to-blue in green, and
+        // red-to-blue in red. The alpha transform-image channel is unused.
+        for channel in [
+            plan.green_to_blue as u8,
+            plan.red_to_blue as u8,
+            plan.green_to_red as u8,
+            0,
+        ] {
             write_fixed_symbol(writer, channel)?;
         }
     }
@@ -703,6 +756,116 @@ fn subtract_green_pixel(rgba: &[u8], index: usize) -> [u8; 4] {
         blue.wrapping_sub(green),
         alpha,
     ]
+}
+
+/// Evaluates a bounded deterministic coefficient set. The transform's table
+/// costs a full nested entropy image, so it is only considered for substantial
+/// images and must reduce the signed channel-residual score by at least 25%.
+fn select_color_transform(rgba: &[u8]) -> Option<ColorTransformPlan> {
+    if rgba.len() / 4 < MIN_COLOR_TRANSFORM_PIXELS {
+        return None;
+    }
+    const CANDIDATES: [ColorTransformPlan; 6] = [
+        ColorTransformPlan {
+            green_to_red: 32,
+            green_to_blue: 32,
+            red_to_blue: 0,
+        },
+        ColorTransformPlan {
+            green_to_red: 32,
+            green_to_blue: 0,
+            red_to_blue: 32,
+        },
+        ColorTransformPlan {
+            green_to_red: 0,
+            green_to_blue: 32,
+            red_to_blue: 32,
+        },
+        ColorTransformPlan {
+            green_to_red: 48,
+            green_to_blue: 48,
+            red_to_blue: 0,
+        },
+        ColorTransformPlan {
+            green_to_red: -32,
+            green_to_blue: -32,
+            red_to_blue: 0,
+        },
+        ColorTransformPlan {
+            green_to_red: 64,
+            green_to_blue: 64,
+            red_to_blue: 0,
+        },
+    ];
+    let baseline = color_residual_score(rgba, None);
+    let mut selected = None;
+    let mut best = baseline;
+    for candidate in CANDIDATES {
+        let score = color_residual_score(rgba, Some(candidate));
+        if score < best {
+            best = score;
+            selected = Some(candidate);
+        }
+    }
+    (best.saturating_mul(4) <= baseline.saturating_mul(3)).then_some(selected?)
+}
+
+/// Applies the forward form of VP8L's color transform. Blue must use the
+/// original red channel because the decoder uses reconstructed red for its
+/// inverse step.
+fn apply_forward_color_transform(
+    rgba: &[u8],
+    plan: ColorTransformPlan,
+) -> Result<Vec<u8>, EncodeError> {
+    let mut transformed = Vec::new();
+    transformed
+        .try_reserve_exact(rgba.len())
+        .map_err(|_| EncodeError::allocation_failed())?;
+    for pixel in rgba.chunks_exact(4) {
+        let red_delta = color_transform_delta(pixel[1], plan.green_to_red);
+        let blue_delta = color_transform_delta(pixel[1], plan.green_to_blue)
+            + color_transform_delta(pixel[0], plan.red_to_blue);
+        transformed.extend_from_slice(&[
+            pixel[0].wrapping_sub(red_delta as u8),
+            pixel[1],
+            pixel[2].wrapping_sub(blue_delta as u8),
+            pixel[3],
+        ]);
+    }
+    Ok(transformed)
+}
+
+fn color_transform_delta(channel: u8, multiplier: i8) -> i16 {
+    (i16::from(channel as i8) * i16::from(multiplier)) >> 5
+}
+
+/// Scores the signed size of color residuals after the candidate transform.
+/// It intentionally avoids an entropy-model feedback loop; the strict 25%
+/// threshold keeps this bounded estimator from paying for a transform table on
+/// weak correlations.
+fn color_residual_score(rgba: &[u8], plan: Option<ColorTransformPlan>) -> u64 {
+    rgba.chunks_exact(4)
+        .map(|pixel| {
+            let (red, blue) = if let Some(plan) = plan {
+                (
+                    pixel[0].wrapping_sub(color_transform_delta(pixel[1], plan.green_to_red) as u8),
+                    pixel[2].wrapping_sub(
+                        (color_transform_delta(pixel[1], plan.green_to_blue)
+                            + color_transform_delta(pixel[0], plan.red_to_blue))
+                            as u8,
+                    ),
+                )
+            } else {
+                (pixel[0], pixel[2])
+            };
+            u64::from(signed_byte_magnitude(red)) + u64::from(signed_byte_magnitude(blue))
+        })
+        .sum()
+}
+
+fn signed_byte_magnitude(value: u8) -> u8 {
+    let signed = value as i8;
+    signed.unsigned_abs()
 }
 
 fn pixel_at(rgba: &[u8], index: usize) -> [u8; 4] {

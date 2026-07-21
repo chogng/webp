@@ -86,6 +86,16 @@ fn opaque_cases() -> Vec<(u32, u32, Vec<u8>)> {
         ]);
     }
     cases.push((5, 5, block_edge_rgba));
+    let mut correlated_rgb = Vec::new();
+    for green in 0_u8..=u8::MAX {
+        correlated_rgb.extend_from_slice(&[
+            green.wrapping_add(3),
+            green,
+            green.wrapping_sub(5),
+            255,
+        ]);
+    }
+    cases.push((16, 16, correlated_rgb));
     cases
 }
 

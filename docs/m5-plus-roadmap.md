@@ -31,8 +31,11 @@ The encoder also selects a zero-to-four-bit cache only when it produces hits,
 writes color-indexing transforms for deterministic palettes of up to 16
 colors, and emits bounded distance-one LZ77 runs (at most 4096 pixels).
 It also selects between no predictor and fixed-left prediction from transformed
-neighbour matches. Adaptive color-transform choices retain their own exit
-criteria.
+neighbour matches. For images of at least 256 pixels, it also evaluates a
+bounded set of global color-transform coefficient triples and emits one only
+when its signed channel-residual score improves by at least 25%; nested-table
+cost otherwise keeps the color transform disabled. Per-block coefficient
+selection remains a later rate-tuning step.
 
 ## M7: static lossy VP8 encoding
 

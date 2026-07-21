@@ -103,6 +103,25 @@ fn encoder_selects_left_prediction_only_for_repeated_transformed_neighbours() {
 }
 
 #[test]
+fn encoder_selects_and_round_trips_a_strong_global_color_transform() {
+    let mut rgba = Vec::new();
+    for green in 0_u8..=u8::MAX {
+        rgba.extend_from_slice(&[green.wrapping_add(3), green, green.wrapping_sub(5), 255]);
+    }
+    assert!(
+        select_color_transform(&rgba).is_some(),
+        "correlated RGB channels clear the transform's bounded selection threshold"
+    );
+    let encoded = encode_lossless_rgba(16, 16, &rgba).expect("encode color-transformed VP8L");
+    assert_eq!(
+        decode(&encoded, &DecodeOptions::default())
+            .expect("decode color-transformed VP8L")
+            .rgba,
+        rgba
+    );
+}
+
+#[test]
 fn encoder_round_trips_static_vp8l_geometry_and_alpha_matrix() {
     let cases = [
         (1, 1),
