@@ -170,6 +170,28 @@ fn dc_predicted_frame_uses_reconstructed_neighbour_prediction() {
 }
 
 #[test]
+fn zero_residual_frames_select_macroblock_skip_when_it_is_smaller() {
+    let source = Vp8SourceYuv {
+        width: 64,
+        height: 64,
+        y_stride: 64,
+        uv_stride: 32,
+        y: vec![128; 64 * 64],
+        u: vec![128; 32 * 32],
+        v: vec![128; 32 * 32],
+    };
+    let encoded = encode_dc_predicted_key_frame_with_quantizer(&source, 127).unwrap();
+    let header = parse_riff_payload(&encoded, None, &DecodeLimits::default()).unwrap();
+    let layout = crate::parse_partition_layout(&encoded, &header, &DecodeLimits::default())
+        .unwrap();
+    assert!(layout.header.coefficients.use_skip_probability);
+    let decoded = decode_intra_frame(&encoded, &header, &DecodeLimits::default()).unwrap();
+    assert!(decoded.y.iter().all(|&sample| sample == 128));
+    assert!(decoded.u.iter().all(|&sample| sample == 128));
+    assert!(decoded.v.iter().all(|&sample| sample == 128));
+}
+
+#[test]
 fn intra16_selector_uses_vertical_prediction_when_top_edge_matches_source() {
     let matrix = crate::derive_dequantization(
         crate::QuantizationHeader {

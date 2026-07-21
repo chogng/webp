@@ -81,7 +81,7 @@ pub fn encode_neutral_key_frame(width: u32, height: u32) -> Result<Vec<u8>, Vp8E
         .checked_mul(macroblock_height)
         .ok_or(Vp8EncodeError::AllocationFailed)?;
     let blocks = vec![dc_intra_macroblock(); macroblock_count];
-    let first_partition = write_first_partition(&blocks, 0)?;
+    let first_partition = write_first_partition(&blocks, 0, None)?;
     let token_partition = write_zero_token_partition(macroblock_count)?;
     assemble_key_frame(width, height, first_partition, token_partition)
 }
@@ -185,7 +185,7 @@ pub fn encode_dc_predicted_key_frame_with_quantizer(
             let y_offset = macroblock_y * 16 * source.y_stride + macroblock_x * 16;
             let uv_offset = macroblock_y * 8 * source.uv_stride + macroblock_x * 8;
             let edges = reconstructed.edges(macroblock_x, macroblock_y);
-            let (block, coefficients, pixels) = select_intra16_macroblock(
+            let (mut block, coefficients, pixels) = select_intra16_macroblock(
                 &source.y[y_offset..],
                 source.y_stride,
                 &source.u[uv_offset..],
@@ -194,13 +194,30 @@ pub fn encode_dc_predicted_key_frame_with_quantizer(
                 matrix,
                 edges,
             )?;
+            block.skip = macroblock_is_zero(coefficients);
             reconstructed.store_macroblock(macroblock_x, macroblock_y, pixels);
             blocks.push(block);
             macroblocks.push(coefficients);
         }
     }
-    let first_partition = write_first_partition(&blocks, quantizer)?;
-    let token_partition = write_dc_macroblocks_token_partition(&macroblocks, macroblock_width)?;
+    let regular_first = write_first_partition(&blocks, quantizer, None)?;
+    let regular_tokens =
+        write_dc_macroblocks_token_partition(&macroblocks, &blocks, macroblock_width, false)?;
+    let (first_partition, token_partition) = if let Some(skip_probability) = skip_probability(&blocks)
+    {
+        let skip_first = write_first_partition(&blocks, quantizer, Some(skip_probability))?;
+        let skip_tokens =
+            write_dc_macroblocks_token_partition(&macroblocks, &blocks, macroblock_width, true)?;
+        let skip_size = partition_pair_len(&skip_first, &skip_tokens)?;
+        let regular_size = partition_pair_len(&regular_first, &regular_tokens)?;
+        if skip_size < regular_size {
+            (skip_first, skip_tokens)
+        } else {
+            (regular_first, regular_tokens)
+        }
+    } else {
+        (regular_first, regular_tokens)
+    };
     assemble_key_frame(source.width, source.height, first_partition, token_partition)
 }
 
@@ -309,6 +326,32 @@ fn empty_dc_coefficients() -> Vp8DcMacroblockCoefficients {
         u: [[0; 16]; 4],
         v: [[0; 16]; 4],
     }
+}
+
+fn macroblock_is_zero(coefficients: Vp8DcMacroblockCoefficients) -> bool {
+    coefficients
+        .y2
+        .into_iter()
+        .chain(coefficients.luma.into_iter().flatten())
+        .chain(coefficients.u.into_iter().flatten())
+        .chain(coefficients.v.into_iter().flatten())
+        .all(|value| value == 0)
+}
+
+fn skip_probability(blocks: &[IntraMacroblock]) -> Option<u8> {
+    let skipped = blocks.iter().filter(|block| block.skip).count();
+    if skipped == 0 {
+        return None;
+    }
+    let non_skipped = blocks.len() - skipped;
+    Some(((non_skipped * 255) / blocks.len()) as u8)
+}
+
+fn partition_pair_len(first: &[u8], tokens: &[u8]) -> Result<usize, Vp8EncodeError> {
+    first
+        .len()
+        .checked_add(tokens.len())
+        .ok_or(Vp8EncodeError::AllocationFailed)
 }
 
 fn coefficient_cost(values: impl Iterator<Item = i16>) -> u64 {
@@ -666,6 +709,7 @@ const fn rgb_to_v(red: u8, green: u8, blue: u8) -> u8 {
 fn write_first_partition(
     blocks: &[IntraMacroblock],
     quantizer: u8,
+    skip_probability: Option<u8>,
 ) -> Result<Vec<u8>, Vp8EncodeError> {
     let mut bits = BoolEncoder::new();
     bits.write_bool(false, 128)?; // WebP YUV color space.
@@ -690,10 +734,16 @@ fn write_first_partition(
             }
         }
     }
-    bits.write_bool(false, 128)?; // No macroblock skip probability.
+    bits.write_bool(skip_probability.is_some(), 128)?;
+    if let Some(probability) = skip_probability {
+        bits.write_literal(u32::from(probability), 8)?;
+    }
     for &block in blocks {
-        if block.segment != 0 || block.skip {
+        if block.segment != 0 {
             return Err(Vp8EncodeError::InvalidPlaneLayout);
+        }
+        if let Some(probability) = skip_probability {
+            bits.write_bool(block.skip, probability)?;
         }
         let LumaMode::Sixteen(luma_mode) = block.luma else {
             return Err(Vp8EncodeError::InvalidPlaneLayout);
@@ -754,9 +804,14 @@ fn write_zero_token_partition(macroblock_count: usize) -> Result<Vec<u8>, Vp8Enc
 
 fn write_dc_macroblocks_token_partition(
     macroblocks: &[Vp8DcMacroblockCoefficients],
+    blocks: &[IntraMacroblock],
     macroblock_width: usize,
+    honor_skip: bool,
 ) -> Result<Vec<u8>, Vp8EncodeError> {
-    if macroblock_width == 0 || !macroblocks.len().is_multiple_of(macroblock_width) {
+    if macroblock_width == 0
+        || macroblocks.len() != blocks.len()
+        || !macroblocks.len().is_multiple_of(macroblock_width)
+    {
         return Err(Vp8EncodeError::InvalidPlaneLayout);
     }
     let probabilities = CoefficientProbabilities::default();
@@ -765,12 +820,31 @@ fn write_dc_macroblocks_token_partition(
     let mut top_luma = vec![[false; 4]; macroblock_width];
     let mut top_u = vec![[false; 2]; macroblock_width];
     let mut top_v = vec![[false; 2]; macroblock_width];
-    for row in macroblocks.chunks_exact(macroblock_width) {
+    for (row, block_row) in macroblocks
+        .chunks_exact(macroblock_width)
+        .zip(blocks.chunks_exact(macroblock_width))
+    {
         let mut left_y2 = false;
         let mut left_luma = [false; 4];
         let mut left_u = [false; 2];
         let mut left_v = [false; 2];
-        for (column, coefficients) in row.iter().copied().enumerate() {
+        for (column, (coefficients, block)) in row
+            .iter()
+            .copied()
+            .zip(block_row.iter().copied())
+            .enumerate()
+        {
+            if honor_skip && block.skip {
+                top_y2[column] = false;
+                top_luma[column] = [false; 4];
+                top_u[column] = [false; 2];
+                top_v[column] = [false; 2];
+                left_y2 = false;
+                left_luma = [false; 4];
+                left_u = [false; 2];
+                left_v = [false; 2];
+                continue;
+            }
             let y2_context = u8::from(top_y2[column]) + u8::from(left_y2);
             write_coefficients(
                 &mut bits,

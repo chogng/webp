@@ -135,6 +135,24 @@ VP8 encoder speed therefore has no material remediation gap on this matrix;
 rate/quality tooling and coefficient/probability decisions own the remaining
 encoder gap.
 
+## VP8 zero-residual macroblock skipping
+
+The encoder now marks macroblocks whose quantized Y2, luma, U, and V
+coefficients are all zero as skip candidates. It derives VP8's skip
+probability from the observed macroblock ratio, emits a skip-aware first and
+token partition pair, and retains it only when its exact combined byte length
+is smaller than the regular pair. Skipped blocks reset every neighbouring
+coefficient context exactly as the decoder does. A 64x64 all-zero-residual
+frame exercises probability zero, omits all coefficient tokens, and decodes
+identically in Rust and the pinned `dwebp` oracle.
+
+The locked 21-file quality matrix did not select the skip-aware pair, so this
+pass intentionally records no corpus rate win: all three five-iteration runs
+still produced 288,010 bytes and checksum `293176` per matrix. Rust measured
+278.281 ms, 272.782 ms, and 274.468 ms, with a 274.468 ms median; the matching
+libwebp median was 334.754 ms. The next rate pass must therefore target the
+non-zero coefficient stream rather than flat macroblocks.
+
 ## VP8L entropy-path optimization record
 
 The 2026-07-20 optimization pass retained the same 41-file corpus, five

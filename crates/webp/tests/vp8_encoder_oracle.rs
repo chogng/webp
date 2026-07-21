@@ -101,6 +101,43 @@ fn dc_residual_vp8_key_frame_is_accepted_by_pinned_dwebp() {
 }
 
 #[test]
+fn all_skipped_vp8_key_frame_is_accepted_by_pinned_dwebp() {
+    let Some(dwebp) = pinned_dwebp() else {
+        eprintln!("skip VP8 encoder oracle: fetch the pinned libwebp oracle");
+        return;
+    };
+    let source = webp_vp8::Vp8SourceYuv {
+        width: 64,
+        height: 64,
+        y_stride: 64,
+        uv_stride: 32,
+        y: vec![128; 64 * 64],
+        u: vec![128; 32 * 32],
+        v: vec![128; 32 * 32],
+    };
+    let payload = webp_vp8::encode_dc_predicted_key_frame_with_quantizer(&source, 127)
+        .expect("emit all-skipped VP8 payload");
+    let scratch = ScratchDirectory::new();
+    let source_path = scratch.0.join("all-skipped.webp");
+    let target = scratch.0.join("all-skipped.pam");
+    let encoded = webp_from_vp8_payload(&payload);
+    let rust = decode(&encoded, &DecodeOptions::default()).expect("decode all-skipped VP8 frame");
+    fs::write(&source_path, encoded).expect("write all-skipped WebP");
+    let output = Command::new(dwebp)
+        .arg(&source_path)
+        .args(["-pam", "-o"])
+        .arg(&target)
+        .output()
+        .expect("run pinned dwebp");
+    assert!(
+        output.status.success(),
+        "pinned dwebp rejected all-skipped VP8 key frame: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(pam_rgba(&target, 64, 64), rust.rgba);
+}
+
+#[test]
 fn public_lossy_vp8_profile_matches_pinned_dwebp_pixels() {
     let Some(dwebp) = pinned_dwebp() else {
         eprintln!("skip VP8 encoder oracle: fetch the pinned libwebp oracle");
