@@ -1,44 +1,18 @@
-# Module and test organization guidelines
+# Module and test conventions
 
-## Crate root is a facade
+## Source modules
 
-Each crate's `src/lib.rs` should normally be a facade, not an implementation
-module. Its production responsibilities should normally be limited to:
-
-- crate attributes and crate-level documentation;
-- module declarations (`mod foo;` / `pub mod foo;`);
-- public type and function re-exports; and
-- the small, public decoding entry point when it cannot live naturally in a
-  domain module.
-
-Avoid adding codec state machines, parsers, tables, domain types, helper
-functions, or `#[cfg(test)] mod tests` directly to `lib.rs`. Put each in the
-module that owns the behaviour, then re-export only the intended public API
-from the root. This keeps dependency direction explicit and prevents the crate
-root from becoming a catch-all implementation module.
-
-For example, `bitstream.rs` owns boolean arithmetic decoding,
-`quantization.rs` owns dequantization, and `frame.rs` owns frame storage and
-pixel output; `lib.rs` only declares those modules and exposes their supported
-API. Shared internal helpers belong in a named `pub(crate)` module rather than
-in the crate root.
-
-Keep ordinary implementation modules small enough to have a clear owner. As a
-review guideline, evaluate a split around 500 lines excluding tests; once a
-module is roughly 800 lines, add new behaviour in a new module unless there is
-a documented reason to keep it together. When extracting a module, move its
-associated tests and module/type documentation with it.
-
-Tests are grouped by the visibility of the behaviour they verify. Keep the
-test close to the code when it needs access to module-private implementation
-details; put it at the crate boundary when it verifies a user-visible
-contract.
+- `src/lib.rs` is a facade: crate docs/attributes, module declarations, public
+  re-exports, and the smallest necessary public decode entry point only.
+- Keep implementations, domain types, tables, and internal helpers in their
+  owning module; use a named `pub(crate)` module for shared internals.
+- Split a growing module by responsibility. Move its related tests and module
+  documentation with the implementation.
 
 ## Module-private tests
 
-For a source module such as `src/frame.rs`, place its private implementation
-tests in the sibling file `src/frame_tests.rs` and declare it at the end of
-the source module:
+Put private tests for `src/frame.rs` in the sibling
+`src/frame_tests.rs`, declared at the end of `frame.rs`:
 
 ```rust
 #[cfg(test)]
@@ -46,47 +20,13 @@ the source module:
 mod tests;
 ```
 
-This makes the test file the `frame::tests` child module. It can exercise
-private functions, types, and invariants in `frame.rs` without making them
-public just for testing. Use the matching `*_tests.rs` name for each module:
-`entropy_tests.rs`, `partition_tests.rs`, and so on.
+This is a `frame::tests` child module and may use `frame`'s private items.
+Keep module-specific fixtures and builders there. Do not move existing inline
+tests solely for naming; move them when extracting their implementation.
 
-Apply this layout when introducing a new test module. Do not move an existing
-inline `#[cfg(test)] mod tests { ... }` solely to satisfy the filename
-convention; move it when its implementation ownership is being extracted or
-when the migration materially improves clarity.
+## Integration tests
 
-Keep test-only builders, bit writers, and fixture constructors with the
-module they serve. Move a helper to shared test support only after more than
-one module genuinely needs it.
-
-## Public-API integration tests
-
-Put tests that use only the public API in the crate's `tests/` directory, for
-example `crates/webp/tests/vp8_libwebp_oracle.rs`. Cargo compiles each such
-file as a separate test crate that consumes the library crate, so it cannot
-access private module items. This is intentional: these tests protect the
-externally visible decoder contract.
-
-Use integration tests for container-to-image behaviour, error reporting,
-committed fixtures, corpus vectors, and libwebp differential checks. Do not
-make an internal function public only to let an integration test call it;
-write a module-private test instead.
-
-`tests/` does **not** require the behaviour itself to span two library crates.
-The distinction is visibility: a test belongs there when it exercises only
-the public API, even if it calls one crate's decoder. Tests that coordinate
-multiple workspace crates also belong there, normally at the highest-level
-facade crate that owns the user-visible contract.
-
-## Choosing the location
-
-| Behaviour under test | Location |
-| --- | --- |
-| Private parser state, prediction edges, transforms, or filter decisions | `src/<module>_tests.rs` |
-| A public decode/read-info API result (including one-crate API tests) | `crates/<crate>/tests/*.rs` |
-| A regression fixture through the public decoder | `crates/webp/tests/*.rs` plus `tests/fixtures/` |
-| Cross-check against `cwebp` or `dwebp` | `crates/webp/tests/*_oracle.rs` |
-
-Run focused module tests with `cargo test -p webp-vp8`, public API tests with
-`cargo test -p webp`, and the full suite with `cargo test --workspace`.
+Put public-API tests in `crates/<crate>/tests/*.rs`. They must not access
+private items. Use them for decode behaviour, fixtures, corpus vectors, and
+libwebp differential checks. They do not need to span multiple library crates:
+the boundary is public API visibility.
