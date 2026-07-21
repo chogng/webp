@@ -1,9 +1,15 @@
-# Module and test organization
+# Module and test organization guidelines
+
+These are project guidelines, not compiler-enforced rules. They adopt the
+relevant Rust organization practices from the
+[OpenAI Codex repository](https://github.com/openai/codex/blob/main/AGENTS.md)
+and apply them to this codec workspace. Departures are acceptable when they
+make ownership or the public API clearer; document the reason in the change.
 
 ## Crate root is a facade
 
-Each crate's `src/lib.rs` is a facade, not an implementation module. Its
-permitted production responsibilities are limited to:
+Each crate's `src/lib.rs` should normally be a facade, not an implementation
+module. Its production responsibilities should normally be limited to:
 
 - crate attributes and crate-level documentation;
 - module declarations (`mod foo;` / `pub mod foo;`);
@@ -11,17 +17,23 @@ permitted production responsibilities are limited to:
 - the small, public decoding entry point when it cannot live naturally in a
   domain module.
 
-Do not add codec state machines, parsers, tables, domain types, helper
-functions, or `#[cfg(test)] mod tests` directly to `lib.rs`. Put each of them
-in the module that owns the behaviour, then re-export only the intended public
-API from the root. This keeps dependency direction explicit and prevents the
-crate root from becoming a catch-all implementation module.
+Avoid adding codec state machines, parsers, tables, domain types, helper
+functions, or `#[cfg(test)] mod tests` directly to `lib.rs`. Put each in the
+module that owns the behaviour, then re-export only the intended public API
+from the root. This keeps dependency direction explicit and prevents the crate
+root from becoming a catch-all implementation module.
 
 For example, `bitstream.rs` owns boolean arithmetic decoding,
 `quantization.rs` owns dequantization, and `frame.rs` owns frame storage and
 pixel output; `lib.rs` only declares those modules and exposes their supported
 API. Shared internal helpers belong in a named `pub(crate)` module rather than
 in the crate root.
+
+Keep ordinary implementation modules small enough to have a clear owner. As a
+review guideline, evaluate a split around 500 lines excluding tests; once a
+module is roughly 800 lines, add new behaviour in a new module unless there is
+a documented reason to keep it together. When extracting a module, move its
+associated tests and module/type documentation with it.
 
 Tests are grouped by the visibility of the behaviour they verify. Keep the
 test close to the code when it needs access to module-private implementation
@@ -44,6 +56,11 @@ This makes the test file the `frame::tests` child module. It can exercise
 private functions, types, and invariants in `frame.rs` without making them
 public just for testing. Use the matching `*_tests.rs` name for each module:
 `entropy_tests.rs`, `partition_tests.rs`, and so on.
+
+Apply this layout when introducing a new test module. Do not move an existing
+inline `#[cfg(test)] mod tests { ... }` solely to satisfy the filename
+convention; move it when its implementation ownership is being extracted or
+when the migration materially improves clarity.
 
 Keep test-only builders, bit writers, and fixture constructors with the
 module they serve. Move a helper to shared test support only after more than
