@@ -1,5 +1,9 @@
 //! VP8 scalar inverse transforms.
 
+#[cfg(test)]
+#[path = "transform_tests.rs"]
+mod tests;
+
 /// Performs VP8's integer inverse 4×4 DCT and returns pixel-domain residues.
 ///
 /// Coefficients are in raster order after dequantization. All intermediates
