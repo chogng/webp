@@ -16,9 +16,9 @@ The `test` job runs, in order:
    --test_tag_filters=-external-corpus //...` builds and runs ordinary
    `rust_test` targets. Committed fixtures enter the sandbox through Bazel
    `data` declarations, so tests cannot rely on undeclared machine-local files.
-4. **Cargo-to-Bazel dependency mapping.** CI builds with
-   `CARGO_BAZEL_REPIN=1` and then uses `git diff --exit-code --
-   cargo-bazel-lock.json` to detect an uncommitted generated lock update.
+4. **Cargo-to-Bazel dependency mapping.** Bazel resolves crate dependencies
+   directly from the committed `webp-rs/Cargo.lock`; no separate generated
+   crate-universe lock is maintained.
 
 External-corpus targets carry the `manual` and `external-corpus` tags.
 `third_party/` is Git-ignored and contains only downloaded test data, the
@@ -42,7 +42,7 @@ SHA-256 values of the 68 selected vectors.
 5. each file matches its recorded SHA-256.
 
 Scheduled `upstream-corpus` CI uses this pinned input and explicitly runs
-`//crates/webp:external_upstream_corpus_test`. The test reads the corpus from
+`//webp-rs/webp:external_upstream_corpus_test`. The test reads the corpus from
 Bazel runfiles and fails if the corpus was not supplied.
 
 ## Manual updates

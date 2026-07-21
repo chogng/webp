@@ -6,7 +6,7 @@ does **not** claim that any WebP bitstream is decoded yet.
 ## What exists
 
 - `tests/fixtures/smoke`: a committed minimal malformed-input seed.
-- `crates/webp` integration tests: direct fixture and corpus consumption through
+- `webp-rs/webp` integration tests: direct fixture and corpus consumption through
   the public Rust API.
 - `tools/corpus-lock.toml`: reviewed, immutable pins for the libwebp oracle and
   upstream conformance corpus. It records both Git revisions and archive
@@ -16,7 +16,7 @@ does **not** claim that any WebP bitstream is decoded yet.
 ## Adding a fixture
 
 1. Put fixture bytes in the appropriate corpus directory.
-2. Add a direct public-API test in `crates/webp` that reads the fixture and
+2. Add a direct public-API test in `webp-rs/webp` that reads the fixture and
    asserts the expected result.
 3. Keep any required dimensions, pixels, or error expectation alongside that
    test so its contract is visible at the call site.
@@ -26,7 +26,7 @@ does **not** claim that any WebP bitstream is decoded yet.
 From the repository root, run:
 
 ```text
-cargo test -p webp
+cd webp-rs && cargo test -p webp
 ```
 
 The complete `third_party/` directory is deliberately ignored by Git. It holds
@@ -67,7 +67,7 @@ than a falsely passing decode test.
 Generate the committed structural-malformation corpus with:
 
 ```text
-cargo run -p xtask -- fixtures generate-malformed
+cd webp-rs && cargo run -p xtask -- fixtures generate-malformed
 ```
 
 The generator is idempotent; direct API tests classify each generated input.

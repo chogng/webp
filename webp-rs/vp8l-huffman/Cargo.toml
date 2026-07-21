@@ -1,0 +1,20 @@
+[package]
+name = "webp-vp8l-huffman"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.88"
+license = "MIT OR Apache-2.0"
+repository = "https://example.invalid/webp-rs"
+description = "Validated canonical Huffman tables for VP8L"
+
+[lints.rust]
+unsafe_code = "forbid"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+
+[dependencies]
+webp-core = { path = "../core" }
+
+# This crate is intentionally its own temporary workspace until the parent
+# package adds it to the repository workspace as part of M1 integration.

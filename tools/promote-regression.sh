@@ -33,4 +33,4 @@ fi
 mkdir -p "$root/fixtures/regressions"
 cp "$input" "$fixture"
 
-printf '%s\n' "added regression fixture $fixture from $issue ($license); add its public API test in crates/webp"
+printf '%s\n' "added regression fixture $fixture from $issue ($license); add its public API test in webp-rs/webp"

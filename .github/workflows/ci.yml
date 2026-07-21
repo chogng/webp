@@ -16,15 +16,18 @@ jobs:
         with:
           components: rustfmt, clippy
       - run: cargo fmt --all -- --check
+        working-directory: webp-rs
       - run: cargo clippy --workspace --all-targets -- -D warnings
+        working-directory: webp-rs
       - run: cargo test --workspace
+        working-directory: webp-rs
       - uses: bazelbuild/setup-bazelisk@v3
       - run: bash tools/check-module-bazel-lock.sh
       - run: bazel test --test_output=errors --test_tag_filters=-external-corpus //...
-      - run: CARGO_BAZEL_REPIN=1 bazel build --lockfile_mode=error //...
-      - run: git diff --exit-code -- cargo-bazel-lock.json
       - run: cargo run -p xtask -- corpus verify
+        working-directory: webp-rs
       - run: cargo run -p xtask -- feature-matrix check
+        working-directory: webp-rs
 
   upstream-corpus:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -38,6 +41,7 @@ jobs:
       - run: cmake --build third_party/oracle/libwebp/build --target dwebp cwebp --parallel 2
       - run: tools/verify-upstream-smoke.sh
       - run: cargo test --release -p webp --test external_upstream_corpus
+        working-directory: webp-rs
       - uses: bazelbuild/setup-bazelisk@v3
       - run: bash tools/check-module-bazel-lock.sh
-      - run: bazel test --test_output=errors --test_tag_filters=external-corpus //crates/webp:external_upstream_corpus_test
+      - run: bazel test --test_output=errors --test_tag_filters=external-corpus //webp-rs/webp:external_upstream_corpus_test

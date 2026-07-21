@@ -49,7 +49,7 @@ tools/verify-upstream-smoke.sh
 Review and commit the updated pin and checksum lock only after the external
 corpus test passes.
 
-`crates/webp/tests/external_upstream_corpus.rs` reads the versioned smoke
+`webp-rs/webp/tests/external_upstream_corpus.rs` reads the versioned smoke
 selection directly. It promotes only the VP8L vectors supported by the public
 decoder; additional vectors are added to direct API tests when their codec path
 is implemented.
@@ -68,7 +68,7 @@ lossless, and near-lossless settings for later direct pixel-golden tests.
 
 ## Generated fixtures
 
-Run `cargo run -p xtask -- fixtures generate-malformed` after changing the
+Run `cd webp-rs && cargo run -p xtask -- fixtures generate-malformed` after changing the
 generator. It regenerates the committed minimal RIFF/VP8X hostile samples. A
 discovered failure is minimized before being moved to
 `tests/fixtures/regressions/`, with its issue/source, expected result, and the

@@ -64,7 +64,7 @@ cargo +nightly-2026-07-15 fuzz run vp8l_raw -- -runs=10000
 cargo +nightly-2026-07-15 fuzz run vp8l_huffman -- -runs=10000
 cargo +nightly-2026-07-15 fuzz run vp8l_transforms -- -runs=10000
 bazel test --test_output=errors --test_tag_filters=external-corpus \
-  //crates/webp:external_upstream_corpus_test
+  //webp-rs/webp:external_upstream_corpus_test
 ```
 
 The Bazel external-corpus target passed locally with Bazel 9.0.0. Scheduled CI

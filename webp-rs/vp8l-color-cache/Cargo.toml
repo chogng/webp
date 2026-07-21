@@ -1,0 +1,15 @@
+[package]
+name = "webp-vp8l-color-cache"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "VP8L lossless WebP color-cache primitive"
+
+[lints]
+workspace = true
+
+[dependencies]
+webp-core = { path = "../core" }
+webp-vp8l-entropy = { path = "../vp8l-entropy" }

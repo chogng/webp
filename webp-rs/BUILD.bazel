@@ -1,0 +1,11 @@
+package(default_visibility = ["//visibility:public"])
+
+filegroup(
+    name = "workspace_files",
+    srcs = [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rustfmt.toml",
+        "rust-toolchain.toml",
+    ],
+)

@@ -48,7 +48,7 @@ if [[ "${#files[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-cargo build --release -p webp --example vp8_encode_bench --manifest-path "$root/Cargo.toml"
+cargo build --release -p webp --example vp8_encode_bench --manifest-path "$root/webp-rs/Cargo.toml"
 "$root/target/release/examples/vp8_encode_bench" "$iterations" "${files[@]}"
 
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/webp-vp8-encode-bench.XXXXXX")"

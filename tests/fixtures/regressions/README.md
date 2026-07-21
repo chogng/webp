@@ -8,6 +8,6 @@ tools/promote-regression.sh minimized.webp issue-123-riff-overflow \
 ```
 
 The command copies the bytes into the regression corpus. Add a direct public
-API test in `crates/webp` for every promoted regression; assert rejection, or
+API test in `webp-rs/webp` for every promoted regression; assert rejection, or
 the appropriate pixel, metadata, or `ReadInfo` golden expectation for valid
 images.

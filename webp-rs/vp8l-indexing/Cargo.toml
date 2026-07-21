@@ -1,0 +1,14 @@
+[package]
+name = "webp-vp8l-indexing"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "VP8L lossless WebP color-indexing transform primitive"
+
+[lints]
+workspace = true
+
+[dependencies]
+webp-vp8l-transform = { path = "../vp8l-transform" }

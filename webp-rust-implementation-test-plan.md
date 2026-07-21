@@ -80,11 +80,11 @@ pub enum CompatibilityProfile {
 ```text
 webp-rs/
 ├── Cargo.toml
-├── crates/
+├── webp-rs/
 │   ├── webp/                    # 公共 facade，稳定 API
-│   ├── webp-container/          # RIFF、VP8X、metadata、mux/demux
-│   ├── webp-vp8l/               # VP8L 解码与编码
-│   ├── webp-vp8/                # VP8 key-frame 解码与编码
+│   ├── container/          # RIFF、VP8X、metadata、mux/demux
+│   ├── vp8l/               # VP8L 解码与编码
+│   ├── vp8/                # VP8 key-frame 解码与编码
 │   ├── webp-anim/               # 帧模型与画布合成
 │   ├── webp-dsp/                # 标量 DSP；后续放 SIMD dispatch
 │   ├── tests/                   # fixtures、corpus selection 与集成测试数据

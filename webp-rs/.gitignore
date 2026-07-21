@@ -1,0 +1,8 @@
+# Cargo output for this workspace and standalone nested Cargo projects.
+/target/
+/*/target/
+/*/Cargo.lock
+
+# libFuzzer output is generated locally.
+/fuzz/artifacts/
+/fuzz/corpus/

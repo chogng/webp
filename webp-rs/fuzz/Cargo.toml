@@ -1,0 +1,102 @@
+[package]
+name = "webp-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+webp = { path = "../webp" }
+webp-core = { path = "../core" }
+webp-vp8 = { path = "../vp8" }
+webp-vp8l-color-transform = { path = "../vp8l-color-transform" }
+webp-vp8l-huffman = { path = "../vp8l-huffman" }
+webp-vp8l-indexing = { path = "../vp8l-indexing" }
+webp-vp8l-transform = { path = "../vp8l-transform" }
+
+[[bin]]
+name = "container_raw"
+path = "fuzz_targets/container_raw.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "incremental_raw"
+path = "fuzz_targets/incremental_raw.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "animation_raw"
+path = "fuzz_targets/animation_raw.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vp8l_header_raw"
+path = "fuzz_targets/vp8l_header_raw.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vp8l_raw"
+path = "fuzz_targets/vp8l_raw.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vp8l_huffman"
+path = "fuzz_targets/vp8l_huffman.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vp8l_transforms"
+path = "fuzz_targets/vp8l_transforms.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vp8_bool_raw"
+path = "fuzz_targets/vp8_bool_raw.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vp8_partition_raw"
+path = "fuzz_targets/vp8_partition_raw.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vp8_transforms"
+path = "fuzz_targets/vp8_transforms.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vp8_coefficients"
+path = "fuzz_targets/vp8_coefficients.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "vp8_residuals"
+path = "fuzz_targets/vp8_residuals.rs"
+test = false
+doc = false
+bench = false

@@ -38,7 +38,7 @@ encoding; performance work remains deliberately deferred.
 Run the workspace test suite with:
 
 ```sh
-cargo test --workspace
+cd webp-rs && cargo test --workspace
 ```
 
 Codec milestones also require the conformance, robustness, performance, and
@@ -69,11 +69,12 @@ Bzlmod lock after changing `MODULE.bazel`:
 bazel mod deps --lockfile_mode=update
 ```
 
-When Cargo dependencies change, regenerate the crate-universe lock during a
-normal Bazel analysis before committing:
+When Cargo dependencies change, update the committed workspace lock and verify
+that Bazel resolves it:
 
 ```sh
-CARGO_BAZEL_REPIN=1 bazel build //...
+cd webp-rs && cargo update
+cd .. && bazel build //...
 ```
 
 Verify both dependency graphs without update mode:

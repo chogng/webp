@@ -10,5 +10,5 @@ fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cargo build --release -p webp --example animation_encode_bench \
-  --manifest-path "$root/Cargo.toml"
+  --manifest-path "$root/webp-rs/Cargo.toml"
 "$root/target/release/examples/animation_encode_bench" "$iterations"

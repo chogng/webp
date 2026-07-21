@@ -1,9 +1,0 @@
-load("//:defs.bzl", "webp_rust_crate")
-
-webp_rust_crate(
-    name = "webp_vp8l_color_cache",
-    deps = [
-        "//crates/webp-core:webp_core",
-        "//crates/webp-vp8l-entropy:webp_vp8l_entropy",
-    ],
-)

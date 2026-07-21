@@ -1,0 +1,9 @@
+load("//:defs.bzl", "webp_rust_crate")
+
+webp_rust_crate(
+    name = "webp_alpha",
+    deps = [
+        "//webp-rs/core:webp_core",
+        "//webp-rs/vp8l-literal:webp_vp8l_literal",
+    ],
+)

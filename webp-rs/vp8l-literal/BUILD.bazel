@@ -1,0 +1,15 @@
+load("//:defs.bzl", "webp_rust_crate")
+
+webp_rust_crate(
+    name = "webp_vp8l_literal",
+    deps = [
+        "//webp-rs/core:webp_core",
+        "//webp-rs/vp8l:webp_vp8l",
+        "//webp-rs/vp8l-color-cache:webp_vp8l_color_cache",
+        "//webp-rs/vp8l-color-transform:webp_vp8l_color_transform",
+        "//webp-rs/vp8l-entropy:webp_vp8l_entropy",
+        "//webp-rs/vp8l-huffman:webp_vp8l_huffman",
+        "//webp-rs/vp8l-indexing:webp_vp8l_indexing",
+        "//webp-rs/vp8l-transform:webp_vp8l_transform",
+    ],
+)

@@ -109,7 +109,7 @@ trap cleanup EXIT HUP INT TERM
 native="$scratch/libwebp_decode_bench"
 cc -O3 -I"$oracle/src" "$root/tools/libwebp_decode_bench.c" \
   "$oracle/build/libwebp.a" -o "$native"
-cargo build --release -p webp --example decode_bench --manifest-path "$root/Cargo.toml"
+cargo build --release -p webp --example decode_bench --manifest-path "$root/webp-rs/Cargo.toml"
 rust="$root/target/release/examples/decode_bench"
 
 echo "oracle_commit=$actual_commit sources=$source_count streams=$actual_count"

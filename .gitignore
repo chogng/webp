@@ -1,9 +1,3 @@
-/target/
-/crates/*/target/
-/crates/*/Cargo.lock
-/fuzz/artifacts/
-/fuzz/corpus/
-/fuzz/target/
 # Local cargo-mutants reports and rotated reports.
 /mutants.out/
 /mutants.out.old/
