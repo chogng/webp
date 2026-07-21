@@ -132,6 +132,36 @@ pub fn copy_lz77_pixels(
     output_limit: usize,
     budget: &mut WorkBudget,
 ) -> Result<(), DecodeError> {
+    copy_lz77_pixels_inner::<false>(output, length, distance, output_limit, budget)
+}
+
+/// Appends an overlap-safe backward reference when the caller has already
+/// reserved every pixel through `output_limit`.
+///
+/// The VP8L literal decoder validates that invariant before entering its
+/// entropy loop.  Keeping this specialized entry point separate leaves the
+/// generic [`copy_lz77_pixels`] API responsible for incremental allocation
+/// failure reporting, while avoiding a redundant capacity branch for each
+/// well-formed copy command.
+#[inline]
+pub fn copy_lz77_pixels_preallocated(
+    output: &mut Vec<u32>,
+    length: usize,
+    distance: usize,
+    output_limit: usize,
+    budget: &mut WorkBudget,
+) -> Result<(), DecodeError> {
+    copy_lz77_pixels_inner::<true>(output, length, distance, output_limit, budget)
+}
+
+#[inline]
+fn copy_lz77_pixels_inner<const PREALLOCATED: bool>(
+    output: &mut Vec<u32>,
+    length: usize,
+    distance: usize,
+    output_limit: usize,
+    budget: &mut WorkBudget,
+) -> Result<(), DecodeError> {
     validate_copy(output.len(), length, distance, output_limit)?;
     budget.consume(u64::try_from(length).map_err(|_| {
         DecodeError::new(
@@ -140,17 +170,21 @@ pub fn copy_lz77_pixels(
             "copy length does not fit work counter",
         )
     })?)?;
-    let available_capacity = output.capacity().saturating_sub(output.len());
-    if available_capacity < length {
-        output
-            .try_reserve(length - available_capacity)
-            .map_err(|_| {
-                DecodeError::new(
-                    DecodeErrorKind::AllocationFailed,
-                    None,
-                    "LZ77 output allocation failed",
-                )
-            })?;
+    if PREALLOCATED {
+        debug_assert!(output.capacity().saturating_sub(output.len()) >= length);
+    } else {
+        let available_capacity = output.capacity().saturating_sub(output.len());
+        if available_capacity < length {
+            output
+                .try_reserve(length - available_capacity)
+                .map_err(|_| {
+                    DecodeError::new(
+                        DecodeErrorKind::AllocationFailed,
+                        None,
+                        "LZ77 output allocation failed",
+                    )
+                })?;
+        }
     }
 
     // Copy up to one distance at a time.  A later iteration reads the chunk

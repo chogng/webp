@@ -749,6 +749,39 @@ impl FastHuffmanTable {
             FastHuffmanTableInner::Fallback(table) => table.decode_shifted(bits),
         }
     }
+
+    /// Looks up one symbol in already-buffered, zero-padded lookahead.
+    ///
+    /// The returned bit count has not been consumed. Callers that combine
+    /// several independent tables can therefore advance the reader once for
+    /// the complete symbol group. `None` selects the strict decoder for the
+    /// uncommon unpacked fallback representation.
+    #[must_use]
+    #[inline]
+    pub fn lookup_buffered(&self, lookahead: u16) -> Option<(u16, u8)> {
+        match &self.0 {
+            FastHuffmanTableInner::Single(symbol) => Some((*symbol, 0)),
+            FastHuffmanTableInner::Packed {
+                root_bits,
+                root_mask,
+                root,
+                secondary,
+            } => {
+                let entry = root[usize::from(lookahead & root_mask)];
+                let length = (entry >> 12) as u8;
+                if length <= *root_bits {
+                    return Some((entry & FAST_ENTRY_VALUE_MASK, length));
+                }
+
+                let table_bits = length - root_bits;
+                let index = usize::from(entry & FAST_ENTRY_VALUE_MASK)
+                    + (usize::from(lookahead >> root_bits) & ((1_usize << table_bits) - 1));
+                let entry = *secondary.get(index)?;
+                Some((entry >> 4, (entry & 0x0f) as u8))
+            }
+            FastHuffmanTableInner::Fallback(_) => None,
+        }
+    }
 }
 
 #[inline(never)]
@@ -1234,6 +1267,25 @@ mod tests {
     #[test]
     fn fast_table_handle_remains_cache_compact() {
         assert!(core::mem::size_of::<FastHuffmanTable>() <= 64);
+    }
+
+    #[test]
+    fn buffered_lookup_reports_symbol_and_length_without_consuming() {
+        let lengths = vec![8; 256];
+        let table = HuffmanTable::from_code_lengths(&lengths)
+            .unwrap()
+            .into_fast()
+            .unwrap();
+        for symbol in 0_u16..=255 {
+            let wire = symbol.reverse_bits() >> 8;
+            assert_eq!(table.lookup_buffered(wire), Some((symbol, 8)));
+        }
+
+        let single = HuffmanTable::from_code_lengths(&[0, 1, 0])
+            .unwrap()
+            .into_fast()
+            .unwrap();
+        assert_eq!(single.lookup_buffered(u16::MAX), Some((1, 0)));
     }
 
     #[test]

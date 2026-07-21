@@ -12,10 +12,11 @@ use webp_vp8l::{
     BlockTransformDescriptor, HEADER_LEN, TransformDescriptor, TransformListParser, Vp8lHeader,
     parse_header,
 };
-use webp_vp8l_color_cache::{ColorCacheOutput, MAX_COLOR_CACHE_BITS, MIN_COLOR_CACHE_BITS};
+use webp_vp8l_color_cache::{ColorCache, MAX_COLOR_CACHE_BITS, MIN_COLOR_CACHE_BITS};
 use webp_vp8l_color_transform::ColorTransformMultipliers;
 use webp_vp8l_entropy::{
-    copy_lz77_pixels, decode_distance_shifted, decode_length_shifted, distance_code_to_distance,
+    copy_lz77_pixels_preallocated, decode_distance_shifted, decode_length_shifted,
+    distance_code_to_distance,
 };
 use webp_vp8l_huffman::{
     FastHuffmanTable, MAX_SECONDARY_TABLE_STORAGE_BYTES, ROOT_TABLE_STORAGE_BYTES,
@@ -252,25 +253,59 @@ fn decode_entropy_image(
             color_cache_size,
         )?)?)
     };
-    let mut code_cursor = codes.cursor(width)?;
+    let code_cursor = codes.cursor(width)?;
     let mut output = PixelOutput::new(color_cache_bits, pixels)?;
     let mut shifted_bits = bits.shifted();
 
     while output.len() < pixels {
+        let (codes, run_end) = code_cursor.run_for_pixel(output.len(), pixels)?;
+        decode_entropy_run(
+            codes,
+            &mut shifted_bits,
+            &mut output,
+            run_end,
+            pixels,
+            width,
+            color_cache_size,
+            budget,
+        )?;
+    }
+
+    drop(shifted_bits);
+    Ok(output.into_pixels())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn decode_entropy_run(
+    codes: &HuffmanCodes,
+    shifted_bits: &mut webp_core::ShiftedBitReader<'_, '_>,
+    output: &mut PixelOutput,
+    run_end: usize,
+    pixels: usize,
+    width: u32,
+    color_cache_size: usize,
+    budget: &mut WorkBudget,
+) -> Result<(), DecodeError> {
+    while output.len() < run_end {
         shifted_bits.fill();
-        let codes = code_cursor.for_pixel(output.len())?;
-        let green = decode_fast_symbol(&codes.green, &mut shifted_bits, budget)?;
+        let green = match decode_green_or_literal(codes, shifted_bits, budget)? {
+            GreenOrLiteral::Literal(color) => {
+                output.emit_literal(color)?;
+                continue;
+            }
+            GreenOrLiteral::Green(green) => green,
+        };
         if green < CHANNEL_ALPHABET_SIZE {
             // Green has already consumed one symbol work unit. Charge the
             // three literal channels together so the hot path performs one
             // checked budget decrement instead of three more.
             budget.consume(3)?;
-            let red = usize::from(codes.red.decode(&mut shifted_bits)?);
-            let blue = usize::from(codes.blue.decode(&mut shifted_bits)?);
+            let red = usize::from(codes.red.decode(shifted_bits)?);
+            let blue = usize::from(codes.blue.decode(shifted_bits)?);
             if shifted_bits.available_bits() < 15 {
                 shifted_bits.fill();
             }
-            let alpha = usize::from(codes.alpha.decode(&mut shifted_bits)?);
+            let alpha = usize::from(codes.alpha.decode(shifted_bits)?);
             debug_assert!(red < CHANNEL_ALPHABET_SIZE);
             debug_assert!(blue < CHANNEL_ALPHABET_SIZE);
             debug_assert!(alpha < CHANNEL_ALPHABET_SIZE);
@@ -298,8 +333,8 @@ fn decode_entropy_image(
                 "VP8L length prefix does not fit u8",
             )
         })?;
-        let length = decode_length_shifted(&mut shifted_bits, budget, length_prefix)?;
-        let distance_prefix = decode_fast_symbol(&codes.distance, &mut shifted_bits, budget)?;
+        let length = decode_length_shifted(shifted_bits, budget, length_prefix)?;
+        let distance_prefix = decode_fast_symbol(&codes.distance, shifted_bits, budget)?;
         let distance_prefix = u8::try_from(distance_prefix).map_err(|_| {
             DecodeError::new(
                 DecodeErrorKind::InvalidBitstream,
@@ -307,13 +342,11 @@ fn decode_entropy_image(
                 "VP8L distance prefix does not fit u8",
             )
         })?;
-        let distance_code = decode_distance_shifted(&mut shifted_bits, budget, distance_prefix)?;
+        let distance_code = decode_distance_shifted(shifted_bits, budget, distance_prefix)?;
         let distance = distance_code_to_distance(distance_code, width)?;
         output.copy_lz77(length, distance, pixels, budget)?;
     }
-
-    drop(shifted_bits);
-    Ok(output.into_pixels())
+    Ok(())
 }
 
 enum DecodedTransform {
@@ -1745,17 +1778,12 @@ impl EntropyCodes {
     }
 }
 
-/// Caches the active meta-Huffman group until the next horizontal tile or row
-/// boundary. Entropy output advances monotonically, including over LZ77 copy
-/// runs, so a group lookup is only needed when the next symbol starts outside
-/// the cached run.
+/// Selects one maximal horizontal run that shares a meta-Huffman group.
 enum EntropyCodeCursor<'a> {
     Single(&'a HuffmanCodes),
     Meta {
         codes: &'a MetaHuffmanCodes,
         image_width: usize,
-        current_group: Option<&'a HuffmanCodes>,
-        next_update: usize,
     },
 }
 
@@ -1778,31 +1806,18 @@ impl<'a> EntropyCodeCursor<'a> {
                         "VP8L image width does not fit usize",
                     )
                 })?,
-                current_group: None,
-                next_update: 0,
             }),
         }
     }
 
-    fn for_pixel(&mut self, pixel: usize) -> Result<&'a HuffmanCodes, DecodeError> {
+    fn run_for_pixel(
+        &self,
+        pixel: usize,
+        pixel_limit: usize,
+    ) -> Result<(&'a HuffmanCodes, usize), DecodeError> {
         match self {
-            Self::Single(codes) => Ok(codes),
-            Self::Meta {
-                codes,
-                image_width,
-                current_group,
-                next_update,
-            } => {
-                if pixel < *next_update {
-                    return current_group.ok_or_else(|| {
-                        DecodeError::new(
-                            DecodeErrorKind::InvalidBitstream,
-                            None,
-                            "VP8L meta-prefix group cursor is missing",
-                        )
-                    });
-                }
-
+            Self::Single(codes) => Ok((codes, pixel_limit)),
+            Self::Meta { codes, image_width } => {
                 let x = pixel % *image_width;
                 let y = pixel / *image_width;
                 let block_size = 1_usize << codes.prefix_bits;
@@ -1842,18 +1857,17 @@ impl<'a> EntropyCodeCursor<'a> {
 
                 let run_in_block = block_size - (x & (block_size - 1));
                 let run_in_row = *image_width - x;
-                *next_update =
-                    pixel
-                        .checked_add(run_in_block.min(run_in_row))
-                        .ok_or_else(|| {
-                            DecodeError::new(
-                                DecodeErrorKind::InvalidBitstream,
-                                None,
-                                "VP8L meta-prefix group cursor overflow",
-                            )
-                        })?;
-                *current_group = Some(group);
-                Ok(group)
+                let run_end = pixel
+                    .checked_add(run_in_block.min(run_in_row))
+                    .ok_or_else(|| {
+                        DecodeError::new(
+                            DecodeErrorKind::InvalidBitstream,
+                            None,
+                            "VP8L meta-prefix group cursor overflow",
+                        )
+                    })?
+                    .min(pixel_limit);
+                Ok((group, run_end))
             }
         }
     }
@@ -2196,33 +2210,37 @@ fn read_huffman_codes(
 
 enum PixelOutput {
     Plain(Vec<u32>),
-    Cached(ColorCacheOutput),
+    Cached {
+        pixels: Vec<u32>,
+        cache: ColorCache,
+        cached_pixels: usize,
+    },
 }
 
 impl PixelOutput {
     fn new(color_cache_bits: Option<u8>, pixels: usize) -> Result<Self, DecodeError> {
+        let mut output = Vec::new();
+        output.try_reserve_exact(pixels).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::AllocationFailed,
+                None,
+                "packed VP8L output allocation failed",
+            )
+        })?;
         match color_cache_bits {
-            Some(bits) => Ok(Self::Cached(
-                ColorCacheOutput::with_cache_bits_and_capacity(bits, pixels)?,
-            )),
-            None => {
-                let mut output = Vec::new();
-                output.try_reserve_exact(pixels).map_err(|_| {
-                    DecodeError::new(
-                        DecodeErrorKind::AllocationFailed,
-                        None,
-                        "packed VP8L output allocation failed",
-                    )
-                })?;
-                Ok(Self::Plain(output))
-            }
+            Some(bits) => Ok(Self::Cached {
+                pixels: output,
+                cache: ColorCache::new(bits)?,
+                cached_pixels: 0,
+            }),
+            None => Ok(Self::Plain(output)),
         }
     }
 
     fn len(&self) -> usize {
         match self {
             Self::Plain(pixels) => pixels.len(),
-            Self::Cached(output) => output.pixels().len(),
+            Self::Cached { pixels, .. } => pixels.len(),
         }
     }
 
@@ -2235,7 +2253,14 @@ impl PixelOutput {
                 pixels.push(color);
                 Ok(())
             }
-            Self::Cached(output) => output.emit_literal(color),
+            Self::Cached { pixels, .. } => {
+                // Cache population is deferred until a cache symbol actually
+                // needs the state. Most photographic streams declare a cache
+                // but rarely read it, so eagerly hashing every literal only
+                // creates dependent arithmetic and scattered stores.
+                pixels.push(color);
+                Ok(())
+            }
         }
     }
 
@@ -2246,7 +2271,19 @@ impl PixelOutput {
                 None,
                 "VP8L color-cache symbol appeared without a color cache",
             )),
-            Self::Cached(output) => output.emit_cache_hit(index).map(|_| ()),
+            Self::Cached {
+                pixels,
+                cache,
+                cached_pixels,
+            } => {
+                for &color in &pixels[*cached_pixels..] {
+                    cache.insert(color);
+                }
+                *cached_pixels = pixels.len();
+                let color = cache.get(index)?;
+                pixels.push(color);
+                Ok(())
+            }
         }
     }
 
@@ -2258,15 +2295,19 @@ impl PixelOutput {
         budget: &mut WorkBudget,
     ) -> Result<(), DecodeError> {
         match self {
-            Self::Plain(pixels) => copy_lz77_pixels(pixels, length, distance, output_limit, budget),
-            Self::Cached(output) => output.copy_lz77(length, distance, output_limit, budget),
+            Self::Plain(pixels) => {
+                copy_lz77_pixels_preallocated(pixels, length, distance, output_limit, budget)
+            }
+            Self::Cached { pixels, .. } => {
+                copy_lz77_pixels_preallocated(pixels, length, distance, output_limit, budget)
+            }
         }
     }
 
     fn into_pixels(self) -> Vec<u32> {
         match self {
             Self::Plain(pixels) => pixels,
-            Self::Cached(output) => output.into_parts().0,
+            Self::Cached { pixels, .. } => pixels,
         }
     }
 }
@@ -2290,6 +2331,61 @@ fn decode_fast_symbol(
         bits.fill();
     }
     table.decode(bits).map(usize::from)
+}
+
+enum GreenOrLiteral {
+    Green(usize),
+    Literal(u32),
+}
+
+/// Decodes the four literal channels from one immutable bit-register snapshot
+/// when every table has a packed representation. This removes three reader
+/// state transitions and three repeated EOF checks from the dominant VP8L
+/// path. Non-literals, rare fallback tables, and short tails retain the strict
+/// per-symbol decoder.
+#[inline]
+fn decode_green_or_literal(
+    codes: &HuffmanCodes,
+    bits: &mut webp_core::ShiftedBitReader<'_, '_>,
+    budget: &mut WorkBudget,
+) -> Result<GreenOrLiteral, DecodeError> {
+    budget.consume(1)?;
+    if bits.available_bits() < 15 {
+        bits.fill();
+    }
+
+    let lookahead = bits.peek_full();
+    if let Some((green, green_bits)) = codes.green.lookup_buffered(lookahead as u16)
+        && usize::from(green) < CHANNEL_ALPHABET_SIZE
+    {
+        let shifted = lookahead >> green_bits;
+        if let Some((red, red_bits)) = codes.red.lookup_buffered(shifted as u16) {
+            let used = green_bits + red_bits;
+            let shifted = lookahead >> used;
+            if let Some((blue, blue_bits)) = codes.blue.lookup_buffered(shifted as u16) {
+                let used = used + blue_bits;
+                let shifted = lookahead >> used;
+                if let Some((alpha, alpha_bits)) = codes.alpha.lookup_buffered(shifted as u16) {
+                    let used = used + alpha_bits;
+                    if used <= bits.available_bits() {
+                        budget.consume(3)?;
+                        bits.consume_buffered(used)?;
+                        return Ok(GreenOrLiteral::Literal(pack_argb(
+                            red as u8,
+                            green as u8,
+                            blue as u8,
+                            alpha as u8,
+                        )));
+                    }
+                }
+            }
+        }
+    }
+
+    codes
+        .green
+        .decode(bits)
+        .map(|symbol| GreenOrLiteral::Green(usize::from(symbol)))
 }
 
 #[cfg(test)]

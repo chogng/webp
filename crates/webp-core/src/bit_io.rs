@@ -339,6 +339,26 @@ impl ShiftedBitReader<'_, '_> {
                 "cannot consume more than 32 bits",
             ));
         }
+        self.consume_inner(count)
+    }
+
+    /// Consumes a combined group of bits already present in the shift
+    /// register. Dense entropy decoders use this after validating several
+    /// adjacent symbols from one immutable lookahead snapshot.
+    #[inline]
+    pub fn consume_buffered(&mut self, count: u8) -> Result<(), DecodeError> {
+        if count > 63 {
+            return Err(DecodeError::new(
+                DecodeErrorKind::InvalidParameter,
+                Some(self.bit_position / 8),
+                "cannot consume more than 63 buffered bits",
+            ));
+        }
+        self.consume_inner(count)
+    }
+
+    #[inline]
+    fn consume_inner(&mut self, count: u8) -> Result<(), DecodeError> {
         if self.nbits < count {
             return Err(DecodeError::new(
                 DecodeErrorKind::UnexpectedEof,
@@ -666,5 +686,26 @@ mod tests {
         }
         assert_eq!(owner.bit_position(), 8);
         assert_eq!(owner.remaining_bits(), 0);
+    }
+
+    #[test]
+    fn shifted_reader_can_consume_a_combined_entropy_group() {
+        let mut owner = BitReader::new(&[0xff; 8]);
+        {
+            let mut shifted = owner.shifted();
+            shifted.fill();
+            assert_eq!(shifted.available_bits(), 56);
+            assert_eq!(
+                shifted.consume(40).unwrap_err().kind(),
+                DecodeErrorKind::InvalidParameter
+            );
+            shifted.consume_buffered(40).unwrap();
+            assert_eq!(shifted.available_bits(), 16);
+            assert_eq!(
+                shifted.consume_buffered(64).unwrap_err().kind(),
+                DecodeErrorKind::InvalidParameter
+            );
+        }
+        assert_eq!(owner.bit_position(), 40);
     }
 }
