@@ -1,5 +1,8 @@
 use super::*;
-use crate::{MacroblockPixels, Vp8Header};
+use crate::test_support::{
+    TestBoolWriter, key_frame, write_coefficient_updates, write_quantization_header,
+};
+use crate::{MacroblockPixels, Vp8Header, parse_riff_payload};
 use webp_core::{DecodeErrorKind, DecodeLimits};
 
 #[test]
@@ -92,4 +95,41 @@ fn yuv_image_rejects_short_visible_plane() {
         image.to_rgba(&DecodeLimits::default()).unwrap_err().kind(),
         DecodeErrorKind::InvalidParameter
     );
+}
+
+#[test]
+fn intra_frame_decoder_reconstructs_a_skipped_macroblock() {
+    let mut writer = TestBoolWriter::new();
+    writer.write_bool(false, 128); // colour space
+    writer.write_bool(false, 128); // clamp type
+    writer.write_bool(false, 128); // no segmentation
+    writer.write_bool(false, 128); // normal filter
+    writer.write_literal(0, 6); // filter level
+    writer.write_literal(0, 3); // filter sharpness
+    writer.write_bool(false, 128); // no filter deltas
+    writer.write_literal(0, 2); // one token partition
+    write_quantization_header(&mut writer, 0, [0; 5], false);
+    write_coefficient_updates(&mut writer, &[], true, 1);
+    writer.write_bool(true, 1); // skip residuals
+    writer.write_bool(true, 145); // 16x16 luma
+    writer.write_bool(false, 156); // DC luma
+    writer.write_bool(false, 163);
+    writer.write_bool(false, 142); // DC chroma
+    let partition_zero = writer.finish();
+    let mut payload = key_frame(1, 1, 0, true, partition_zero.len() as u32).to_vec();
+    payload.extend_from_slice(&partition_zero);
+    payload.push(0); // Non-empty final token partition, never consumed by skip.
+
+    let limits = DecodeLimits::default();
+    let frame = parse_riff_payload(&payload, None, &limits).unwrap();
+    let image = decode_intra_frame(&payload, &frame, &limits).unwrap();
+    assert_eq!(image.width, 1);
+    assert_eq!(image.height, 1);
+    assert_eq!(image.y_stride, 16);
+    assert_eq!(image.uv_stride, 8);
+    assert_eq!(image.y.len(), 16 * 16);
+    assert_eq!(image.u.len(), 8 * 8);
+    assert!(image.y.iter().all(|&sample| sample == 128));
+    assert!(image.u.iter().all(|&sample| sample == 128));
+    assert!(image.v.iter().all(|&sample| sample == 128));
 }
