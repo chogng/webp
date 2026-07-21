@@ -28,6 +28,10 @@ Run the workspace test suite with:
 cargo test --workspace
 ```
 
+See [the test-organization guide](docs/test-organization.md) for the required
+split between module-private `*_tests.rs` files and public-API integration
+tests in each crate's `tests/` directory.
+
 Codec milestones also require the conformance, robustness, performance, and
 resource gates in [`docs/quality-gates.md`](docs/quality-gates.md); passing
 the test suite alone does not mark a decoder milestone complete.
