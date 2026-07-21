@@ -1085,11 +1085,75 @@ pub fn reconstruct_intra_macroblock(
         LumaMode::Sixteen(mode) => predict_intra16_macroblock(mode, block.chroma, edges),
         LumaMode::FourByFour(modes) => {
             let mut prediction = predict_intra16_macroblock(Intra16Mode::Dc, block.chroma, edges);
-            prediction.y = predict_intra4_macroblock(modes, edges);
-            prediction
+            prediction.y = reconstruct_intra4_luma(modes, edges, spatial.luma);
+            combine_plane_blocks(&mut prediction.u, 8, 2, spatial.u);
+            combine_plane_blocks(&mut prediction.v, 8, 2, spatial.v);
+            return Ok(prediction);
         }
     };
     Ok(combine_macroblock_prediction(prediction, spatial))
+}
+
+fn reconstruct_intra4_luma(
+    modes: [Intra4Mode; 16],
+    edges: MacroblockPredictionEdges,
+    residues: [[i32; 16]; 16],
+) -> [u8; 256] {
+    let top_boundary = edges.top_y.unwrap_or([127; 16]);
+    let left_boundary = edges.left_y.unwrap_or([129; 16]);
+    let top_right = edges.top_right_y.unwrap_or([top_boundary[15]; 4]);
+    let top_left = if edges.top_y.is_none() {
+        127
+    } else if edges.left_y.is_none() {
+        129
+    } else {
+        edges.top_left_y
+    };
+    let mut output = [0_u8; 256];
+    for (block_index, mode) in modes.into_iter().enumerate() {
+        let block_x = (block_index % 4) * 4;
+        let block_y = (block_index / 4) * 4;
+        let top = std::array::from_fn(|index| {
+            let x = block_x + index;
+            if x >= 16 {
+                top_right[x - 16]
+            } else if block_y == 0 {
+                top_boundary[x]
+            } else {
+                output[(block_y - 1) * 16 + x]
+            }
+        });
+        let left = std::array::from_fn(|index| {
+            let y = block_y + index;
+            if block_x == 0 {
+                left_boundary[y]
+            } else {
+                output[y * 16 + block_x - 1]
+            }
+        });
+        let block_top_left = if block_x == 0 {
+            if block_y == 0 {
+                top_left
+            } else {
+                left_boundary[block_y - 1]
+            }
+        } else if block_y == 0 {
+            top_boundary[block_x - 1]
+        } else {
+            output[(block_y - 1) * 16 + block_x - 1]
+        };
+        let prediction = predict_intra4_block(mode, block_top_left, top, left);
+        for row in 0..4 {
+            for column in 0..4 {
+                let index = (block_y + row) * 16 + block_x + column;
+                output[index] = add_residue_and_clip(
+                    prediction[row * 4 + column],
+                    residues[block_index][row * 4 + column],
+                );
+            }
+        }
+    }
+    output
 }
 
 #[derive(Clone, Copy)]
@@ -2833,6 +2897,46 @@ mod tests {
         assert!(pixels.y[64..].iter().all(|&value| value == 129));
         assert_eq!(pixels.u, [128; 64]);
         assert_eq!(pixels.v, [128; 64]);
+    }
+
+    #[test]
+    fn intra4_reconstruction_uses_residue_adjusted_left_neighbour() {
+        let empty = DecodedCoefficients {
+            values: [0; 16],
+            end: 0,
+            non_zero: 0,
+        };
+        let mut residuals = MacroblockResiduals {
+            y2: None,
+            luma: [empty; 16],
+            u: [empty; 4],
+            v: [empty; 4],
+            non_zero_y: 0,
+            non_zero_uv: 0,
+        };
+        residuals.luma[0].values[0] = 160;
+        let pixels = reconstruct_intra_macroblock(
+            IntraMacroblock {
+                segment: 0,
+                skip: false,
+                luma: LumaMode::FourByFour([Intra4Mode::Horizontal; 16]),
+                chroma: ChromaMode::Dc,
+            },
+            &residuals,
+            DequantizationMatrix {
+                y1_dc: 1,
+                y1_ac: 1,
+                y2_dc: 1,
+                y2_ac: 1,
+                uv_dc: 1,
+                uv_ac: 1,
+                uv_quant: 0,
+            },
+            MacroblockPredictionEdges::default(),
+        )
+        .unwrap();
+        assert!(pixels.y[0] > 129);
+        assert!(pixels.y[4] > 129);
     }
 
     #[test]
