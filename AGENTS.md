@@ -8,3 +8,4 @@
 mod tests;
 ```
 - This applies only when introducing a new test module. Do not move or rewrite existing inline #[cfg(test)] mod tests { ... } modules solely to follow this convention.
+- Do not add tests for values that are statically defined.

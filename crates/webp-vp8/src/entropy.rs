@@ -2,7 +2,7 @@
 
 use webp_core::{DecodeError, DecodeErrorKind};
 
-use crate::BoolDecoder;
+use crate::{BoolDecoder, BoolEncodeError, BoolEncoder};
 use crate::coefficients::{
     CATEGORY_PROBABILITIES, COEFFICIENT_BANDS, COEFFICIENT_DEFAULTS, COEFFICIENT_ZIGZAG,
 };
@@ -73,6 +73,136 @@ pub struct DecodedCoefficients {
     pub end: u8,
     /// Number of non-zero coefficients in [`Self::values`].
     pub non_zero: u8,
+}
+
+/// Failure while serializing a VP8 coefficient-token block.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum CoefficientEncodeError {
+    /// The caller supplied an out-of-range token context or start position.
+    InvalidParameter,
+    /// VP8's token tree cannot represent the supplied signed coefficient.
+    CoefficientOutOfRange,
+    /// The boolean partition writer could not grow its output buffer.
+    AllocationFailed,
+}
+
+impl From<BoolEncodeError> for CoefficientEncodeError {
+    fn from(error: BoolEncodeError) -> Self {
+        match error {
+            BoolEncodeError::AllocationFailed => Self::AllocationFailed,
+            BoolEncodeError::InvalidLiteralWidth => Self::InvalidParameter,
+        }
+    }
+}
+
+/// Serializes one quantized VP8 4×4 coefficient block.
+///
+/// `values` are in raster order, matching [`DecodedCoefficients`]. The
+/// caller retains neighbour contexts; this function consumes the context that
+/// applies at the start of this block and mirrors [`decode_coefficients`].
+pub fn encode_coefficients(
+    bits: &mut BoolEncoder,
+    probabilities: &CoefficientProbabilities,
+    coefficient_type: CoefficientBlockType,
+    context: u8,
+    start: u8,
+    values: [i16; 16],
+) -> Result<(), CoefficientEncodeError> {
+    if context > 2 || start >= 16 || values[..usize::from(start)].iter().any(|&value| value != 0) {
+        return Err(CoefficientEncodeError::InvalidParameter);
+    }
+
+    let mut position = usize::from(start);
+    let mut coefficient_context = usize::from(context);
+    while position < 16 {
+        let initial_nodes = probabilities.nodes(coefficient_type, position, coefficient_context);
+        if !((position)..16).any(|next| values[COEFFICIENT_ZIGZAG[next]] != 0) {
+            bits.write_bool(false, initial_nodes[0])?;
+            return Ok(());
+        }
+        bits.write_bool(true, initial_nodes[0])?;
+        let mut nodes = initial_nodes;
+        while values[COEFFICIENT_ZIGZAG[position]] == 0 {
+            bits.write_bool(false, nodes[1])?;
+            position += 1;
+            nodes = probabilities.nodes(coefficient_type, position, 0);
+        }
+        bits.write_bool(true, nodes[1])?;
+        let value = values[COEFFICIENT_ZIGZAG[position]];
+        write_coefficient_magnitude(bits, nodes, value)?;
+        position += 1;
+        coefficient_context = if value.unsigned_abs() == 1 { 1 } else { 2 };
+    }
+    Ok(())
+}
+
+fn write_coefficient_magnitude(
+    bits: &mut BoolEncoder,
+    nodes: &[u8; 11],
+    value: i16,
+) -> Result<(), CoefficientEncodeError> {
+    let magnitude = i32::from(value).unsigned_abs();
+    if magnitude == 1 {
+        bits.write_bool(false, nodes[2])?;
+    } else {
+        bits.write_bool(true, nodes[2])?;
+        match magnitude {
+            2 => {
+                bits.write_bool(false, nodes[3])?;
+                bits.write_bool(false, nodes[4])?;
+            }
+            3 | 4 => {
+                bits.write_bool(false, nodes[3])?;
+                bits.write_bool(true, nodes[4])?;
+                bits.write_bool(magnitude == 4, nodes[5])?;
+            }
+            5 | 6 => {
+                bits.write_bool(true, nodes[3])?;
+                bits.write_bool(false, nodes[6])?;
+                bits.write_bool(false, nodes[7])?;
+                bits.write_bool(magnitude == 6, 159)?;
+            }
+            7..=10 => {
+                bits.write_bool(true, nodes[3])?;
+                bits.write_bool(false, nodes[6])?;
+                bits.write_bool(true, nodes[7])?;
+                let suffix = magnitude - 7;
+                bits.write_bool((suffix & 2) != 0, 165)?;
+                bits.write_bool((suffix & 1) != 0, 145)?;
+            }
+            11..=2_114 => {
+                bits.write_bool(true, nodes[3])?;
+                write_category_magnitude(bits, nodes, magnitude)?;
+            }
+            _ => return Err(CoefficientEncodeError::CoefficientOutOfRange),
+        }
+    }
+    bits.write_bool(value.is_negative(), 128)?;
+    Ok(())
+}
+
+fn write_category_magnitude(
+    bits: &mut BoolEncoder,
+    nodes: &[u8; 11],
+    magnitude: u32,
+) -> Result<(), CoefficientEncodeError> {
+    bits.write_bool(true, nodes[6])?;
+    let category = (0..4)
+        .find(|&category| {
+            let base = 3_u32 + (8_u32 << category);
+            magnitude >= base && magnitude < base + (1 << CATEGORY_PROBABILITIES[category].len())
+        })
+        .ok_or(CoefficientEncodeError::CoefficientOutOfRange)?;
+    let high = category / 2;
+    let low = category % 2;
+    bits.write_bool(high != 0, nodes[8])?;
+    bits.write_bool(low != 0, nodes[9 + high])?;
+    let suffix = magnitude - (3_u32 + (8_u32 << category));
+    let probabilities = CATEGORY_PROBABILITIES[category];
+    for (&probability, shift) in probabilities.iter().zip((0..probabilities.len()).rev()) {
+        bits.write_bool(((suffix >> shift) & 1) != 0, probability)?;
+    }
+    Ok(())
 }
 
 /// Decodes a VP8 coefficient-token stream for one 4×4 block.

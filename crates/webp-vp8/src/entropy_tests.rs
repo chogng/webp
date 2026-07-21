@@ -108,6 +108,68 @@ fn coefficient_decoder_rejects_invalid_context_and_start() {
 }
 
 #[test]
+fn coefficient_encoder_round_trips_zero_runs_signs_and_small_magnitudes() {
+    let probabilities = CoefficientProbabilities::default();
+    let mut values = [0_i16; 16];
+    values[COEFFICIENT_ZIGZAG[2]] = -1;
+    values[COEFFICIENT_ZIGZAG[5]] = 7;
+
+    let mut writer = BoolEncoder::new();
+    encode_coefficients(
+        &mut writer,
+        &probabilities,
+        CoefficientBlockType::Luma16Ac,
+        0,
+        0,
+        values,
+    )
+    .unwrap();
+    let bytes = writer.finish().unwrap();
+    let mut decoder = BoolDecoder::new(&bytes, &DecodeLimits::default()).unwrap();
+    let decoded = decode_coefficients(
+        &mut decoder,
+        &probabilities,
+        CoefficientBlockType::Luma16Ac,
+        0,
+        0,
+    )
+    .unwrap();
+    assert_eq!(decoded.values, values);
+    assert_eq!(decoded.non_zero, 2);
+    assert_eq!(decoded.end, 6);
+}
+
+#[test]
+fn coefficient_encoder_validates_prefix_and_context() {
+    let probabilities = CoefficientProbabilities::default();
+    let mut writer = BoolEncoder::new();
+    let mut prefixed = [0_i16; 16];
+    prefixed[0] = 1;
+    assert_eq!(
+        encode_coefficients(
+            &mut writer,
+            &probabilities,
+            CoefficientBlockType::Luma16Ac,
+            0,
+            1,
+            prefixed,
+        ),
+        Err(CoefficientEncodeError::InvalidParameter)
+    );
+    assert_eq!(
+        encode_coefficients(
+            &mut writer,
+            &probabilities,
+            CoefficientBlockType::Luma16Ac,
+            3,
+            0,
+            [0; 16],
+        ),
+        Err(CoefficientEncodeError::InvalidParameter)
+    );
+}
+
+#[test]
 fn residual_decoder_consumes_all_intra_block_families_and_preserves_empty_contexts() {
     let probabilities = CoefficientProbabilities::default();
     let mut writer = TestBoolWriter::new();

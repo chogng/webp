@@ -44,6 +44,21 @@ decodes / 114.8 MB RGBA per run. Across three five-iteration runs, the median
 was 1.894 s (60.6 MB/s) for Rust and 0.518 s (221.4 MB/s) for libwebp: a 3.65x
 gap. M1 is therefore functionally complete but performance pending.
 
+## VP8L encoder baseline procedure
+
+The public static encoder has a matching release benchmark. It decodes each
+pinned `MustAccept` VP8L fixture once before timing, then measures only
+`encode_lossless_rgba` over the retained straight-RGBA inputs:
+
+```sh
+bash tools/benchmark-vp8l-encode.sh 5
+```
+
+Record the command output, corpus revision, and generated output-byte count
+before setting an encoder throughput or size-regression threshold. The first
+encoder baseline remains pending until those measurements and a comparable
+pinned-libwebp encode harness are recorded.
+
 ## VP8L entropy-path optimization record
 
 The 2026-07-20 optimization pass retained the same 41-file corpus, five
@@ -209,6 +224,54 @@ and one four-byte RGBA buffer, matching the previous packed-output plus final
 RGBA lifetime. The remaining material optimization target is entropy symbol
 expansion; parser and final layout costs remain below the threshold for a
 dedicated pass.
+
+## VP8L CLIC real-image decode gate
+
+The 41-file conformance corpus above is strongly dominated by one synthetic
+high-entropy image, so it is not sufficient by itself to close M1 performance.
+The broader gate uses all 102 RGB images from the pinned CLIC validation
+manifest. Pinned `cwebp` generates three exact-lossless streams per image with
+methods 0, 3, and 6, for 306 inputs and 755,574,411 decoded pixels per full
+pass. Generated files live in the ignored
+`third_party/benchdata/clic/vp8l-lossless-exact` cache. Reproduce both corpus
+generation and the direct-API comparison with:
+
+```sh
+bash tools/benchmark-vp8l-clic.sh 1 4
+```
+
+The runner rejects any libwebp checkout other than the commit in
+`tools/corpus-lock.toml`, compiles the C benchmark against that checkout's
+static library, and passes the identical ordered input set to both decoders.
+The 2026-07-20 run used libwebp commit
+`733c91e461c18cf1127c9ed0a80dccbcfed599d3`. Both implementations produced
+3,022,297,644 RGBA bytes and checksum `997056` per aggregate pass.
+
+Three alternating full-corpus runs measured libwebp at 14.604 s median and
+Rust at 20.863 s median. Rust is therefore 1.429x the libwebp time, or 42.9%
+slower. A method split shows that this is not one encoder setting: method 0
+measured 4.759 s versus 7.879 s (Rust 65.6% slower), method 3 measured 4.885 s
+versus 6.708 s (37.3% slower), and method 6 measured 4.769 s versus 6.323 s
+(32.6% slower), with libwebp listed first in each pair.
+
+Grouping each source's three streams by source resolution also rules out
+process startup or tiny-file overhead. The Rust/libwebp time ratios were
+1.322x for the seven images below one megapixel, 1.445x for 63 images from one
+to three megapixels, and 1.453x for 32 images from three to six megapixels.
+The slowest individual ratio was 1.983x, and the worst cases span both mobile
+and professional subsets.
+
+Sampling 200 decodes of the worst method-0 stream attributes roughly 60% of
+Rust samples to inverse predictor reconstruction and 33% to entropy expansion,
+mostly LZ77 copies and prefix-distance work. Huffman lookup contributes only
+about 1--2%, and meta-group cursor work is negligible. This broader result
+supersedes the conformance-corpus-only hotspot ordering: predictor structure
+is the primary next target, with entropy expansion secondary. Huffman-specific
+micro-optimization is not currently justified.
+
+M1 correctness and its original conformance-corpus performance gate are
+complete, but representative real-image performance remains **performance
+pending** until this material CLIC gap is reduced or explicitly accepted.
 
 ## Applying the gates to later milestones
 

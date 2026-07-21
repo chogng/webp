@@ -3,15 +3,20 @@
 //!
 //! M1 decodes static VP8L images to canonical RGBA8. M2 decodes VP8 key
 //! frames to canonical RGBA8. M3 adds `ALPH` planes and animation decoding.
+//! M4 begins static lossless VP8L encoding.
 
 pub use webp_core::{CompatibilityProfile, DecodeError, DecodeErrorKind, DecodeLimits};
 
 mod api;
 mod decoder;
+mod encoder;
 mod incremental;
 mod info;
 
-pub use api::{Animation, AnimationFrame, DecodeOptions, Image, ImageInfo, Metadata, Progress};
+pub use api::{
+    Animation, AnimationEncodeFrame, AnimationEncodeOptions, AnimationFrame, DecodeOptions,
+    EncodeError, Image, ImageInfo, Metadata, Progress,
+};
 pub use incremental::IncrementalDecoder;
 pub use info::{read_info, read_metadata};
 
@@ -37,3 +42,13 @@ pub fn decode(data: &[u8], options: &DecodeOptions) -> Result<Image, DecodeError
 pub fn decode_animation(data: &[u8], options: &DecodeOptions) -> Result<Animation, DecodeError> {
     decoder::decode_animation(data, options)
 }
+
+/// Encodes a static straight-RGBA8 image as a lossless WebP file.
+///
+/// M4+ writes VP8L residuals with bounded cache selection, small-palette
+/// indexing, and deterministic Huffman coding. The output is valid and
+/// lossless, without a compression-ratio or throughput guarantee.
+pub use encoder::{
+    encode_lossless_animation, encode_lossless_animation_with_metadata, encode_lossless_rgba,
+    encode_lossless_rgba_with_metadata,
+};

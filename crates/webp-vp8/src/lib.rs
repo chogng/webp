@@ -3,6 +3,7 @@
 
 mod bitstream;
 mod coefficients;
+mod encoder;
 mod entropy;
 mod frame;
 mod intra;
@@ -14,14 +15,20 @@ mod reconstruction;
 mod test_support;
 mod transform;
 
-pub use bitstream::BoolDecoder;
+pub use bitstream::{BoolDecoder, BoolEncodeError, BoolEncoder};
 pub use coefficients::COEFFICIENT_ZIGZAG;
+pub use encoder::{
+    Vp8DcMacroblockCoefficients, Vp8EncodeError, Vp8SourceYuv, encode_neutral_key_frame,
+    encode_dc_predicted_macroblock_key_frame, quantize_dc_macroblock, rgba_to_yuv420,
+};
 pub use entropy::CoefficientBlockType;
+pub use entropy::CoefficientEncodeError;
 pub use entropy::CoefficientProbabilities;
 pub use entropy::DecodedCoefficients;
 pub use entropy::MacroblockResiduals;
 pub use entropy::ResidualContext;
 pub use entropy::decode_coefficients;
+pub use entropy::encode_coefficients;
 pub use entropy::decode_intra_residuals;
 pub use frame::Vp8YuvImage;
 pub use frame::decode_intra_frame;
@@ -46,6 +53,7 @@ pub use partition::parse_riff_payload;
 pub use quantization::DequantizationMatrix;
 pub use quantization::QuantizationHeader;
 pub use quantization::derive_dequantization;
+pub use quantization::quantize_block;
 pub use reconstruction::DequantizedMacroblock;
 pub use reconstruction::MacroblockPixels;
 pub use reconstruction::MacroblockPredictionEdges;
@@ -62,3 +70,7 @@ pub use transform::inverse_dct_4x4;
 pub use transform::inverse_dct_4x4_i32;
 pub use transform::inverse_wht_4x4;
 pub use transform::inverse_wht_4x4_i32;
+pub use transform::forward_dct_4x4;
+pub use transform::forward_dct_4x4_i32;
+pub use transform::forward_wht_4x4;
+pub use transform::forward_wht_4x4_i32;

@@ -1,4 +1,16 @@
 use super::*;
+
+#[test]
+fn quantizes_dc_and_ac_with_symmetric_rounding_and_vp8_bounds() {
+    let coefficients = [
+        -9, 7, -1, 20_000, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    ];
+    let quantized = quantize_block(coefficients, 4, 3);
+    assert_eq!(quantized[0], -2);
+    assert_eq!(quantized[1], 2);
+    assert_eq!(quantized[2], 0);
+    assert_eq!(quantized[3], 2_047);
+}
 use crate::SegmentHeader;
 
 #[test]

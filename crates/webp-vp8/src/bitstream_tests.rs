@@ -112,6 +112,25 @@ fn boolean_decoder_recovers_mixed_probability_vectors() {
 }
 
 #[test]
+fn production_boolean_encoder_round_trips_mixed_probability_vectors() {
+    let probabilities = [1_u8, 2, 127, 128, 254, 1, 128, 254, 2];
+    let expected = [true, false, true, true, false, false, true, true, false];
+    let mut encoder = BoolEncoder::new();
+    for (&bit, &probability) in expected.iter().zip(probabilities.iter()) {
+        encoder.write_bool(bit, probability).unwrap();
+    }
+    encoder.write_literal(0x1234, 16).unwrap();
+    encoder.write_signed_literal(-17, 7).unwrap();
+    let bytes = encoder.finish().unwrap();
+    let mut decoder = BoolDecoder::new(&bytes, &DecodeLimits::default()).unwrap();
+    for (&bit, &probability) in expected.iter().zip(probabilities.iter()) {
+        assert_eq!(decoder.read_bool(probability).unwrap(), bit);
+    }
+    assert_eq!(decoder.read_literal(16).unwrap(), 0x1234);
+    assert_eq!(decoder.read_signed_literal(7).unwrap(), -17);
+}
+
+#[test]
 fn boolean_decoder_handles_extreme_probabilities() {
     let mut true_values = BoolDecoder::new(&[0xff], &DecodeLimits::default()).unwrap();
     assert_eq!(true_values.read_bool(0), Ok(true));

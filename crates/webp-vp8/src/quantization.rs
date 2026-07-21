@@ -43,6 +43,33 @@ pub struct DequantizationMatrix {
     pub uv_quant: i32,
 }
 
+/// Quantizes one VP8 transform block using its DC and AC reconstruction
+/// divisors.
+///
+/// Rounding is symmetric away from zero. Levels are bounded to the VP8
+/// encoder's interoperable `±2047` interval, which keeps every output within
+/// the coefficient token tree's largest category.
+#[must_use]
+pub fn quantize_block(coefficients: [i32; 16], dc: u16, ac: u16) -> [i16; 16] {
+    let mut output = [0_i16; 16];
+    for (index, &coefficient) in coefficients.iter().enumerate() {
+        let divisor = if index == 0 { dc } else { ac };
+        output[index] = quantize_level(coefficient, divisor);
+    }
+    output
+}
+
+fn quantize_level(coefficient: i32, divisor: u16) -> i16 {
+    let divisor = i64::from(divisor.max(1));
+    let magnitude = i64::from(coefficient).unsigned_abs() as i64;
+    let rounded = ((magnitude + divisor / 2) / divisor).min(2_047) as i16;
+    if coefficient.is_negative() {
+        -rounded
+    } else {
+        rounded
+    }
+}
+
 /// Derives the four VP8 scalar dequantization matrices from first-partition
 /// quantizer and segmentation controls.
 ///

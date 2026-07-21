@@ -2,6 +2,123 @@
 
 use webp_core::{DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget};
 
+/// Failure while building a VP8 boolean-coded partition.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BoolEncodeError {
+    AllocationFailed,
+    InvalidLiteralWidth,
+}
+
+/// VP8's most-significant-bit-first boolean arithmetic encoder.
+///
+/// This is the writer counterpart to [`BoolDecoder`]. It keeps its arithmetic
+/// interval in the VP8 `range - 1` form and delays carry propagation exactly
+/// as the format's byte writer requires.
+#[derive(Debug)]
+pub struct BoolEncoder {
+    range: i32,
+    value: i32,
+    run: usize,
+    pending_bits: i32,
+    bytes: Vec<u8>,
+}
+
+impl Default for BoolEncoder {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl BoolEncoder {
+    #[must_use]
+    pub fn new() -> Self {
+        Self {
+            range: 254,
+            value: 0,
+            run: 0,
+            pending_bits: -8,
+            bytes: Vec::new(),
+        }
+    }
+
+    pub fn write_bool(&mut self, bit: bool, probability: u8) -> Result<(), BoolEncodeError> {
+        let split = (self.range * i32::from(probability)) >> 8;
+        if bit {
+            self.value += split + 1;
+            self.range -= split + 1;
+        } else {
+            self.range = split;
+        }
+        if self.range < 127 {
+            let shift = if self.range == 0 {
+                7
+            } else {
+                7 - self.range.ilog2() as i32
+            };
+            self.range = ((self.range + 1) << shift) - 1;
+            self.value <<= shift;
+            self.pending_bits += shift;
+            if self.pending_bits > 0 {
+                self.flush()?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn write_literal(&mut self, value: u32, count: u8) -> Result<(), BoolEncodeError> {
+        if count > 32 {
+            return Err(BoolEncodeError::InvalidLiteralWidth);
+        }
+        for shift in (0..count).rev() {
+            self.write_bool(((value >> shift) & 1) != 0, 128)?;
+        }
+        Ok(())
+    }
+
+    pub fn write_signed_literal(&mut self, value: i32, count: u8) -> Result<(), BoolEncodeError> {
+        self.write_literal(value.unsigned_abs(), count)?;
+        self.write_bool(value.is_negative(), 128)
+    }
+
+    pub fn finish(mut self) -> Result<Vec<u8>, BoolEncodeError> {
+        self.write_literal(0, (9 - self.pending_bits) as u8)?;
+        self.pending_bits = 0;
+        self.flush()?;
+        Ok(self.bytes)
+    }
+
+    fn flush(&mut self) -> Result<(), BoolEncodeError> {
+        let shift = 8 + self.pending_bits;
+        let bits = self.value >> shift;
+        self.value -= bits << shift;
+        self.pending_bits -= 8;
+        if bits & 0xff == 0xff {
+            self.run = self
+                .run
+                .checked_add(1)
+                .ok_or(BoolEncodeError::AllocationFailed)?;
+            return Ok(());
+        }
+        let extra = self
+            .run
+            .checked_add(1)
+            .ok_or(BoolEncodeError::AllocationFailed)?;
+        self.bytes
+            .try_reserve(extra)
+            .map_err(|_| BoolEncodeError::AllocationFailed)?;
+        if bits & 0x100 != 0
+            && let Some(previous) = self.bytes.last_mut()
+        {
+            *previous = previous.wrapping_add(1);
+        }
+        let delayed = if bits & 0x100 != 0 { 0 } else { 0xff };
+        self.bytes.extend(std::iter::repeat_n(delayed, self.run));
+        self.run = 0;
+        self.bytes.push((bits & 0xff) as u8);
+        Ok(())
+    }
+}
+
 /// VP8's most-significant-bit-first arithmetic boolean decoder.
 ///
 /// The decoder owns a deterministic work budget: every decoded boolean value

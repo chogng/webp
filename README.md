@@ -1,10 +1,10 @@
 # webp-rs
 
 A safe-Rust WebP implementation, built from a test-first plan. The current
-milestone is M3 functional integration: static VP8L and VP8 key frames decode
-to straight RGBA8, including `ALPH` transparency, and animated containers
-decode to display-ready canvas frames. Performance work remains deliberately
-deferred until the remaining functional scope is complete.
+milestone is M5+ encoding: static VP8L and VP8 key frames decode to straight
+RGBA8, including `ALPH` transparency, and animated containers decode to
+display-ready canvas frames. M4 begins with safe, static lossless VP8L literal
+encoding; performance work remains deliberately deferred.
 
 ## Current guarantees
 
@@ -24,6 +24,16 @@ deferred until the remaining functional scope is complete.
   blend and disposal.
 - External libwebp vectors cover ALPH filters and animated blend/dispose
   composition, including pixel-level oracle checks where representations match.
+- `encode_lossless_rgba` writes a complete static VP8L WebP from straight
+  RGBA8 input using reversible transforms, bounded adaptive color-cache
+  selection, small-palette color indexing, and deterministic frequency-ranked
+  Huffman coding. Metadata can be muxed through
+  `encode_lossless_rgba_with_metadata`.
+- `encode_lossless_animation` writes strict `VP8X`/`ANIM`/`ANMF` containers
+  with independently encoded VP8L frame rectangles, including timing, even
+  offsets, blend, dispose-to-background, alpha, canvas background, and loops.
+  `encode_lossless_animation_with_metadata` additionally preserves raw ICCP,
+  EXIF, and XMP payloads.
 
 Run the workspace test suite with:
 
@@ -35,7 +45,11 @@ Codec milestones also require the conformance, robustness, performance, and
 resource gates in [`docs/quality-gates.md`](docs/quality-gates.md); passing
 the test suite alone does not mark a decoder milestone complete.
 M3's functional exit record is in
-[`docs/m3-alpha-animation.md`](docs/m3-alpha-animation.md).
+[`docs/m3-alpha-animation.md`](docs/m3-alpha-animation.md); M4's completed
+static VP8L encoding scope and exit criteria are in
+[`docs/m4-vp8l-encoding.md`](docs/m4-vp8l-encoding.md). The follow-on encoder
+roadmap and completed M5/M8 profiles are in
+[`docs/m5-plus-roadmap.md`](docs/m5-plus-roadmap.md).
 
 ## Bazel
 
