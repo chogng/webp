@@ -6,11 +6,15 @@
 
 use webp_core::DecodeError;
 
-use crate::transform::{inverse_dct_4x4_i32, inverse_wht_4x4_i32};
-use crate::{
-    ChromaMode, DequantizationMatrix, Intra4Mode, Intra16Mode, IntraMacroblock, LumaMode,
-    MacroblockResiduals,
-};
+use crate::ChromaMode;
+use crate::DequantizationMatrix;
+use crate::Intra4Mode;
+use crate::Intra16Mode;
+use crate::IntraMacroblock;
+use crate::LumaMode;
+use crate::MacroblockResiduals;
+use crate::transform::inverse_dct_4x4_i32;
+use crate::transform::inverse_wht_4x4_i32;
 
 #[cfg(test)]
 #[path = "reconstruction_tests.rs"]

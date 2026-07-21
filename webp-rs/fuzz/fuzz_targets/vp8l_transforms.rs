@@ -2,14 +2,18 @@
 #![forbid(unsafe_code)]
 
 use libfuzzer_sys::fuzz_target;
-use webp_vp8l_color_transform::{
-    ColorTransform, ColorTransformMultipliers, Rgba as ColorRgba, RgbaImage as ColorImage,
-    inverse_color_transform,
-};
-use webp_vp8l_indexing::{Palette, inverse_color_indexing};
-use webp_vp8l_transform::{
-    PredictorMode, Rgba, RgbaImage, inverse_predictor, inverse_subtract_green,
-};
+use webp_vp8l_color_transform::ColorTransform;
+use webp_vp8l_color_transform::ColorTransformMultipliers;
+use webp_vp8l_color_transform::Rgba as ColorRgba;
+use webp_vp8l_color_transform::RgbaImage as ColorImage;
+use webp_vp8l_color_transform::inverse_color_transform;
+use webp_vp8l_indexing::Palette;
+use webp_vp8l_indexing::inverse_color_indexing;
+use webp_vp8l_transform::PredictorMode;
+use webp_vp8l_transform::Rgba;
+use webp_vp8l_transform::RgbaImage;
+use webp_vp8l_transform::inverse_predictor;
+use webp_vp8l_transform::inverse_subtract_green;
 
 const MAX_DIMENSION: u32 = 16;
 
@@ -50,8 +54,8 @@ fuzz_target!(|input: &[u8]| {
     let block_size = 1_u32 << block_bits;
     let blocks_wide = width.div_ceil(block_size);
     let blocks_high = height.div_ceil(block_size);
-    let block_count = usize::try_from(blocks_wide * blocks_high)
-        .expect("bounded transform dimensions fit usize");
+    let block_count =
+        usize::try_from(blocks_wide * blocks_high).expect("bounded transform dimensions fit usize");
     let multipliers = (0..block_count)
         .map(|index| {
             let base = 2 + index * 3;
@@ -93,8 +97,8 @@ fuzz_target!(|input: &[u8]| {
         .packing()
         .packed_width(width)
         .expect("bounded output width cannot overflow");
-    let packed_count = usize::try_from(packed_width * height)
-        .expect("bounded indexed dimensions fit usize");
+    let packed_count =
+        usize::try_from(packed_width * height).expect("bounded indexed dimensions fit usize");
     let indexed_pixels = (0..packed_count)
         .map(|index| Rgba::new(0, byte_at(input, 2 + index), 0, 0))
         .collect();

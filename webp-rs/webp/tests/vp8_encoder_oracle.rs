@@ -1,13 +1,15 @@
 //! Locked-libwebp validation for the first emitted VP8 key-frame slice.
 
-use std::{
-    fs,
-    path::PathBuf,
-    process::Command,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::fs;
+use std::path::PathBuf;
+use std::process::Command;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
-use webp::{DecodeOptions, LossyEncodeOptions, decode, encode_lossy_rgba_with_options};
+use webp::DecodeOptions;
+use webp::LossyEncodeOptions;
+use webp::decode;
+use webp::encode_lossy_rgba_with_options;
 
 #[test]
 fn neutral_vp8_key_frame_is_accepted_by_pinned_dwebp() {

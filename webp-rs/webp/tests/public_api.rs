@@ -1,9 +1,16 @@
-use std::{fs, path::PathBuf};
+use std::fs;
+use std::path::PathBuf;
 
-use webp::{
-    DecodeErrorKind, DecodeLimits, DecodeOptions, Image, ImageInfo, IncrementalDecoder, Progress,
-    decode, read_info, read_metadata,
-};
+use webp::DecodeErrorKind;
+use webp::DecodeLimits;
+use webp::DecodeOptions;
+use webp::Image;
+use webp::ImageInfo;
+use webp::IncrementalDecoder;
+use webp::Progress;
+use webp::decode;
+use webp::read_info;
+use webp::read_metadata;
 
 fn test_data_root() -> PathBuf {
     if let Some(runfiles) = std::env::var_os("TEST_SRCDIR") {

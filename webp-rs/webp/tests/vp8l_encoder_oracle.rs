@@ -1,13 +1,15 @@
 //! Optional VP8L encoder oracle tests against the locked local libwebp build.
 
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::fs;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
-use webp::{Metadata, encode_lossless_rgba, encode_lossless_rgba_with_metadata};
+use webp::Metadata;
+use webp::encode_lossless_rgba;
+use webp::encode_lossless_rgba_with_metadata;
 
 #[test]
 fn literal_vp8l_output_round_trips_through_pinned_libwebp() {

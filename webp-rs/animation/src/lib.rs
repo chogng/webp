@@ -3,4 +3,5 @@
 
 mod compositor;
 
-pub use compositor::{AnimationCanvas, DecodedFrame};
+pub use compositor::AnimationCanvas;
+pub use compositor::DecodedFrame;

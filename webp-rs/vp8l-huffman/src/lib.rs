@@ -6,7 +6,10 @@
 //! their bits least-significant bit first, so the table stores each canonical
 //! code with exactly its significant bits reversed.
 
-use webp_core::{BitReader, DecodeError, DecodeErrorKind, ShiftedBitReader};
+use webp_core::BitReader;
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
+use webp_core::ShiftedBitReader;
 
 /// The longest code allowed by the VP8L format.
 pub const MAX_CODE_LENGTH: u8 = 15;
@@ -875,7 +878,8 @@ fn fill_secondary_table(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::{hint::black_box, time::Instant};
+    use std::hint::black_box;
+    use std::time::Instant;
     use webp_core::BitWriter;
 
     #[derive(Clone, Copy)]

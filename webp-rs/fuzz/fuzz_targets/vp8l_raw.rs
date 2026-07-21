@@ -2,7 +2,8 @@
 #![forbid(unsafe_code)]
 
 use libfuzzer_sys::fuzz_target;
-use webp::{DecodeLimits, DecodeOptions};
+use webp::DecodeLimits;
+use webp::DecodeOptions;
 
 const MAX_RAW_VP8L_BYTES: usize = 64 * 1024;
 const RIFF_OVERHEAD: usize = 20;

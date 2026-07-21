@@ -2,7 +2,9 @@
 #![forbid(unsafe_code)]
 
 use libfuzzer_sys::fuzz_target;
-use webp::{DecodeLimits, DecodeOptions, IncrementalDecoder};
+use webp::DecodeLimits;
+use webp::DecodeOptions;
+use webp::IncrementalDecoder;
 
 fn limits() -> DecodeLimits {
     DecodeLimits {

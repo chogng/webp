@@ -1,5 +1,6 @@
 use super::*;
-use crate::{DecodeOptions, decode};
+use crate::DecodeOptions;
+use crate::decode;
 
 #[test]
 fn literal_vp8l_encoder_round_trips_straight_rgba() {

@@ -2,9 +2,15 @@
 //!
 //! Usage: `cargo run --release -p webp --example decode_bench -- <iterations> <files...>`
 
-use std::{env, fs, hint::black_box, path::PathBuf, process::ExitCode, time::Instant};
+use std::env;
+use std::fs;
+use std::hint::black_box;
+use std::path::PathBuf;
+use std::process::ExitCode;
+use std::time::Instant;
 
-use webp::{DecodeOptions, decode};
+use webp::DecodeOptions;
+use webp::decode;
 
 fn main() -> ExitCode {
     let mut arguments = env::args_os().skip(1);

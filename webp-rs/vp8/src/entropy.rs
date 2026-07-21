@@ -1,11 +1,15 @@
 //! VP8 coefficient-token entropy decoding and residual context.
 
-use webp_core::{DecodeError, DecodeErrorKind};
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
 
-use crate::coefficients::{
-    CATEGORY_PROBABILITIES, COEFFICIENT_BANDS, COEFFICIENT_DEFAULTS, COEFFICIENT_ZIGZAG,
-};
-use crate::{BoolDecoder, BoolEncodeError, BoolEncoder};
+use crate::BoolDecoder;
+use crate::BoolEncodeError;
+use crate::BoolEncoder;
+use crate::coefficients::CATEGORY_PROBABILITIES;
+use crate::coefficients::COEFFICIENT_BANDS;
+use crate::coefficients::COEFFICIENT_DEFAULTS;
+use crate::coefficients::COEFFICIENT_ZIGZAG;
 
 #[cfg(test)]
 #[path = "entropy_tests.rs"]

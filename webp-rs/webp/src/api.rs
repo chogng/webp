@@ -1,6 +1,7 @@
 //! Public data types shared by the decode entry points.
 
-use webp_core::{CompatibilityProfile, DecodeLimits};
+use webp_core::CompatibilityProfile;
+use webp_core::DecodeLimits;
 
 /// Stable reason a WebP encoding operation failed.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

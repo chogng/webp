@@ -2,7 +2,8 @@
 #![forbid(unsafe_code)]
 
 use libfuzzer_sys::fuzz_target;
-use webp::{read_metadata, DecodeLimits};
+use webp::DecodeLimits;
+use webp::read_metadata;
 
 fuzz_target!(|bytes: &[u8]| {
     let limits = DecodeLimits {
@@ -16,4 +17,3 @@ fuzz_target!(|bytes: &[u8]| {
     };
     let _ = read_metadata(bytes, &limits);
 });
-

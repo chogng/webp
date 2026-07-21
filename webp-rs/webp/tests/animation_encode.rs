@@ -1,8 +1,12 @@
-use webp::{
-    AnimationEncodeFrame, AnimationEncodeOptions, DecodeLimits, DecodeOptions, Metadata,
-    decode_animation, encode_lossless_animation, encode_lossless_animation_with_metadata,
-    read_metadata,
-};
+use webp::AnimationEncodeFrame;
+use webp::AnimationEncodeOptions;
+use webp::DecodeLimits;
+use webp::DecodeOptions;
+use webp::Metadata;
+use webp::decode_animation;
+use webp::encode_lossless_animation;
+use webp::encode_lossless_animation_with_metadata;
+use webp::read_metadata;
 
 #[test]
 fn lossless_animation_encoder_preserves_rectangles_composition_and_wire_flags() {

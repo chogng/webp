@@ -1,5 +1,8 @@
 use super::*;
-use crate::{CoefficientProbabilities, FilterHeader, QuantizationHeader, SegmentHeader};
+use crate::CoefficientProbabilities;
+use crate::FilterHeader;
+use crate::QuantizationHeader;
+use crate::SegmentHeader;
 use webp_core::DecodeLimits;
 
 struct TestBoolWriter {

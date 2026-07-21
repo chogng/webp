@@ -1,6 +1,8 @@
-use webp_core::{
-    DecodeError, DecodeErrorKind, DecodeLimits, checked_image_bytes, checked_rect_end,
-};
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
+use webp_core::DecodeLimits;
+use webp_core::checked_image_bytes;
+use webp_core::checked_rect_end;
 
 /// One decoded straight-RGBA8 frame ready for canvas composition.
 #[derive(Debug, Clone, Copy)]

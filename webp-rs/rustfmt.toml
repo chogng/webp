@@ -1,4 +1,10 @@
 edition = "2024"
-# The warnings caused by this setting can be ignored.
-# only fuzz use the nightly
+# Stable rustfmt recognizes this unstable option but warns when loading it
+# from this file. Pass it explicitly when formatting or checking so stable
+# rustfmt applies the repository's one-item-per-import style:
+# cargo fmt --all -- --config imports_granularity=Item
+# cargo fmt --all -- --config imports_granularity=Item --check
+# The excluded fuzz crate uses its nightly-only toolchain path:
+# cargo +nightly fmt --manifest-path fuzz/Cargo.toml
+# cargo +nightly fmt --manifest-path fuzz/Cargo.toml -- --check
 imports_granularity = "Item"

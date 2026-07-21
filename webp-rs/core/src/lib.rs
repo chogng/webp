@@ -5,9 +5,14 @@ mod bit_io;
 mod error;
 mod limits;
 
-pub use bit_io::{BitReader, BitWriter, ShiftedBitReader};
-pub use error::{DecodeError, DecodeErrorKind};
-pub use limits::{
-    CompatibilityProfile, DecodeLimits, WorkBudget, checked_chunk_end, checked_image_bytes,
-    checked_rect_end,
-};
+pub use bit_io::BitReader;
+pub use bit_io::BitWriter;
+pub use bit_io::ShiftedBitReader;
+pub use error::DecodeError;
+pub use error::DecodeErrorKind;
+pub use limits::CompatibilityProfile;
+pub use limits::DecodeLimits;
+pub use limits::WorkBudget;
+pub use limits::checked_chunk_end;
+pub use limits::checked_image_bytes;
+pub use limits::checked_rect_end;

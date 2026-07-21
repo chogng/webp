@@ -1,8 +1,11 @@
 //! Header-only image information and metadata extraction.
 
-use crate::{
-    CompatibilityProfile, DecodeError, DecodeErrorKind, DecodeLimits, ImageInfo, Metadata,
-};
+use crate::CompatibilityProfile;
+use crate::DecodeError;
+use crate::DecodeErrorKind;
+use crate::DecodeLimits;
+use crate::ImageInfo;
+use crate::Metadata;
 
 pub fn read_info(data: &[u8], limits: &DecodeLimits) -> Result<ImageInfo, DecodeError> {
     let container = webp_container::parse(data, CompatibilityProfile::SpecStrict, limits)?;

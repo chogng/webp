@@ -1,6 +1,9 @@
 //! VP8 boolean arithmetic decoding over already-bounded partitions.
 
-use webp_core::{DecodeError, DecodeErrorKind, DecodeLimits, WorkBudget};
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
+use webp_core::DecodeLimits;
+use webp_core::WorkBudget;
 
 /// Failure while building a VP8 boolean-coded partition.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

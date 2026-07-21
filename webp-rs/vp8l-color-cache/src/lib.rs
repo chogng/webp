@@ -6,7 +6,9 @@
 //! decoded pixel is inserted; callers must therefore call [`ColorCache::insert`]
 //! for literals, cache hits, and every pixel emitted by a backward reference.
 
-use webp_core::{DecodeError, DecodeErrorKind, WorkBudget};
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
+use webp_core::WorkBudget;
 use webp_vp8l_entropy::copy_lz77_pixels;
 
 /// The smallest color-cache exponent accepted by VP8L.

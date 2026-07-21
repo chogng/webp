@@ -6,7 +6,11 @@
 //! LZ77 copy operation that the entropy decoder will call after decoding its
 //! Huffman symbols.
 
-use webp_core::{BitReader, DecodeError, DecodeErrorKind, ShiftedBitReader, WorkBudget};
+use webp_core::BitReader;
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
+use webp_core::ShiftedBitReader;
+use webp_core::WorkBudget;
 
 pub const LENGTH_PREFIX_COUNT: u8 = 24;
 pub const DISTANCE_PREFIX_COUNT: u8 = 40;

@@ -4,10 +4,14 @@
 //! zero-copy coefficient-token partitions. It deliberately stops before
 //! macroblock entropy decoding and pixel reconstruction.
 
-use webp_core::{DecodeError, DecodeErrorKind, DecodeLimits};
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
+use webp_core::DecodeLimits;
 
+use crate::BoolDecoder;
+use crate::CoefficientProbabilities;
+use crate::QuantizationHeader;
 use crate::coefficients::COEFFICIENT_UPDATE_PROBABILITIES;
-use crate::{BoolDecoder, CoefficientProbabilities, QuantizationHeader};
 
 /// Segmentation data carried by the first VP8 partition.
 #[derive(Clone, Debug, Eq, PartialEq)]

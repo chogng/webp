@@ -1,5 +1,6 @@
 use super::*;
-use crate::{decode_intra_frame, parse_riff_payload};
+use crate::decode_intra_frame;
+use crate::parse_riff_payload;
 use webp_core::DecodeLimits;
 
 #[test]

@@ -1,8 +1,11 @@
 #![forbid(unsafe_code)]
 
-use std::{env, fs, path::Path};
+use std::env;
+use std::fs;
+use std::path::Path;
 
-use toml::{Table, Value};
+use toml::Table;
+use toml::Value;
 
 fn main() {
     let Some(command) = env::args().nth(1) else {

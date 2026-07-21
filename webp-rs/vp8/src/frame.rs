@@ -1,15 +1,31 @@
 //! VP8 frame reconstruction and macroblock-aligned YUV storage.
 
-use webp_core::{DecodeError, DecodeErrorKind, DecodeLimits, checked_image_bytes};
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
+use webp_core::DecodeLimits;
+use webp_core::checked_image_bytes;
 
-use crate::loop_filter::{MacroblockFilter, filter_macroblock};
+use crate::BoolDecoder;
+use crate::ChromaMode;
+use crate::DecodedCoefficients;
+use crate::Intra4Mode;
+use crate::Intra16Mode;
+use crate::IntraMacroblock;
+use crate::LoopFilterStrength;
+use crate::LumaMode;
+use crate::MacroblockPixels;
+use crate::MacroblockPredictionEdges;
+use crate::MacroblockResiduals;
+use crate::ResidualContext;
+use crate::Vp8Header;
+use crate::decode_intra_residuals;
+use crate::derive_dequantization;
+use crate::derive_loop_filter_strengths;
+use crate::loop_filter::MacroblockFilter;
+use crate::loop_filter::filter_macroblock;
+use crate::parse_intra_mode_row;
 use crate::partition::parse_partition_layout_with_mode_decoder;
-use crate::{
-    BoolDecoder, ChromaMode, DecodedCoefficients, Intra4Mode, Intra16Mode, IntraMacroblock,
-    LoopFilterStrength, LumaMode, MacroblockPixels, MacroblockPredictionEdges, MacroblockResiduals,
-    ResidualContext, Vp8Header, decode_intra_residuals, derive_dequantization,
-    derive_loop_filter_strengths, parse_intra_mode_row, reconstruct_intra_macroblock,
-};
+use crate::reconstruct_intra_macroblock;
 
 #[cfg(test)]
 #[path = "frame_tests.rs"]

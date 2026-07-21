@@ -1,4 +1,5 @@
-use crate::{DecodeError, DecodeErrorKind};
+use crate::DecodeError;
+use crate::DecodeErrorKind;
 
 /// Parsing policy for inputs where the WebP specifications and legacy readers
 /// intentionally differ.

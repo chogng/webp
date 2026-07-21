@@ -4,10 +4,12 @@
 //! reversible spatial filter. Both raw alpha (method 0) and headerless VP8L
 //! alpha (method 1) are recovered into a straight alpha plane.
 
-use webp_core::{
-    BitWriter, CompatibilityProfile, DecodeError, DecodeErrorKind, DecodeLimits,
-    checked_image_bytes,
-};
+use webp_core::BitWriter;
+use webp_core::CompatibilityProfile;
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
+use webp_core::DecodeLimits;
+use webp_core::checked_image_bytes;
 
 /// The compression method encoded in an `ALPH` header.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

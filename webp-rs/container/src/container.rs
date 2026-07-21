@@ -4,10 +4,12 @@
 //! lengths and chunk framing, exposes unknown chunks unchanged, and decodes the
 //! small `VP8X` header without attempting to decode VP8 or VP8L payloads.
 
-use webp_core::{
-    CompatibilityProfile, DecodeError, DecodeErrorKind, DecodeLimits, checked_chunk_end,
-    checked_rect_end,
-};
+use webp_core::CompatibilityProfile;
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
+use webp_core::DecodeLimits;
+use webp_core::checked_chunk_end;
+use webp_core::checked_rect_end;
 
 const RIFF_HEADER_LEN: usize = 12;
 const CHUNK_HEADER_LEN: usize = 8;

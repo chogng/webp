@@ -1,4 +1,5 @@
-use crate::{DecodeError, DecodeErrorKind};
+use crate::DecodeError;
+use crate::DecodeErrorKind;
 
 /// A least-significant-bit-first reader used by VP8L bitstreams.
 #[derive(Clone, Debug)]

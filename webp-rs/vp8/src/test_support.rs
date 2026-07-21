@@ -1,8 +1,10 @@
 //! Shared test-only VP8 bitstream fixtures.
 
+use crate::CoefficientBlockType;
+use crate::CoefficientProbabilities;
 use crate::coefficients::COEFFICIENT_UPDATE_PROBABILITIES;
-use crate::partition::{KEY_FRAME_HEADER_LEN, KEY_FRAME_START_CODE};
-use crate::{CoefficientBlockType, CoefficientProbabilities};
+use crate::partition::KEY_FRAME_HEADER_LEN;
+use crate::partition::KEY_FRAME_START_CODE;
 
 /// A straightforward VP8 boolean writer for decoder test vectors.
 #[derive(Default)]

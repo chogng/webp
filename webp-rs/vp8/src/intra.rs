@@ -3,9 +3,11 @@
 //! Values are mechanically transcribed from the pinned libwebp reference
 //! implementation and shape-checked during this import.
 
-use webp_core::{DecodeError, DecodeErrorKind};
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
 
-use crate::{BoolDecoder, FirstPartitionHeader};
+use crate::BoolDecoder;
+use crate::FirstPartitionHeader;
 
 /// One VP8 intra 4×4 prediction mode.
 ///

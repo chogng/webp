@@ -6,7 +6,11 @@
 //! handling a RIFF file should first validate its chunk framing, then pass the
 //! `VP8L` payload to [`parse_riff_payload`].
 
-use webp_core::{BitReader, DecodeError, DecodeErrorKind, DecodeLimits, checked_chunk_end};
+use webp_core::BitReader;
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
+use webp_core::DecodeLimits;
+use webp_core::checked_chunk_end;
 
 /// The four reversible transforms defined by the VP8L lossless bitstream.
 ///

@@ -2,11 +2,15 @@
 #![forbid(unsafe_code)]
 
 use libfuzzer_sys::fuzz_target;
-use webp_vp8::{
-    Intra4Mode, MacroblockPixels, MacroblockSpatialResidues, combine_macroblock_prediction,
-    inverse_dct_4x4, inverse_dct_4x4_i32, inverse_wht_4x4, inverse_wht_4x4_i32,
-    predict_intra4_block,
-};
+use webp_vp8::Intra4Mode;
+use webp_vp8::MacroblockPixels;
+use webp_vp8::MacroblockSpatialResidues;
+use webp_vp8::combine_macroblock_prediction;
+use webp_vp8::inverse_dct_4x4;
+use webp_vp8::inverse_dct_4x4_i32;
+use webp_vp8::inverse_wht_4x4;
+use webp_vp8::inverse_wht_4x4_i32;
+use webp_vp8::predict_intra4_block;
 
 fuzz_target!(|input: &[u8]| {
     let mut coefficients = [0_i16; 16];

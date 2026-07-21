@@ -1,13 +1,15 @@
 //! Optional animation-encoder container oracle tests against locked libwebp.
 
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::fs;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
-use webp::{AnimationEncodeFrame, AnimationEncodeOptions, encode_lossless_animation};
+use webp::AnimationEncodeFrame;
+use webp::AnimationEncodeOptions;
+use webp::encode_lossless_animation;
 
 #[test]
 fn lossless_animation_output_is_accepted_by_pinned_webpmux_and_dwebp() {

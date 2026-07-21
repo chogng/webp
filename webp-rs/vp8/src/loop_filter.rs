@@ -1,6 +1,7 @@
 //! Scalar VP8 loop-filter strength derivation and edge filters.
 
-use crate::{FilterHeader, SegmentHeader};
+use crate::FilterHeader;
+use crate::SegmentHeader;
 
 #[cfg(test)]
 #[path = "loop_filter_tests.rs"]

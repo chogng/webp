@@ -5,17 +5,32 @@
 //! public RGB(A) lossy encoder: RGB-to-YUV, transform/quantization and
 //! coefficient selection build on this verified partition layout.
 
-use crate::coefficients::{
-    COEFFICIENT_BANDS, COEFFICIENT_DEFAULTS, COEFFICIENT_UPDATE_PROBABILITIES,
-};
+use crate::BoolEncodeError;
+use crate::BoolEncoder;
+use crate::ChromaMode;
+use crate::CoefficientBlockType;
+use crate::CoefficientEncodeError;
+use crate::CoefficientProbabilities;
+use crate::DecodedCoefficients;
+use crate::DequantizationMatrix;
+use crate::Intra16Mode;
+use crate::IntraMacroblock;
+use crate::LumaMode;
+use crate::MacroblockResiduals;
+use crate::QuantizationHeader;
+use crate::SegmentHeader;
+use crate::Vp8YuvImage;
+use crate::coefficients::COEFFICIENT_BANDS;
+use crate::coefficients::COEFFICIENT_DEFAULTS;
+use crate::coefficients::COEFFICIENT_UPDATE_PROBABILITIES;
+use crate::derive_dequantization;
+use crate::encode_coefficients;
 use crate::entropy::encode_coefficients_observed;
-use crate::{
-    BoolEncodeError, BoolEncoder, ChromaMode, CoefficientBlockType, CoefficientEncodeError,
-    CoefficientProbabilities, DecodedCoefficients, DequantizationMatrix, Intra16Mode,
-    IntraMacroblock, LumaMode, MacroblockResiduals, QuantizationHeader, SegmentHeader, Vp8YuvImage,
-    derive_dequantization, encode_coefficients, forward_dct_4x4_i32, forward_wht_4x4_i32,
-    predict_intra16_macroblock, quantize_block, reconstruct_intra_macroblock,
-};
+use crate::forward_dct_4x4_i32;
+use crate::forward_wht_4x4_i32;
+use crate::predict_intra16_macroblock;
+use crate::quantize_block;
+use crate::reconstruct_intra_macroblock;
 
 const KEY_FRAME_HEADER_LEN: usize = 10;
 const KEY_FRAME_START_CODE: [u8; 3] = [0x9d, 0x01, 0x2a];

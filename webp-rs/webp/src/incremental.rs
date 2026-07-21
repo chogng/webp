@@ -1,7 +1,11 @@
 //! Bounded incremental-input buffering.
 
-use crate::{DecodeOptions, Image, Progress, decode};
-use webp_core::{DecodeError, DecodeErrorKind};
+use crate::DecodeOptions;
+use crate::Image;
+use crate::Progress;
+use crate::decode;
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
 
 #[derive(Debug, Clone)]
 pub struct IncrementalDecoder {

@@ -10,7 +10,8 @@
 
 use core::fmt;
 
-use webp_vp8l_transform::{Rgba, RgbaImage};
+use webp_vp8l_transform::Rgba;
+use webp_vp8l_transform::RgbaImage;
 
 /// The greatest palette size representable by VP8L color indexing.
 pub const MAX_PALETTE_SIZE: usize = 256;

@@ -3,7 +3,9 @@
 
 use libfuzzer_sys::fuzz_target;
 use webp::DecodeLimits;
-use webp_vp8::{decode_intra_frame, parse_partition_layout, parse_riff_payload};
+use webp_vp8::decode_intra_frame;
+use webp_vp8::parse_partition_layout;
+use webp_vp8::parse_riff_payload;
 
 const MAX_VP8_BYTES: usize = 64 * 1024;
 

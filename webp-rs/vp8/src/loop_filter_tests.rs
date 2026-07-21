@@ -1,5 +1,6 @@
 use super::*;
-use crate::{FilterHeader, SegmentHeader};
+use crate::FilterHeader;
+use crate::SegmentHeader;
 
 #[test]
 fn derives_strengths_with_deltas_sharpness_and_segments() {

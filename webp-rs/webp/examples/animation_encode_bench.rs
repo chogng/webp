@@ -1,8 +1,13 @@
 //! Release benchmark for the bounded lossless animation encoder profile.
 
-use std::{env, hint::black_box, process::ExitCode, time::Instant};
+use std::env;
+use std::hint::black_box;
+use std::process::ExitCode;
+use std::time::Instant;
 
-use webp::{AnimationEncodeFrame, AnimationEncodeOptions, encode_lossless_animation};
+use webp::AnimationEncodeFrame;
+use webp::AnimationEncodeOptions;
+use webp::encode_lossless_animation;
 
 const CANVAS_WIDTH: u32 = 320;
 const CANVAS_HEIGHT: u32 = 240;

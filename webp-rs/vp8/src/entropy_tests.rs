@@ -1,7 +1,11 @@
 use super::*;
-use crate::coefficients::{CATEGORY_PROBABILITIES, COEFFICIENT_ZIGZAG};
-use crate::test_support::{TestBoolWriter, coefficient_nodes, write_coefficient_eob};
-use webp_core::{DecodeErrorKind, DecodeLimits};
+use crate::coefficients::CATEGORY_PROBABILITIES;
+use crate::coefficients::COEFFICIENT_ZIGZAG;
+use crate::test_support::TestBoolWriter;
+use crate::test_support::coefficient_nodes;
+use crate::test_support::write_coefficient_eob;
+use webp_core::DecodeErrorKind;
+use webp_core::DecodeLimits;
 
 #[test]
 fn coefficient_decoder_handles_eob_zero_runs_signs_and_zigzag() {

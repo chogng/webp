@@ -6,11 +6,14 @@
 //! frequency-ranked balanced Huffman codes. Small palette images use color
 //! indexing.
 
-use crate::{
-    AnimationEncodeFrame, AnimationEncodeOptions, EncodeError, LossyEncodeOptions, Metadata,
-};
+use crate::AnimationEncodeFrame;
+use crate::AnimationEncodeOptions;
+use crate::EncodeError;
+use crate::LossyEncodeOptions;
+use crate::Metadata;
 use webp_core::BitWriter;
-use webp_vp8l::{MAX_DIMENSION, SIGNATURE};
+use webp_vp8l::MAX_DIMENSION;
+use webp_vp8l::SIGNATURE;
 
 const GREEN_ALPHABET_SIZE: usize = 256 + 24;
 const CHANNEL_ALPHABET_SIZE: usize = 256;

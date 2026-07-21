@@ -1,7 +1,9 @@
-use webp::{
-    DecodeLimits, DecodeOptions, Metadata, decode, encode_lossless_rgba_with_metadata,
-    read_metadata,
-};
+use webp::DecodeLimits;
+use webp::DecodeOptions;
+use webp::Metadata;
+use webp::decode;
+use webp::encode_lossless_rgba_with_metadata;
+use webp::read_metadata;
 
 #[test]
 fn lossless_encoder_muxes_all_static_metadata_combinations() {

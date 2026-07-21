@@ -3,7 +3,10 @@
 
 use libfuzzer_sys::fuzz_target;
 use webp::DecodeLimits;
-use webp_vp8::{BoolDecoder, CoefficientProbabilities, ResidualContext, decode_intra_residuals};
+use webp_vp8::BoolDecoder;
+use webp_vp8::CoefficientProbabilities;
+use webp_vp8::ResidualContext;
+use webp_vp8::decode_intra_residuals;
 
 const MAX_PARTITION_BYTES: usize = 64 * 1024;
 

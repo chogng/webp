@@ -2,9 +2,17 @@
 //!
 //! Usage: `cargo run --release -p webp --example vp8_encode_bench -- <iterations> <files...>`
 
-use std::{env, fs, hint::black_box, path::PathBuf, process::ExitCode, time::Instant};
+use std::env;
+use std::fs;
+use std::hint::black_box;
+use std::path::PathBuf;
+use std::process::ExitCode;
+use std::time::Instant;
 
-use webp::{DecodeOptions, LossyEncodeOptions, decode, encode_lossy_rgba_with_options};
+use webp::DecodeOptions;
+use webp::LossyEncodeOptions;
+use webp::decode;
+use webp::encode_lossy_rgba_with_options;
 
 const QUALITIES: [u8; 3] = [0, 75, 100];
 

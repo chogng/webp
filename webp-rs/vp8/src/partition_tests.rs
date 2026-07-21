@@ -1,10 +1,12 @@
 use super::*;
 use crate::BoolDecoder;
-use crate::test_support::{
-    TestBoolWriter, key_frame, pad_first_partition, write_coefficient_updates,
-    write_quantization_header,
-};
-use webp_core::{DecodeErrorKind, DecodeLimits};
+use crate::test_support::TestBoolWriter;
+use crate::test_support::key_frame;
+use crate::test_support::pad_first_partition;
+use crate::test_support::write_coefficient_updates;
+use crate::test_support::write_quantization_header;
+use webp_core::DecodeErrorKind;
+use webp_core::DecodeLimits;
 
 #[test]
 fn disabled_segmentation_uses_vp8_defaults() {

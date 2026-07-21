@@ -15,14 +15,19 @@ mod reconstruction;
 mod test_support;
 mod transform;
 
-pub use bitstream::{BoolDecoder, BoolEncodeError, BoolEncoder};
+pub use bitstream::BoolDecoder;
+pub use bitstream::BoolEncodeError;
+pub use bitstream::BoolEncoder;
 pub use coefficients::COEFFICIENT_ZIGZAG;
-pub use encoder::{
-    Vp8DcMacroblockCoefficients, Vp8EncodeError, Vp8SourceYuv,
-    encode_dc_predicted_key_frame_with_quantizer, encode_dc_predicted_macroblock_key_frame,
-    encode_dc_predicted_macroblock_key_frame_with_quantizer, encode_neutral_key_frame,
-    quantize_dc_macroblock, rgba_to_yuv420,
-};
+pub use encoder::Vp8DcMacroblockCoefficients;
+pub use encoder::Vp8EncodeError;
+pub use encoder::Vp8SourceYuv;
+pub use encoder::encode_dc_predicted_key_frame_with_quantizer;
+pub use encoder::encode_dc_predicted_macroblock_key_frame;
+pub use encoder::encode_dc_predicted_macroblock_key_frame_with_quantizer;
+pub use encoder::encode_neutral_key_frame;
+pub use encoder::quantize_dc_macroblock;
+pub use encoder::rgba_to_yuv420;
 pub use entropy::CoefficientBlockType;
 pub use entropy::CoefficientEncodeError;
 pub use entropy::CoefficientProbabilities;

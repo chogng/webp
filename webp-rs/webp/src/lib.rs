@@ -5,7 +5,10 @@
 //! frames to canonical RGBA8. M3 adds `ALPH` planes and animation decoding.
 //! M4 begins static lossless VP8L encoding.
 
-pub use webp_core::{CompatibilityProfile, DecodeError, DecodeErrorKind, DecodeLimits};
+pub use webp_core::CompatibilityProfile;
+pub use webp_core::DecodeError;
+pub use webp_core::DecodeErrorKind;
+pub use webp_core::DecodeLimits;
 
 mod api;
 mod decoder;
@@ -13,12 +16,20 @@ mod encoder;
 mod incremental;
 mod info;
 
-pub use api::{
-    Animation, AnimationEncodeFrame, AnimationEncodeOptions, AnimationFrame, DecodeOptions,
-    EncodeError, Image, ImageInfo, LossyEncodeOptions, Metadata, Progress,
-};
+pub use api::Animation;
+pub use api::AnimationEncodeFrame;
+pub use api::AnimationEncodeOptions;
+pub use api::AnimationFrame;
+pub use api::DecodeOptions;
+pub use api::EncodeError;
+pub use api::Image;
+pub use api::ImageInfo;
+pub use api::LossyEncodeOptions;
+pub use api::Metadata;
+pub use api::Progress;
 pub use incremental::IncrementalDecoder;
-pub use info::{read_info, read_metadata};
+pub use info::read_info;
+pub use info::read_metadata;
 
 /// Decodes a supported static WebP image to straight RGBA8.
 ///
@@ -43,12 +54,9 @@ pub fn decode_animation(data: &[u8], options: &DecodeOptions) -> Result<Animatio
     decoder::decode_animation(data, options)
 }
 
-/// Encodes a static straight-RGBA8 image as a lossless WebP file.
-///
-/// M4+ writes VP8L residuals with bounded cache selection, small-palette
-/// indexing, and deterministic Huffman coding. The output is valid and
-/// lossless, without a compression-ratio or throughput guarantee.
-pub use encoder::{
-    encode_lossless_animation, encode_lossless_animation_with_metadata, encode_lossless_rgba,
-    encode_lossless_rgba_with_metadata, encode_lossy_rgba, encode_lossy_rgba_with_options,
-};
+pub use encoder::encode_lossless_animation;
+pub use encoder::encode_lossless_animation_with_metadata;
+pub use encoder::encode_lossless_rgba;
+pub use encoder::encode_lossless_rgba_with_metadata;
+pub use encoder::encode_lossy_rgba;
+pub use encoder::encode_lossy_rgba_with_options;

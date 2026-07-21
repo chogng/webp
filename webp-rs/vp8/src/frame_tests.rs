@@ -1,9 +1,13 @@
 use super::*;
-use crate::test_support::{
-    TestBoolWriter, key_frame, write_coefficient_updates, write_quantization_header,
-};
-use crate::{MacroblockPixels, Vp8Header, parse_riff_payload};
-use webp_core::{DecodeErrorKind, DecodeLimits};
+use crate::MacroblockPixels;
+use crate::Vp8Header;
+use crate::parse_riff_payload;
+use crate::test_support::TestBoolWriter;
+use crate::test_support::key_frame;
+use crate::test_support::write_coefficient_updates;
+use crate::test_support::write_quantization_header;
+use webp_core::DecodeErrorKind;
+use webp_core::DecodeLimits;
 
 #[test]
 fn macroblock_storage_exposes_reconstructed_edges() {

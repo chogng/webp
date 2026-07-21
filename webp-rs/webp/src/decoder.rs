@@ -1,9 +1,15 @@
 //! Internal static-image decode dispatch.
 
-use crate::{Animation, AnimationFrame, DecodeOptions, Image};
-use webp_animation::{AnimationCanvas, DecodedFrame};
+use crate::Animation;
+use crate::AnimationFrame;
+use crate::DecodeOptions;
+use crate::Image;
+use webp_animation::AnimationCanvas;
+use webp_animation::DecodedFrame;
 use webp_container::FrameBitstream;
-use webp_core::{DecodeError, DecodeErrorKind, checked_image_bytes};
+use webp_core::DecodeError;
+use webp_core::DecodeErrorKind;
+use webp_core::checked_image_bytes;
 
 pub(crate) fn decode(data: &[u8], options: &DecodeOptions) -> Result<Image, DecodeError> {
     let container = webp_container::parse(data, options.compatibility, &options.limits)?;

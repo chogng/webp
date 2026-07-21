@@ -1,13 +1,14 @@
 //! Optional pixel-level VP8 differential test against a local libwebp build.
 
-use std::{
-    fs,
-    path::{Path, PathBuf},
-    process::Command,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::fs;
+use std::path::Path;
+use std::path::PathBuf;
+use std::process::Command;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
-use webp::{DecodeOptions, decode};
+use webp::DecodeOptions;
+use webp::decode;
 
 #[test]
 fn lossy_vp8_sample_matches_libwebp_rgba() {
