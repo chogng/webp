@@ -73,14 +73,82 @@ fn main() -> ExitCode {
         }
     }
     let elapsed = started.elapsed();
+    let mut quality_bytes = [0_usize; QUALITIES.len()];
+    let mut quality_sse = [0_u128; QUALITIES.len()];
+    let mut rgb_samples = 0_u128;
+    for (quality_index, quality) in QUALITIES.into_iter().enumerate() {
+        for image in &inputs {
+            let encoded = match encode_lossy_rgba_with_options(
+                image.width,
+                image.height,
+                &image.rgba,
+                LossyEncodeOptions { quality },
+            ) {
+                Ok(encoded) => encoded,
+                Err(error) => {
+                    eprintln!("quality encode failed: {error}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            let decoded = match decode(&encoded, &DecodeOptions::default()) {
+                Ok(decoded) => decoded,
+                Err(error) => {
+                    eprintln!("quality decode failed: {error}");
+                    return ExitCode::FAILURE;
+                }
+            };
+            if decoded.rgba.len() != image.rgba.len() {
+                eprintln!("quality decode returned a mismatched pixel count");
+                return ExitCode::FAILURE;
+            }
+            quality_bytes[quality_index] =
+                quality_bytes[quality_index].saturating_add(encoded.len());
+            quality_sse[quality_index] += rgb_sse(&image.rgba, &decoded.rgba);
+            if quality_index == 0 {
+                rgb_samples += u128::from(image.width) * u128::from(image.height) * 3;
+            }
+        }
+    }
+    let quality_psnr = quality_sse.map(|sse| rgb_psnr(sse, rgb_samples));
     let encodes = inputs
         .len()
         .saturating_mul(iterations)
         .saturating_mul(QUALITIES.len());
     println!(
-        "encoder=rust profile=vp8-intra16 qualities=0,75,100 files={} encodes={encodes} rgba_bytes={rgba_bytes} output_bytes={output_bytes} elapsed_ms={:.3} checksum={checksum}",
+        "encoder=rust profile=vp8-intra16 qualities=0,75,100 files={} encodes={encodes} rgba_bytes={rgba_bytes} output_bytes={output_bytes} elapsed_ms={:.3} checksum={checksum} quality_bytes={},{},{} rgb_sse={},{},{} rgb_psnr={:.3},{:.3},{:.3}",
         inputs.len(),
         elapsed.as_secs_f64() * 1_000.0,
+        quality_bytes[0],
+        quality_bytes[1],
+        quality_bytes[2],
+        quality_sse[0],
+        quality_sse[1],
+        quality_sse[2],
+        quality_psnr[0],
+        quality_psnr[1],
+        quality_psnr[2],
     );
     ExitCode::SUCCESS
+}
+
+fn rgb_sse(source: &[u8], decoded: &[u8]) -> u128 {
+    source
+        .chunks_exact(4)
+        .zip(decoded.chunks_exact(4))
+        .map(|(source, decoded)| {
+            (0..3)
+                .map(|channel| {
+                    let difference = i32::from(source[channel]) - i32::from(decoded[channel]);
+                    (difference * difference) as u128
+                })
+                .sum::<u128>()
+        })
+        .sum()
+}
+
+fn rgb_psnr(sse: u128, samples: u128) -> f64 {
+    if sse == 0 {
+        return f64::INFINITY;
+    }
+    10.0 * (255.0_f64.powi(2) * samples as f64 / sse as f64).log10()
 }

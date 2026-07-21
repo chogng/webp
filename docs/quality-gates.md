@@ -178,6 +178,26 @@ The remaining size ratio is 1.359x against libwebp's 135,226 bytes, down from
 changing mode selection and should recover the duplicate candidate-encoding
 CPU cost.
 
+## VP8 rate/distortion comparison
+
+The pinned VP8 encoder comparison now performs one untimed encode/decode pass
+per input and quality after the timed loop. It reports output bytes, aggregate
+RGB sum-squared error, and RGB PSNR independently for quality 0, 75, and 100;
+alpha remains covered by the exact oracle tests and is excluded from the
+distortion score. Each product decodes its own output, while the locked corpus
+and cross-decoder tests ensure both begin from equivalent retained RGBA inputs.
+Quality measurement is outside `elapsed_ms`, so the established encode-speed
+series remains comparable.
+
+At the frame-adaptive probability baseline, Rust produces 6,942, 42,022, and
+134,838 bytes with PSNR 25.857, 37.376, and 48.650 dB. Pinned libwebp produces
+5,968, 32,344, and 96,914 bytes with PSNR 27.148, 38.232, and 49.421 dB.
+Rust therefore trails by 1.291, 0.856, and 0.771 dB while also using more
+bytes. A trial that changed intra16 selection from absolute error to squared
+error gained only 0.004--0.018 dB and added 412 bytes per matrix, so it was
+rejected. Future mode or quantization changes must improve this joint rate and
+distortion record rather than optimizing size alone.
+
 ## VP8L entropy-path optimization record
 
 The 2026-07-20 optimization pass retained the same 41-file corpus, five
