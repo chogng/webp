@@ -11,6 +11,10 @@ use crate::{
     derive_loop_filter_strengths, parse_intra_mode_row, reconstruct_intra_macroblock,
 };
 
+#[cfg(test)]
+#[path = "frame_tests.rs"]
+mod tests;
+
 /// Macroblock-aligned YUV 4:2:0 samples reconstructed from a VP8 key frame.
 ///
 /// `width` and `height` describe the visible picture. The plane strides and
