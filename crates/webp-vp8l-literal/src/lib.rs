@@ -1167,12 +1167,13 @@ fn inverse_color_argb(
             "VP8L color-transform block size does not fit usize",
         )
     })?;
-    for y in 0..height {
-        for x in 0..width {
-            let pixel_index = y * width + x;
-            let table_index = (y / block_size) * table_width + (x / block_size);
-            pixels[pixel_index] =
-                inverse_color_pixel_argb(pixels[pixel_index], multipliers[table_index]);
+    for (y, row) in pixels.chunks_exact_mut(width).enumerate() {
+        let table_row = (y / block_size) * table_width;
+        let row_multipliers = &multipliers[table_row..table_row + table_width];
+        for (block, &multiplier) in row.chunks_mut(block_size).zip(row_multipliers) {
+            for pixel in block {
+                *pixel = inverse_color_pixel_argb(*pixel, multiplier);
+            }
         }
     }
     Ok(())
