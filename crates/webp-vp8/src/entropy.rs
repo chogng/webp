@@ -108,6 +108,26 @@ pub fn encode_coefficients(
     start: u8,
     values: [i16; 16],
 ) -> Result<(), CoefficientEncodeError> {
+    encode_coefficients_observed(
+        bits,
+        probabilities,
+        coefficient_type,
+        context,
+        start,
+        values,
+        |_, _, _, _| {},
+    )
+}
+
+pub(crate) fn encode_coefficients_observed(
+    bits: &mut BoolEncoder,
+    probabilities: &CoefficientProbabilities,
+    coefficient_type: CoefficientBlockType,
+    context: u8,
+    start: u8,
+    values: [i16; 16],
+    mut observe: impl FnMut(usize, usize, usize, bool),
+) -> Result<(), CoefficientEncodeError> {
     if context > 2 || start >= 16 || values[..usize::from(start)].iter().any(|&value| value != 0) {
         return Err(CoefficientEncodeError::InvalidParameter);
     }
@@ -117,19 +137,31 @@ pub fn encode_coefficients(
     while position < 16 {
         let initial_nodes = probabilities.nodes(coefficient_type, position, coefficient_context);
         if !((position)..16).any(|next| values[COEFFICIENT_ZIGZAG[next]] != 0) {
+            observe(position, coefficient_context, 0, false);
             bits.write_bool(false, initial_nodes[0])?;
             return Ok(());
         }
+        observe(position, coefficient_context, 0, true);
         bits.write_bool(true, initial_nodes[0])?;
         let mut nodes = initial_nodes;
         while values[COEFFICIENT_ZIGZAG[position]] == 0 {
+            observe(position, coefficient_context, 1, false);
             bits.write_bool(false, nodes[1])?;
             position += 1;
+            coefficient_context = 0;
             nodes = probabilities.nodes(coefficient_type, position, 0);
         }
+        observe(position, coefficient_context, 1, true);
         bits.write_bool(true, nodes[1])?;
         let value = values[COEFFICIENT_ZIGZAG[position]];
-        write_coefficient_magnitude(bits, nodes, value)?;
+        write_coefficient_magnitude(
+            bits,
+            nodes,
+            value,
+            position,
+            coefficient_context,
+            &mut observe,
+        )?;
         position += 1;
         coefficient_context = if value.unsigned_abs() == 1 { 1 } else { 2 };
     }
@@ -140,31 +172,43 @@ fn write_coefficient_magnitude(
     bits: &mut BoolEncoder,
     nodes: &[u8; 11],
     value: i16,
+    position: usize,
+    context: usize,
+    observe: &mut impl FnMut(usize, usize, usize, bool),
 ) -> Result<(), CoefficientEncodeError> {
     let magnitude = i32::from(value).unsigned_abs();
+    observe(position, context, 2, magnitude != 1);
     if magnitude == 1 {
         bits.write_bool(false, nodes[2])?;
     } else {
         bits.write_bool(true, nodes[2])?;
+        observe(position, context, 3, magnitude >= 5);
         match magnitude {
             2 => {
                 bits.write_bool(false, nodes[3])?;
+                observe(position, context, 4, false);
                 bits.write_bool(false, nodes[4])?;
             }
             3 | 4 => {
                 bits.write_bool(false, nodes[3])?;
+                observe(position, context, 4, true);
                 bits.write_bool(true, nodes[4])?;
+                observe(position, context, 5, magnitude == 4);
                 bits.write_bool(magnitude == 4, nodes[5])?;
             }
             5 | 6 => {
                 bits.write_bool(true, nodes[3])?;
+                observe(position, context, 6, false);
                 bits.write_bool(false, nodes[6])?;
+                observe(position, context, 7, false);
                 bits.write_bool(false, nodes[7])?;
                 bits.write_bool(magnitude == 6, 159)?;
             }
             7..=10 => {
                 bits.write_bool(true, nodes[3])?;
+                observe(position, context, 6, false);
                 bits.write_bool(false, nodes[6])?;
+                observe(position, context, 7, true);
                 bits.write_bool(true, nodes[7])?;
                 let suffix = magnitude - 7;
                 bits.write_bool((suffix & 2) != 0, 165)?;
@@ -172,7 +216,8 @@ fn write_coefficient_magnitude(
             }
             11..=2_114 => {
                 bits.write_bool(true, nodes[3])?;
-                write_category_magnitude(bits, nodes, magnitude)?;
+                observe(position, context, 6, true);
+                write_category_magnitude(bits, nodes, magnitude, position, context, observe)?;
             }
             _ => return Err(CoefficientEncodeError::CoefficientOutOfRange),
         }
@@ -185,6 +230,9 @@ fn write_category_magnitude(
     bits: &mut BoolEncoder,
     nodes: &[u8; 11],
     magnitude: u32,
+    position: usize,
+    context: usize,
+    observe: &mut impl FnMut(usize, usize, usize, bool),
 ) -> Result<(), CoefficientEncodeError> {
     bits.write_bool(true, nodes[6])?;
     let category = (0..4)
@@ -195,7 +243,9 @@ fn write_category_magnitude(
         .ok_or(CoefficientEncodeError::CoefficientOutOfRange)?;
     let high = category / 2;
     let low = category % 2;
+    observe(position, context, 8, high != 0);
     bits.write_bool(high != 0, nodes[8])?;
+    observe(position, context, 9 + high, low != 0);
     bits.write_bool(low != 0, nodes[9 + high])?;
     let suffix = magnitude - (3_u32 + (8_u32 << category));
     let probabilities = CATEGORY_PROBABILITIES[category];

@@ -198,6 +198,24 @@ error gained only 0.004--0.018 dB and added 412 bytes per matrix, so it was
 rejected. Future mode or quantization changes must improve this joint rate and
 distortion record rather than optimizing size alone.
 
+## VP8 fused coefficient observation
+
+The adaptive-probability pass originally traversed every coefficient tree once
+to write the default token partition and again to collect node statistics.
+The entropy writer now offers a crate-private observed path that reports each
+adaptive node outcome while emitting the same boolean-coded bit. The default
+partition therefore produces its probability statistics in one traversal;
+the public coefficient encoder remains unchanged. The locked matrix retains
+exactly 183,802 bytes, checksum `188968`, per-quality byte counts, RGB SSE, and
+PSNR from the rate/distortion baseline.
+
+Three five-iteration runs measured 355.789 ms, 352.321 ms, and 353.658 ms for
+Rust, with a 353.658 ms median, 5.4% faster than the preceding 374.015 ms.
+Pinned libwebp measured 335.518 ms, 331.127 ms, and 335.493 ms, with a
+335.493 ms median, leaving Rust 5.4% slower on the comparison matrix. The
+remaining duplicate work is the intentionally retained default/adapted boolean
+encoding required by the exact no-expansion decision.
+
 ## VP8L entropy-path optimization record
 
 The 2026-07-20 optimization pass retained the same 41-file corpus, five

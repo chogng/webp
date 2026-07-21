@@ -7,7 +7,6 @@
 
 use crate::coefficients::{
     COEFFICIENT_BANDS, COEFFICIENT_DEFAULTS, COEFFICIENT_UPDATE_PROBABILITIES,
-    COEFFICIENT_ZIGZAG,
 };
 use crate::{
     BoolEncodeError, BoolEncoder, ChromaMode, CoefficientBlockType, CoefficientEncodeError,
@@ -17,6 +16,7 @@ use crate::{
     forward_wht_4x4_i32, predict_intra16_macroblock, quantize_block,
     reconstruct_intra_macroblock,
 };
+use crate::entropy::encode_coefficients_observed;
 
 const KEY_FRAME_HEADER_LEN: usize = 10;
 const KEY_FRAME_START_CODE: [u8; 3] = [0x9d, 0x01, 0x2a];
@@ -378,15 +378,15 @@ fn write_best_coefficient_partitions(
 ) -> Result<(Vec<u8>, Vec<u8>), Vp8EncodeError> {
     let defaults = CoefficientProbabilities::default();
     let default_first = write_first_partition(blocks, quantizer, &defaults, skip_probability)?;
+    let mut statistics = CoefficientStatistics::new();
     let default_tokens = write_dc_macroblocks_token_partition(
         macroblocks,
         blocks,
         macroblock_width,
         honor_skip,
         &defaults,
+        Some(&mut statistics),
     )?;
-    let statistics =
-        collect_coefficient_statistics(macroblocks, blocks, macroblock_width, honor_skip)?;
     let adapted = statistics.adapted_probabilities();
     if adapted == defaults {
         return Ok((default_first, default_tokens));
@@ -398,6 +398,7 @@ fn write_best_coefficient_partitions(
         macroblock_width,
         honor_skip,
         &adapted,
+        None,
     )?;
     if partition_pair_len(&adapted_first, &adapted_tokens)?
         < partition_pair_len(&default_first, &default_tokens)?
@@ -419,80 +420,6 @@ impl CoefficientStatistics {
         Self {
             nodes: [[[[[0; 2]; 11]; 3]; 8]; 4],
         }
-    }
-
-    fn record(
-        &mut self,
-        coefficient_type: CoefficientBlockType,
-        context: u8,
-        start: u8,
-        values: [i16; 16],
-    ) -> Result<(), Vp8EncodeError> {
-        if context > 2 || start >= 16 || values[..usize::from(start)].iter().any(|&value| value != 0)
-        {
-            return Err(Vp8EncodeError::InvalidPlaneLayout);
-        }
-        let mut position = usize::from(start);
-        let mut coefficient_context = usize::from(context);
-        while position < 16 {
-            let has_more = ((position)..16).any(|next| values[COEFFICIENT_ZIGZAG[next]] != 0);
-            self.record_node(coefficient_type, position, coefficient_context, 0, has_more);
-            if !has_more {
-                return Ok(());
-            }
-            while values[COEFFICIENT_ZIGZAG[position]] == 0 {
-                self.record_node(coefficient_type, position, coefficient_context, 1, false);
-                position += 1;
-                coefficient_context = 0;
-            }
-            self.record_node(coefficient_type, position, coefficient_context, 1, true);
-            let value = values[COEFFICIENT_ZIGZAG[position]];
-            let magnitude = value.unsigned_abs();
-            self.record_node(coefficient_type, position, coefficient_context, 2, magnitude != 1);
-            if magnitude > 1 {
-                self.record_magnitude(coefficient_type, position, coefficient_context, magnitude)?;
-            }
-            position += 1;
-            coefficient_context = if magnitude == 1 { 1 } else { 2 };
-        }
-        Ok(())
-    }
-
-    fn record_magnitude(
-        &mut self,
-        coefficient_type: CoefficientBlockType,
-        position: usize,
-        context: usize,
-        magnitude: u16,
-    ) -> Result<(), Vp8EncodeError> {
-        let at_least_five = magnitude >= 5;
-        self.record_node(coefficient_type, position, context, 3, at_least_five);
-        if !at_least_five {
-            let at_least_three = magnitude >= 3;
-            self.record_node(coefficient_type, position, context, 4, at_least_three);
-            if at_least_three {
-                self.record_node(coefficient_type, position, context, 5, magnitude == 4);
-            }
-            return Ok(());
-        }
-        let at_least_eleven = magnitude >= 11;
-        self.record_node(coefficient_type, position, context, 6, at_least_eleven);
-        if !at_least_eleven {
-            self.record_node(coefficient_type, position, context, 7, magnitude >= 7);
-            return Ok(());
-        }
-        let category = match magnitude {
-            11..=18 => 0,
-            19..=34 => 1,
-            35..=66 => 2,
-            67..=2_114 => 3,
-            _ => return Err(Vp8EncodeError::FirstPartitionTooLarge),
-        };
-        let high = category / 2;
-        let low = category % 2;
-        self.record_node(coefficient_type, position, context, 8, high != 0);
-        self.record_node(coefficient_type, position, context, 9 + high, low != 0);
-        Ok(())
     }
 
     fn record_node(
@@ -1007,129 +934,13 @@ fn write_zero_token_partition(macroblock_count: usize) -> Result<Vec<u8>, Vp8Enc
     bits.finish().map_err(Into::into)
 }
 
-fn collect_coefficient_statistics(
-    macroblocks: &[Vp8DcMacroblockCoefficients],
-    blocks: &[IntraMacroblock],
-    macroblock_width: usize,
-    honor_skip: bool,
-) -> Result<CoefficientStatistics, Vp8EncodeError> {
-    if macroblock_width == 0
-        || macroblocks.len() != blocks.len()
-        || !macroblocks.len().is_multiple_of(macroblock_width)
-    {
-        return Err(Vp8EncodeError::InvalidPlaneLayout);
-    }
-    let mut statistics = CoefficientStatistics::new();
-    let mut top_y2 = vec![false; macroblock_width];
-    let mut top_luma = vec![[false; 4]; macroblock_width];
-    let mut top_u = vec![[false; 2]; macroblock_width];
-    let mut top_v = vec![[false; 2]; macroblock_width];
-    for (row, block_row) in macroblocks
-        .chunks_exact(macroblock_width)
-        .zip(blocks.chunks_exact(macroblock_width))
-    {
-        let mut left_y2 = false;
-        let mut left_luma = [false; 4];
-        let mut left_u = [false; 2];
-        let mut left_v = [false; 2];
-        for (column, (coefficients, block)) in row
-            .iter()
-            .copied()
-            .zip(block_row.iter().copied())
-            .enumerate()
-        {
-            if honor_skip && block.skip {
-                top_y2[column] = false;
-                top_luma[column] = [false; 4];
-                top_u[column] = [false; 2];
-                top_v[column] = [false; 2];
-                left_y2 = false;
-                left_luma = [false; 4];
-                left_u = [false; 2];
-                left_v = [false; 2];
-                continue;
-            }
-            let y2_context = u8::from(top_y2[column]) + u8::from(left_y2);
-            statistics.record(
-                CoefficientBlockType::LumaDc,
-                y2_context,
-                0,
-                coefficients.y2,
-            )?;
-            let y2_present = coefficients.y2.iter().any(|&value| value != 0);
-            top_y2[column] = y2_present;
-            left_y2 = y2_present;
-            record_luma_statistics(
-                &mut statistics,
-                coefficients.luma,
-                &mut top_luma[column],
-                &mut left_luma,
-            )?;
-            record_chroma_statistics(
-                &mut statistics,
-                coefficients.u,
-                &mut top_u[column],
-                &mut left_u,
-            )?;
-            record_chroma_statistics(
-                &mut statistics,
-                coefficients.v,
-                &mut top_v[column],
-                &mut left_v,
-            )?;
-        }
-    }
-    Ok(statistics)
-}
-
-fn record_luma_statistics(
-    statistics: &mut CoefficientStatistics,
-    blocks: [[i16; 16]; 16],
-    top: &mut [bool; 4],
-    left: &mut [bool; 4],
-) -> Result<(), Vp8EncodeError> {
-    for row in 0..4 {
-        let mut left_block = left[row];
-        for column in 0..4 {
-            let block = blocks[row * 4 + column];
-            let context = u8::from(top[column]) + u8::from(left_block);
-            statistics.record(CoefficientBlockType::Luma16Ac, context, 1, block)?;
-            let present = block[1..].iter().any(|&value| value != 0);
-            top[column] = present;
-            left_block = present;
-        }
-        left[row] = left_block;
-    }
-    Ok(())
-}
-
-fn record_chroma_statistics(
-    statistics: &mut CoefficientStatistics,
-    blocks: [[i16; 16]; 4],
-    top: &mut [bool; 2],
-    left: &mut [bool; 2],
-) -> Result<(), Vp8EncodeError> {
-    for row in 0..2 {
-        let mut left_block = left[row];
-        for column in 0..2 {
-            let block = blocks[row * 2 + column];
-            let context = u8::from(top[column]) + u8::from(left_block);
-            statistics.record(CoefficientBlockType::ChromaAc, context, 0, block)?;
-            let present = block.iter().any(|&value| value != 0);
-            top[column] = present;
-            left_block = present;
-        }
-        left[row] = left_block;
-    }
-    Ok(())
-}
-
 fn write_dc_macroblocks_token_partition(
     macroblocks: &[Vp8DcMacroblockCoefficients],
     blocks: &[IntraMacroblock],
     macroblock_width: usize,
     honor_skip: bool,
     probabilities: &CoefficientProbabilities,
+    mut statistics: Option<&mut CoefficientStatistics>,
 ) -> Result<Vec<u8>, Vp8EncodeError> {
     if macroblock_width == 0
         || macroblocks.len() != blocks.len()
@@ -1175,6 +986,7 @@ fn write_dc_macroblocks_token_partition(
                 y2_context,
                 0,
                 coefficients.y2,
+                statistics.as_deref_mut(),
             )?;
             let y2_present = coefficients.y2.iter().any(|&value| value != 0);
             top_y2[column] = y2_present;
@@ -1185,6 +997,7 @@ fn write_dc_macroblocks_token_partition(
                 coefficients.luma,
                 &mut top_luma[column],
                 &mut left_luma,
+                statistics.as_deref_mut(),
             )?;
             write_chroma_coefficients(
                 &mut bits,
@@ -1192,6 +1005,7 @@ fn write_dc_macroblocks_token_partition(
                 coefficients.u,
                 &mut top_u[column],
                 &mut left_u,
+                statistics.as_deref_mut(),
             )?;
             write_chroma_coefficients(
                 &mut bits,
@@ -1199,6 +1013,7 @@ fn write_dc_macroblocks_token_partition(
                 coefficients.v,
                 &mut top_v[column],
                 &mut left_v,
+                statistics.as_deref_mut(),
             )?;
         }
     }
@@ -1211,6 +1026,7 @@ fn write_luma_coefficients(
     blocks: [[i16; 16]; 16],
     top: &mut [bool; 4],
     left: &mut [bool; 4],
+    mut statistics: Option<&mut CoefficientStatistics>,
 ) -> Result<(), Vp8EncodeError> {
     for row in 0..4 {
         let mut left_block = left[row];
@@ -1224,6 +1040,7 @@ fn write_luma_coefficients(
                 context,
                 1,
                 block,
+                statistics.as_deref_mut(),
             )?;
             let present = block[1..].iter().any(|&value| value != 0);
             top[column] = present;
@@ -1240,6 +1057,7 @@ fn write_chroma_coefficients(
     blocks: [[i16; 16]; 4],
     top: &mut [bool; 2],
     left: &mut [bool; 2],
+    mut statistics: Option<&mut CoefficientStatistics>,
 ) -> Result<(), Vp8EncodeError> {
     for row in 0..2 {
         let mut left_block = left[row];
@@ -1253,6 +1071,7 @@ fn write_chroma_coefficients(
                 context,
                 0,
                 block,
+                statistics.as_deref_mut(),
             )?;
             let present = block.iter().any(|&value| value != 0);
             top[column] = present;
@@ -1270,8 +1089,24 @@ fn write_coefficients(
     context: u8,
     start: u8,
     values: [i16; 16],
+    statistics: Option<&mut CoefficientStatistics>,
 ) -> Result<(), Vp8EncodeError> {
-    encode_coefficients(bits, probabilities, coefficient_type, context, start, values).map_err(
+    let result = if let Some(statistics) = statistics {
+        encode_coefficients_observed(
+            bits,
+            probabilities,
+            coefficient_type,
+            context,
+            start,
+            values,
+            |position, context, node, bit| {
+                statistics.record_node(coefficient_type, position, context, node, bit);
+            },
+        )
+    } else {
+        encode_coefficients(bits, probabilities, coefficient_type, context, start, values)
+    };
+    result.map_err(
         |error| match error {
             CoefficientEncodeError::AllocationFailed => Vp8EncodeError::AllocationFailed,
             CoefficientEncodeError::InvalidParameter | CoefficientEncodeError::CoefficientOutOfRange => {
