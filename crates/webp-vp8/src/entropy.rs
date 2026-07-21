@@ -2,9 +2,9 @@
 
 use webp_core::{DecodeError, DecodeErrorKind};
 
-use crate::{
-    BoolDecoder, CATEGORY_PROBABILITIES, COEFFICIENT_BANDS, COEFFICIENT_DEFAULTS,
-    COEFFICIENT_ZIGZAG,
+use crate::BoolDecoder;
+use crate::coefficients::{
+    CATEGORY_PROBABILITIES, COEFFICIENT_BANDS, COEFFICIENT_DEFAULTS, COEFFICIENT_ZIGZAG,
 };
 
 /// Canonical VP8 coefficient probabilities after first-partition updates.

@@ -4,6 +4,19 @@
 //! The values are mechanically transcribed from the pinned libwebp reference
 //! implementation and shape-checked by the generator used during this import.
 
+/// VP8's coefficient scan order, mapping entropy positions to raster indexes.
+pub const COEFFICIENT_ZIGZAG: [usize; 16] = [0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15];
+
+pub(crate) const COEFFICIENT_BANDS: [usize; 17] =
+    [0, 1, 2, 3, 6, 4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 7, 0];
+
+pub(crate) const CATEGORY_PROBABILITIES: [&[u8]; 4] = [
+    &[173, 148, 140],
+    &[176, 155, 140, 135],
+    &[180, 157, 141, 134, 130],
+    &[254, 254, 243, 230, 196, 177, 153, 140, 133, 130, 129],
+];
+
 pub const COEFFICIENT_DEFAULTS: [[[[u8; 11]; 3]; 8]; 4] = [
     [
         [

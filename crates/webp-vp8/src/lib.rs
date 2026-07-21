@@ -20,11 +20,13 @@ mod quantization;
 mod reconstruction;
 mod transform;
 
-use coefficients::{COEFFICIENT_DEFAULTS, COEFFICIENT_UPDATE_PROBABILITIES};
+#[cfg(test)]
+use coefficients::{CATEGORY_PROBABILITIES, COEFFICIENT_UPDATE_PROBABILITIES};
 #[cfg(test)]
 use partition::{KEY_FRAME_HEADER_LEN, KEY_FRAME_START_CODE};
 
 pub use bitstream::BoolDecoder;
+pub use coefficients::COEFFICIENT_ZIGZAG;
 pub use entropy::{
     CoefficientBlockType, CoefficientProbabilities, DecodedCoefficients, MacroblockResiduals,
     ResidualContext, decode_coefficients, decode_intra_residuals,
@@ -42,74 +44,12 @@ pub use partition::{
 };
 pub use quantization::{DequantizationMatrix, QuantizationHeader, derive_dequantization};
 pub use reconstruction::{
+    DequantizedMacroblock, MacroblockPixels, MacroblockPredictionEdges, MacroblockSpatialResidues,
     add_residue_and_clip, combine_macroblock_prediction, dequantize_macroblock,
     inverse_transform_macroblock, predict_intra4_block, predict_intra4_macroblock,
     predict_intra16_macroblock, reconstruct_intra_macroblock,
 };
 pub use transform::{inverse_dct_4x4, inverse_dct_4x4_i32, inverse_wht_4x4, inverse_wht_4x4_i32};
-
-/// VP8's coefficient scan order, mapping entropy positions to raster indexes.
-pub const COEFFICIENT_ZIGZAG: [usize; 16] = [0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15];
-
-// The final sentinel is used while selecting the probability context after
-// coefficient 15. It is intentionally zero because that context cannot be
-// consumed by a legal 4x4 block, but keeping it mirrors VP8's 17-entry table.
-pub(crate) const COEFFICIENT_BANDS: [usize; 17] =
-    [0, 1, 2, 3, 6, 4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 7, 0];
-
-pub(crate) const CATEGORY_PROBABILITIES: [&[u8]; 4] = [
-    &[173, 148, 140],
-    &[176, 155, 140, 135],
-    &[180, 157, 141, 134, 130],
-    &[254, 254, 243, 230, 196, 177, 153, 140, 133, 130, 129],
-];
-
-/// Dequantized frequency-domain coefficients for one VP8 macroblock.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct DequantizedMacroblock {
-    pub luma: [[i32; 16]; 16],
-    pub u: [[i32; 16]; 4],
-    pub v: [[i32; 16]; 4],
-}
-
-/// Spatial-domain signed residues for one VP8 macroblock before prediction.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct MacroblockSpatialResidues {
-    pub luma: [[i32; 16]; 16],
-    pub u: [[i32; 16]; 4],
-    pub v: [[i32; 16]; 4],
-}
-
-/// Reconstructed YUV samples for one VP8 16×16 macroblock.
-///
-/// Luma is stored as a 16×16 row-major plane; U and V are 8×8 row-major
-/// planes, following WebP's mandated 4:2:0 sampling.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct MacroblockPixels {
-    pub y: [u8; 256],
-    pub u: [u8; 64],
-    pub v: [u8; 64],
-}
-
-/// Already-reconstructed samples adjacent to one macroblock.
-///
-/// Missing top or left edges model the first macroblock row or column. The
-/// top-left samples are consulted only by true-motion prediction, which is
-/// invalid at a missing boundary.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct MacroblockPredictionEdges {
-    pub top_y: Option<[u8; 16]>,
-    /// Four luma samples immediately right of `top_y`, needed by B_PRED.
-    pub top_right_y: Option<[u8; 4]>,
-    pub left_y: Option<[u8; 16]>,
-    pub top_left_y: u8,
-    pub top_u: Option<[u8; 8]>,
-    pub left_u: Option<[u8; 8]>,
-    pub top_left_u: u8,
-    pub top_v: Option<[u8; 8]>,
-    pub left_v: Option<[u8; 8]>,
-    pub top_left_v: u8,
-}
 
 #[cfg(test)]
 mod tests {

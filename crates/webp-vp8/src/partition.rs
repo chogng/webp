@@ -6,9 +6,8 @@
 
 use webp_core::{DecodeError, DecodeErrorKind, DecodeLimits};
 
-use crate::{
-    BoolDecoder, COEFFICIENT_UPDATE_PROBABILITIES, CoefficientProbabilities, QuantizationHeader,
-};
+use crate::coefficients::COEFFICIENT_UPDATE_PROBABILITIES;
+use crate::{BoolDecoder, CoefficientProbabilities, QuantizationHeader};
 
 /// Segmentation data carried by the first VP8 partition.
 #[derive(Clone, Debug, Eq, PartialEq)]

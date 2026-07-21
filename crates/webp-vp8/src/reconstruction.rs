@@ -8,10 +8,56 @@ use webp_core::DecodeError;
 
 use crate::transform::{inverse_dct_4x4_i32, inverse_wht_4x4_i32};
 use crate::{
-    ChromaMode, DequantizationMatrix, DequantizedMacroblock, Intra4Mode, Intra16Mode,
-    IntraMacroblock, LumaMode, MacroblockPixels, MacroblockPredictionEdges, MacroblockResiduals,
-    MacroblockSpatialResidues,
+    ChromaMode, DequantizationMatrix, Intra4Mode, Intra16Mode, IntraMacroblock, LumaMode,
+    MacroblockResiduals,
 };
+
+/// Dequantized frequency-domain coefficients for one VP8 macroblock.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct DequantizedMacroblock {
+    pub luma: [[i32; 16]; 16],
+    pub u: [[i32; 16]; 4],
+    pub v: [[i32; 16]; 4],
+}
+
+/// Spatial-domain signed residues for one VP8 macroblock before prediction.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MacroblockSpatialResidues {
+    pub luma: [[i32; 16]; 16],
+    pub u: [[i32; 16]; 4],
+    pub v: [[i32; 16]; 4],
+}
+
+/// Reconstructed YUV samples for one VP8 16×16 macroblock.
+///
+/// Luma is stored as a 16×16 row-major plane; U and V are 8×8 row-major
+/// planes, following WebP's mandated 4:2:0 sampling.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct MacroblockPixels {
+    pub y: [u8; 256],
+    pub u: [u8; 64],
+    pub v: [u8; 64],
+}
+
+/// Already-reconstructed samples adjacent to one macroblock.
+///
+/// Missing top or left edges model the first macroblock row or column. The
+/// top-left samples are consulted only by true-motion prediction, which is
+/// invalid at a missing boundary.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct MacroblockPredictionEdges {
+    pub top_y: Option<[u8; 16]>,
+    /// Four luma samples immediately right of `top_y`, needed by B_PRED.
+    pub top_right_y: Option<[u8; 4]>,
+    pub left_y: Option<[u8; 16]>,
+    pub top_left_y: u8,
+    pub top_u: Option<[u8; 8]>,
+    pub left_u: Option<[u8; 8]>,
+    pub top_left_u: u8,
+    pub top_v: Option<[u8; 8]>,
+    pub left_v: Option<[u8; 8]>,
+    pub top_left_v: u8,
+}
 
 /// Applies one segment's VP8 dequantization matrix to a macroblock.
 ///
