@@ -43,9 +43,9 @@ impl Vp8YuvImage {
 
     /// Converts the visible YUV 4:2:0 rectangle to opaque, straight RGBA8.
     ///
-    /// Conversion uses VP8's fixed-point BT.601 coefficients and nearest
-    /// chroma sampling, matching libwebp's scalar row sampler. Macroblock
-    /// padding is never exposed in the returned buffer.
+    /// Conversion uses VP8's fixed-point BT.601 coefficients and libwebp's
+    /// fancy 4:2:0 chroma upsampling. Macroblock padding is never exposed in
+    /// the returned buffer.
     pub fn to_rgba(&self, limits: &DecodeLimits) -> Result<Vec<u8>, DecodeError> {
         let width = usize::try_from(self.width).map_err(|_| allocation_size_error())?;
         let height = usize::try_from(self.height).map_err(|_| allocation_size_error())?;
@@ -87,13 +87,18 @@ impl Vp8YuvImage {
                 "cannot allocate VP8 RGBA output",
             )
         })?;
+        let chroma = ChromaSamplingGeometry {
+            uv_width,
+            uv_height,
+            width,
+            height,
+        };
         for y in 0..height {
             let y_row = y * self.y_stride;
-            let uv_row = (y / 2) * self.uv_stride;
             for x in 0..width {
                 let luma = self.y[y_row + x];
-                let chroma_u = self.u[uv_row + x / 2];
-                let chroma_v = self.v[uv_row + x / 2];
+                let chroma_u = fancy_chroma_sample(&self.u, self.uv_stride, chroma, x, y);
+                let chroma_v = fancy_chroma_sample(&self.v, self.uv_stride, chroma, x, y);
                 let [red, green, blue] = vp8_yuv_to_rgb(luma, chroma_u, chroma_v);
                 rgba.extend_from_slice(&[red, green, blue, 255]);
             }
@@ -387,4 +392,73 @@ fn vp8_yuv_to_rgb(y: u8, u: u8, v: u8) -> [u8; 3] {
         clip(multiply_high(y, 19_077) - multiply_high(u, 6_419) - multiply_high(v, 13_320) + 8_708),
         clip(multiply_high(y, 19_077) + multiply_high(u, 33_050) - 17_685),
     ]
+}
+
+#[derive(Clone, Copy)]
+struct ChromaSamplingGeometry {
+    uv_width: usize,
+    uv_height: usize,
+    width: usize,
+    height: usize,
+}
+
+/// Returns one color component after libwebp's fancy 4:2:0 upsampling.
+///
+/// This mirrors the scalar libwebp line-pair upsampler: first/last picture
+/// edges are replicated, while interior 2×2 chroma quads use the same staged
+/// integer rounding.
+fn fancy_chroma_sample(
+    plane: &[u8],
+    stride: usize,
+    geometry: ChromaSamplingGeometry,
+    x: usize,
+    y: usize,
+) -> u8 {
+    let ChromaSamplingGeometry {
+        uv_width,
+        uv_height,
+        width,
+        height,
+    } = geometry;
+    debug_assert!(x < width && y < height);
+    debug_assert!(uv_width > 0 && uv_height > 0);
+    let (top_row, current_row, top_output) =
+        if y == 0 || (height.is_multiple_of(2) && y + 1 == height) {
+            let row = y / 2;
+            (row, row, true)
+        } else if y % 2 == 1 {
+            let row = y / 2;
+            (row, row + 1, true)
+        } else {
+            (y / 2 - 1, y / 2, false)
+        };
+    let sample = |row: usize, column: usize| plane[row * stride + column];
+
+    if x == 0 || (width.is_multiple_of(2) && x + 1 == width) {
+        let column = x / 2;
+        let top = u16::from(sample(top_row, column));
+        let current = u16::from(sample(current_row, column));
+        let value = if top_output {
+            (3 * top + current + 2) >> 2
+        } else {
+            (3 * current + top + 2) >> 2
+        };
+        return value as u8;
+    }
+
+    let column = (x - 1) / 2;
+    let top_left = u16::from(sample(top_row, column));
+    let top = u16::from(sample(top_row, column + 1));
+    let left = u16::from(sample(current_row, column));
+    let current = u16::from(sample(current_row, column + 1));
+    let average = top_left + top + left + current + 8;
+    let diagonal_12 = (average + 2 * (top + left)) >> 3;
+    let diagonal_03 = (average + 2 * (top_left + current)) >> 3;
+    let value = match (top_output, x % 2 == 1) {
+        (true, true) => (diagonal_12 + top_left) >> 1,
+        (true, false) => (diagonal_03 + top) >> 1,
+        (false, true) => (diagonal_03 + left) >> 1,
+        (false, false) => (diagonal_12 + current) >> 1,
+    };
+    value as u8
 }
