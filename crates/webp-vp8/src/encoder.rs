@@ -107,10 +107,79 @@ pub fn encode_dc_predicted_macroblock_key_frame_with_quantizer(
     if source.width != 16 || source.height != 16 {
         return Err(Vp8EncodeError::InvalidDimensions);
     }
+    encode_dc_predicted_key_frame_with_quantizer(source, quantizer)
+}
+
+/// Emits a visible VP8 key frame from DC-predicted macroblocks.
+///
+/// Every visible dimension supported by VP8 is accepted. The source planes
+/// must be macroblock padded as produced by [`rgba_to_yuv420`]. This initial
+/// whole-frame form deliberately keeps DC prediction fixed at 128 while the
+/// encoder's reconstructed-neighbour mode search is added in a later slice.
+pub fn encode_dc_predicted_key_frame_with_quantizer(
+    source: &Vp8SourceYuv,
+    quantizer: u8,
+) -> Result<Vec<u8>, Vp8EncodeError> {
+    if source.width == 0 || source.height == 0 || source.width > 0x3fff || source.height > 0x3fff {
+        return Err(Vp8EncodeError::InvalidDimensions);
+    }
     if quantizer > 127 {
         return Err(Vp8EncodeError::InvalidQuantizer);
     }
-    let matrix = derive_dequantization(
+    let macroblock_width = usize::try_from(source.width.div_ceil(16))
+        .map_err(|_| Vp8EncodeError::InvalidDimensions)?;
+    let macroblock_height = usize::try_from(source.height.div_ceil(16))
+        .map_err(|_| Vp8EncodeError::InvalidDimensions)?;
+    let macroblock_count = macroblock_width
+        .checked_mul(macroblock_height)
+        .ok_or(Vp8EncodeError::AllocationFailed)?;
+    let y_width = macroblock_width
+        .checked_mul(16)
+        .ok_or(Vp8EncodeError::InvalidPlaneLayout)?;
+    let uv_width = macroblock_width
+        .checked_mul(8)
+        .ok_or(Vp8EncodeError::InvalidPlaneLayout)?;
+    let y_height = macroblock_height
+        .checked_mul(16)
+        .ok_or(Vp8EncodeError::InvalidPlaneLayout)?;
+    let uv_height = macroblock_height
+        .checked_mul(8)
+        .ok_or(Vp8EncodeError::InvalidPlaneLayout)?;
+    if source.y_stride < y_width
+        || source.uv_stride < uv_width
+        || !has_plane_extent(&source.y, source.y_stride, y_width, y_height)
+        || !has_plane_extent(&source.u, source.uv_stride, uv_width, uv_height)
+        || !has_plane_extent(&source.v, source.uv_stride, uv_width, uv_height)
+    {
+        return Err(Vp8EncodeError::InvalidPlaneLayout);
+    }
+    let matrix = quantization_matrix(quantizer);
+    let mut macroblocks = Vec::new();
+    macroblocks
+        .try_reserve_exact(macroblock_count)
+        .map_err(|_| Vp8EncodeError::AllocationFailed)?;
+    for macroblock_y in 0..macroblock_height {
+        for macroblock_x in 0..macroblock_width {
+            let y_offset = macroblock_y * 16 * source.y_stride + macroblock_x * 16;
+            let uv_offset = macroblock_y * 8 * source.uv_stride + macroblock_x * 8;
+            macroblocks.push(quantize_dc_macroblock(
+                &source.y[y_offset..],
+                source.y_stride,
+                &source.u[uv_offset..],
+                &source.v[uv_offset..],
+                source.uv_stride,
+                [128; 3],
+                matrix,
+            )?);
+        }
+    }
+    let first_partition = write_first_partition(macroblock_count, quantizer)?;
+    let token_partition = write_dc_macroblocks_token_partition(&macroblocks, macroblock_width)?;
+    assemble_key_frame(source.width, source.height, first_partition, token_partition)
+}
+
+fn quantization_matrix(quantizer: u8) -> DequantizationMatrix {
+    derive_dequantization(
         QuantizationHeader {
             base_index: quantizer,
             y1_dc_delta: 0,
@@ -127,19 +196,7 @@ pub fn encode_dc_predicted_macroblock_key_frame_with_quantizer(
             filter_strength: [0; 4],
             probabilities: [255; 3],
         },
-    )[0];
-    let coefficients = quantize_dc_macroblock(
-        &source.y,
-        source.y_stride,
-        &source.u,
-        &source.v,
-        source.uv_stride,
-        [128; 3],
-        matrix,
-    )?;
-    let first_partition = write_first_partition(1, quantizer)?;
-    let token_partition = write_dc_macroblock_token_partition(coefficients)?;
-    assemble_key_frame(16, 16, first_partition, token_partition)
+    )[0]
 }
 
 fn assemble_key_frame(
@@ -425,12 +482,6 @@ fn write_zero_token_partition(macroblock_count: usize) -> Result<Vec<u8>, Vp8Enc
         }
     }
     bits.finish().map_err(Into::into)
-}
-
-fn write_dc_macroblock_token_partition(
-    coefficients: Vp8DcMacroblockCoefficients,
-) -> Result<Vec<u8>, Vp8EncodeError> {
-    write_dc_macroblocks_token_partition(&[coefficients], 1)
 }
 
 fn write_dc_macroblocks_token_partition(

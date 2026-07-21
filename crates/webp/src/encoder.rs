@@ -93,11 +93,11 @@ pub fn encode_lossless_rgba(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<
     wrap_vp8l(payload)
 }
 
-/// Encodes a bounded opaque 16×16 RGBA8 image as a lossy VP8 WebP file.
+/// Encodes an opaque RGBA8 image as a lossy VP8 WebP file.
 ///
 /// This first public M7 profile uses DC intra prediction with quantized
-/// residuals. Alpha, non-16×16 geometry, metadata, and animation are rejected
-/// until their corresponding VP8 encoder profiles are implemented.
+/// residuals. Alpha, metadata, and animation are rejected until their
+/// corresponding VP8 encoder profiles are implemented.
 pub fn encode_lossy_rgba(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, EncodeError> {
     encode_lossy_rgba_with_options(width, height, rgba, LossyEncodeOptions::default())
 }
@@ -112,9 +112,6 @@ pub fn encode_lossy_rgba_with_options(
     if options.quality > 100 {
         return Err(EncodeError::invalid_quality());
     }
-    if width != 16 || height != 16 {
-        return Err(EncodeError::unsupported_lossy_profile());
-    }
     validate_input(width, height, rgba)?;
     if rgba.chunks_exact(4).any(|pixel| pixel[3] != u8::MAX) {
         return Err(EncodeError::unsupported_lossy_profile());
@@ -123,7 +120,7 @@ pub fn encode_lossy_rgba_with_options(
         .map_err(map_vp8_encode_error)?;
     let quantizer = u8::try_from((u16::from(100 - options.quality) * 127) / 100)
         .map_err(|_| EncodeError::invalid_quality())?;
-    let payload = webp_vp8::encode_dc_predicted_macroblock_key_frame_with_quantizer(
+    let payload = webp_vp8::encode_dc_predicted_key_frame_with_quantizer(
         &source, quantizer,
     )
     .map_err(map_vp8_encode_error)?;

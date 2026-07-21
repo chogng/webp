@@ -199,10 +199,20 @@ fn bounded_lossy_vp8_api_encodes_opaque_macroblocks_at_explicit_quality() {
         encode_lossy_rgba_with_options(16, 16, &rgba, LossyEncodeOptions { quality: 101 }),
         Err(EncodeError::invalid_quality())
     );
-    assert_eq!(
-        encode_lossy_rgba(15, 16, &rgba[..15 * 16 * 4]),
-        Err(EncodeError::unsupported_lossy_profile())
-    );
+    let mut edge_rgba = Vec::new();
+    for y in 0_u8..3 {
+        for x in 0_u8..17 {
+            edge_rgba.extend_from_slice(&[
+                x.wrapping_mul(13),
+                y.wrapping_mul(61),
+                x.wrapping_add(y).wrapping_mul(11),
+                255,
+            ]);
+        }
+    }
+    let edge = encode_lossy_rgba(17, 3, &edge_rgba).expect("encode visible-edge VP8 frame");
+    let edge_decoded = decode(&edge, &DecodeOptions::default()).expect("decode visible-edge VP8");
+    assert_eq!((edge_decoded.width, edge_decoded.height), (17, 3));
 }
 
 #[test]
