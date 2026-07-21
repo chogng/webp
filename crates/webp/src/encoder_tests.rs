@@ -213,6 +213,26 @@ fn bounded_lossy_vp8_api_encodes_opaque_macroblocks_at_explicit_quality() {
     let edge = encode_lossy_rgba(17, 3, &edge_rgba).expect("encode visible-edge VP8 frame");
     let edge_decoded = decode(&edge, &DecodeOptions::default()).expect("decode visible-edge VP8");
     assert_eq!((edge_decoded.width, edge_decoded.height), (17, 3));
+
+    let mut translucent = rgba;
+    for (index, pixel) in translucent.chunks_exact_mut(4).enumerate() {
+        pixel[3] = u8::try_from(index).expect("16 by 16 alpha index fits u8");
+    }
+    let alpha_encoded = encode_lossy_rgba(16, 16, &translucent).expect("encode VP8 with alpha");
+    assert_eq!(&alpha_encoded[12..16], b"VP8X");
+    let alpha_decoded =
+        decode(&alpha_encoded, &DecodeOptions::default()).expect("decode VP8 with alpha");
+    assert_eq!(
+        alpha_decoded
+            .rgba
+            .chunks_exact(4)
+            .map(|pixel| pixel[3])
+            .collect::<Vec<_>>(),
+        translucent
+            .chunks_exact(4)
+            .map(|pixel| pixel[3])
+            .collect::<Vec<_>>()
+    );
 }
 
 #[test]

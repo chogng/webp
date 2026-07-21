@@ -138,6 +138,58 @@ fn public_lossy_vp8_profile_matches_pinned_dwebp_pixels() {
     assert_eq!(pam_rgba(&target, 16, 16), rust.rgba);
 }
 
+#[test]
+fn public_lossy_vp8_alpha_profile_preserves_oracle_alpha() {
+    let Some(dwebp) = pinned_dwebp() else {
+        eprintln!("skip VP8 encoder oracle: fetch the pinned libwebp oracle");
+        return;
+    };
+    let mut rgba = Vec::new();
+    for y in 0_u8..16 {
+        for x in 0_u8..16 {
+            rgba.extend_from_slice(&[
+                x.wrapping_mul(15),
+                y.wrapping_mul(15),
+                x.wrapping_add(y).wrapping_mul(7),
+                x.wrapping_add(y.wrapping_mul(16)),
+            ]);
+        }
+    }
+    let encoded = encode_lossy_rgba_with_options(16, 16, &rgba, LossyEncodeOptions { quality: 75 })
+        .expect("encode public lossy VP8 alpha profile");
+    let rust = decode(&encoded, &DecodeOptions::default()).expect("decode public lossy VP8 alpha profile");
+    let scratch = ScratchDirectory::new();
+    let source = scratch.0.join("public-lossy-alpha.webp");
+    let target = scratch.0.join("public-lossy-alpha.pam");
+    fs::write(&source, encoded).expect("write public lossy alpha WebP");
+    let output = Command::new(dwebp)
+        .arg(&source)
+        .args(["-pam", "-o"])
+        .arg(&target)
+        .output()
+        .expect("run pinned dwebp");
+    assert!(
+        output.status.success(),
+        "pinned dwebp rejected public lossy VP8 alpha: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    let oracle = pam_rgba(&target, 16, 16);
+    assert_eq!(
+        oracle.chunks_exact(4).map(|pixel| pixel[3]).collect::<Vec<_>>(),
+        rust.rgba
+            .chunks_exact(4)
+            .map(|pixel| pixel[3])
+            .collect::<Vec<_>>()
+    );
+    assert_eq!(
+        rust.rgba
+            .chunks_exact(4)
+            .map(|pixel| pixel[3])
+            .collect::<Vec<_>>(),
+        rgba.chunks_exact(4).map(|pixel| pixel[3]).collect::<Vec<_>>()
+    );
+}
+
 fn webp_from_vp8_payload(payload: &[u8]) -> Vec<u8> {
     let mut body = b"WEBP".to_vec();
     body.extend_from_slice(b"VP8 ");

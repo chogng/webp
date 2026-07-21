@@ -96,8 +96,8 @@ pub fn encode_lossless_rgba(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<
 /// Encodes an opaque RGBA8 image as a lossy VP8 WebP file.
 ///
 /// This first public M7 profile uses DC intra prediction with quantized
-/// residuals. Alpha, metadata, and animation are rejected until their
-/// corresponding VP8 encoder profiles are implemented.
+/// residuals. Non-opaque alpha is serialized as a raw `ALPH` plane; metadata
+/// and animation remain outside the current VP8 encoder profile.
 pub fn encode_lossy_rgba(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, EncodeError> {
     encode_lossy_rgba_with_options(width, height, rgba, LossyEncodeOptions::default())
 }
@@ -113,9 +113,11 @@ pub fn encode_lossy_rgba_with_options(
         return Err(EncodeError::invalid_quality());
     }
     validate_input(width, height, rgba)?;
-    if rgba.chunks_exact(4).any(|pixel| pixel[3] != u8::MAX) {
-        return Err(EncodeError::unsupported_lossy_profile());
-    }
+    let alpha = rgba
+        .chunks_exact(4)
+        .map(|pixel| pixel[3])
+        .collect::<Vec<_>>();
+    let has_alpha = alpha.iter().any(|&value| value != u8::MAX);
     let source = webp_vp8::rgba_to_yuv420(width, height, rgba)
         .map_err(map_vp8_encode_error)?;
     let quantizer = u8::try_from((u16::from(100 - options.quality) * 127) / 100)
@@ -124,7 +126,7 @@ pub fn encode_lossy_rgba_with_options(
         &source, quantizer,
     )
     .map_err(map_vp8_encode_error)?;
-    wrap_vp8(payload)
+    wrap_vp8(payload, width, height, has_alpha.then_some(alpha))
 }
 
 /// Encodes a static RGBA8 image as a lossless WebP file with raw metadata.
@@ -1126,8 +1128,34 @@ fn wrap_vp8l(payload: Vec<u8>) -> Result<Vec<u8>, EncodeError> {
     wrap_vp8l_with_metadata(payload, 0, 0, false, &Metadata::default())
 }
 
-fn wrap_vp8(payload: Vec<u8>) -> Result<Vec<u8>, EncodeError> {
-    let chunk_size = chunk_storage_len(payload.len())?;
+fn wrap_vp8(
+    payload: Vec<u8>,
+    width: u32,
+    height: u32,
+    alpha: Option<Vec<u8>>,
+) -> Result<Vec<u8>, EncodeError> {
+    let alpha_payload = if let Some(samples) = alpha {
+        let capacity = samples
+            .len()
+            .checked_add(1)
+            .ok_or_else(EncodeError::output_size_overflow)?;
+        let mut alpha_payload = Vec::new();
+        alpha_payload
+            .try_reserve_exact(capacity)
+            .map_err(|_| EncodeError::allocation_failed())?;
+        alpha_payload.push(0); // Raw ALPH compression with no spatial filter.
+        alpha_payload.extend_from_slice(&samples);
+        Some(alpha_payload)
+    } else {
+        None
+    };
+    let mut chunk_size = chunk_storage_len(payload.len())?;
+    if let Some(alpha) = alpha_payload.as_deref() {
+        chunk_size = chunk_size
+            .checked_add(chunk_storage_len(10)?)
+            .and_then(|size| size.checked_add(chunk_storage_len(alpha.len()).ok()?))
+            .ok_or_else(EncodeError::output_size_overflow)?;
+    }
     let riff_size = 4_usize
         .checked_add(chunk_size)
         .ok_or_else(EncodeError::output_size_overflow)?;
@@ -1143,6 +1171,14 @@ fn wrap_vp8(payload: Vec<u8>) -> Result<Vec<u8>, EncodeError> {
     output.extend_from_slice(b"RIFF");
     output.extend_from_slice(&riff_size.to_le_bytes());
     output.extend_from_slice(b"WEBP");
+    if let Some(alpha) = alpha_payload.as_deref() {
+        let mut vp8x = [0_u8; 10];
+        vp8x[0] = 1 << 4;
+        vp8x[4..7].copy_from_slice(&(width - 1).to_le_bytes()[..3]);
+        vp8x[7..10].copy_from_slice(&(height - 1).to_le_bytes()[..3]);
+        push_chunk(&mut output, b"VP8X", &vp8x)?;
+        push_chunk(&mut output, b"ALPH", alpha)?;
+    }
     push_chunk(&mut output, b"VP8 ", &payload)?;
     Ok(output)
 }
