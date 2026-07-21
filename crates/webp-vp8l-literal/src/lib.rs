@@ -37,6 +37,18 @@ pub struct LiteralImage {
     pub rgba: Vec<u8>,
 }
 
+#[cfg(test)]
+#[derive(Default)]
+struct DecodePhaseTimings {
+    entropy: std::time::Duration,
+    rgba_conversion: std::time::Duration,
+    predictor: std::time::Duration,
+}
+
+#[cfg(test)]
+#[path = "predictor_benchmark_tests.rs"]
+mod predictor_benchmark_tests;
+
 /// Decodes a standalone static VP8L stream to straight RGBA8.
 ///
 /// The input begins with the five-byte VP8L fixed header.
@@ -65,6 +77,28 @@ pub fn decode_no_transform(
     data: &[u8],
     limits: &DecodeLimits,
 ) -> Result<LiteralImage, DecodeError> {
+    decode_no_transform_inner(
+        data,
+        limits,
+        #[cfg(test)]
+        None,
+    )
+}
+
+#[cfg(test)]
+fn decode_no_transform_profiled(
+    data: &[u8],
+    limits: &DecodeLimits,
+    timings: &mut DecodePhaseTimings,
+) -> Result<LiteralImage, DecodeError> {
+    decode_no_transform_inner(data, limits, Some(timings))
+}
+
+fn decode_no_transform_inner(
+    data: &[u8],
+    limits: &DecodeLimits,
+    #[cfg(test)] mut timings: Option<&mut DecodePhaseTimings>,
+) -> Result<LiteralImage, DecodeError> {
     let header = parse_header(data, limits)?;
     let rgba_len = checked_image_bytes(header.width, header.height, 4)?;
     if rgba_len > limits.max_alloc_bytes {
@@ -86,6 +120,8 @@ pub fn decode_no_transform(
         limits,
         &mut retained_transform_bytes,
     )?;
+    #[cfg(test)]
+    let entropy_started = std::time::Instant::now();
     let output = decode_entropy_image(
         &mut bits,
         decoded_transforms.coded_width,
@@ -96,6 +132,10 @@ pub fn decode_no_transform(
         retained_transform_bytes,
         rgba_len,
     )?;
+    #[cfg(test)]
+    if let Some(timings) = timings.as_mut() {
+        timings.entropy += entropy_started.elapsed();
+    }
     let mut output = TransformPixels::Argb(output);
 
     for transform in decoded_transforms.transforms.iter().rev() {
@@ -105,7 +145,21 @@ pub fn decode_no_transform(
                 descriptor,
                 mode_pixels,
             } => {
-                inverse_predictor_rgba(output.rgba_mut()?, *descriptor, mode_pixels)?;
+                #[cfg(test)]
+                let conversion_started = std::time::Instant::now();
+                let rgba = output.rgba_mut()?;
+                #[cfg(test)]
+                if let Some(timings) = timings.as_mut() {
+                    timings.rgba_conversion += conversion_started.elapsed();
+                }
+
+                #[cfg(test)]
+                let predictor_started = std::time::Instant::now();
+                inverse_predictor_rgba(rgba, *descriptor, mode_pixels)?;
+                #[cfg(test)]
+                if let Some(timings) = timings.as_mut() {
+                    timings.predictor += predictor_started.elapsed();
+                }
             }
             DecodedTransform::Color {
                 descriptor,
@@ -125,7 +179,13 @@ pub fn decode_no_transform(
         }
     }
     drop(decoded_transforms);
+    #[cfg(test)]
+    let conversion_started = std::time::Instant::now();
     let rgba = output.into_rgba(rgba_len)?;
+    #[cfg(test)]
+    if let Some(timings) = timings.as_mut() {
+        timings.rgba_conversion += conversion_started.elapsed();
+    }
 
     Ok(LiteralImage { header, rgba })
 }
@@ -693,7 +753,7 @@ const fn unpack_rgba(pixel: u32) -> [u8; 4] {
     ]
 }
 
-/// Internal transform storage with explicit, replaceable layout backends.
+/// Internal transform storage with explicit intermediate layout states.
 ///
 /// Entropy and color indexing naturally operate on VP8L's packed ARGB words,
 /// while predictor reconstruction benefits from channel-contiguous RGBA byte
@@ -1012,7 +1072,7 @@ const fn color_delta(multiplier: i8, channel: i8) -> i32 {
 
 /// Reconstructs predictor residuals in the final RGBA byte layout.
 ///
-/// This backend keeps the four channels visible to LLVM as a four-byte lane
+/// This implementation keeps the four channels visible to LLVM as a four-byte lane
 /// group. In particular, the clamped add/subtract modes no longer unpack and
 /// repack a `u32` around every component. The descriptor and mode image stay
 /// in the existing packed representation, so the layout change is private to
@@ -1142,6 +1202,15 @@ fn apply_predictor_run_rgba(
     end_x: usize,
     mode: PredictorMode,
 ) {
+    macro_rules! reconstruct {
+        ($x:ident, $prediction:expr) => {
+            for $x in start_x..end_x {
+                let prediction = $prediction;
+                add_rgba_pixel(current, $x, prediction);
+            }
+        };
+    }
+
     match mode {
         PredictorMode::OpaqueBlack => {
             for pixel in current[start_x * 4..end_x * 4].chunks_exact_mut(4) {
@@ -1157,24 +1226,110 @@ fn apply_predictor_run_rgba(
         PredictorMode::TopLeft => {
             add_aligned_rgba(&mut current[start_x * 4..end_x * 4], top, start_x - 1);
         }
+        PredictorMode::TopRight => {
+            reconstruct!(x, top_right_rgba(current, top, x));
+        }
+        PredictorMode::AverageLeftTopRightTop => {
+            reconstruct!(
+                x,
+                average_rgba(
+                    average_rgba(rgba_pixel(current, x - 1), top_right_rgba(current, top, x)),
+                    rgba_pixel(top, x),
+                )
+            );
+        }
+        PredictorMode::AverageLeftTopLeft => {
+            reconstruct!(
+                x,
+                average_rgba(rgba_pixel(current, x - 1), rgba_pixel(top, x - 1))
+            );
+        }
+        PredictorMode::AverageLeftTop => {
+            reconstruct!(
+                x,
+                average_rgba(rgba_pixel(current, x - 1), rgba_pixel(top, x))
+            );
+        }
+        PredictorMode::AverageTopLeftTop => {
+            reconstruct!(x, average_rgba(rgba_pixel(top, x - 1), rgba_pixel(top, x)));
+        }
+        PredictorMode::AverageTopTopRight => {
+            reconstruct!(
+                x,
+                average_rgba(rgba_pixel(top, x), top_right_rgba(current, top, x))
+            );
+        }
+        PredictorMode::AverageLeftTopLeftTopTopRight => {
+            reconstruct!(
+                x,
+                average_rgba(
+                    average_rgba(rgba_pixel(current, x - 1), rgba_pixel(top, x - 1)),
+                    average_rgba(rgba_pixel(top, x), top_right_rgba(current, top, x)),
+                )
+            );
+        }
+        PredictorMode::Select => apply_select_rgba(current, top, start_x, end_x),
         PredictorMode::ClampAddSubtractFull => {
             apply_clamped_add_subtract_full_rgba(current, top, start_x, end_x);
         }
-        _ => {
-            let right_edge = rgba_pixel(current, 0);
-            for x in start_x..end_x {
-                let left = rgba_pixel(current, x - 1);
-                let top_pixel = rgba_pixel(top, x);
-                let top_left = rgba_pixel(top, x - 1);
-                let top_right = if x + 1 < top.len() / 4 {
-                    rgba_pixel(top, x + 1)
-                } else {
-                    right_edge
-                };
-                let prediction = predictor_rgba(mode, left, top_pixel, top_left, top_right);
-                add_rgba_pixel(current, x, prediction);
-            }
+        PredictorMode::ClampAddSubtractHalf => {
+            reconstruct!(
+                x,
+                clamp_add_subtract_half_rgba(
+                    rgba_pixel(current, x - 1),
+                    rgba_pixel(top, x),
+                    rgba_pixel(top, x - 1),
+                )
+            );
         }
+    }
+}
+
+/// Reconstructs VP8L's select predictor over one mode run.
+///
+/// Select is the only predictor used by every method-0 CLIC stream. It has a
+/// left-to-right dependency, so treating it as four independent byte slices
+/// does not expose useful parallelism. Keeping the reconstructed left pixel
+/// in a local value instead avoids reloading it and avoids constructing the
+/// unused top-right neighbor required by the generic predictor adapter.
+fn apply_select_rgba(current: &mut [u8], top: &[u8], start_x: usize, end_x: usize) {
+    let byte_len = (end_x - start_x) * 4;
+    let (reconstructed, residual_and_after) = current.split_at_mut(start_x * 4);
+    let mut left: [u8; 4] = reconstructed[reconstructed.len() - 4..]
+        .try_into()
+        .expect("predictor run has a reconstructed left pixel");
+    let residuals = &mut residual_and_after[..byte_len];
+    let top_left = &top[(start_x - 1) * 4..][..byte_len];
+    let top = &top[start_x * 4..][..byte_len];
+
+    for ((residual, top_left), top) in residuals
+        .chunks_exact_mut(4)
+        .zip(top_left.chunks_exact(4))
+        .zip(top.chunks_exact(4))
+    {
+        // For p = left + top - top_left, the distances to left and top
+        // simplify to |top - top_left| and |left - top_left| respectively.
+        // On a tie VP8L selects top.
+        let top_distance = i16::from(top[0]).abs_diff(i16::from(top_left[0]))
+            + i16::from(top[1]).abs_diff(i16::from(top_left[1]))
+            + i16::from(top[2]).abs_diff(i16::from(top_left[2]))
+            + i16::from(top[3]).abs_diff(i16::from(top_left[3]));
+        let left_distance = i16::from(left[0]).abs_diff(i16::from(top_left[0]))
+            + i16::from(left[1]).abs_diff(i16::from(top_left[1]))
+            + i16::from(left[2]).abs_diff(i16::from(top_left[2]))
+            + i16::from(left[3]).abs_diff(i16::from(top_left[3]));
+        let prediction = if top_distance < left_distance {
+            left
+        } else {
+            [top[0], top[1], top[2], top[3]]
+        };
+        left = [
+            residual[0].wrapping_add(prediction[0]),
+            residual[1].wrapping_add(prediction[1]),
+            residual[2].wrapping_add(prediction[2]),
+            residual[3].wrapping_add(prediction[3]),
+        ];
+        residual.copy_from_slice(&left);
     }
 }
 
@@ -1229,50 +1384,19 @@ fn rgba_pixel(pixels: &[u8], x: usize) -> [u8; 4] {
 }
 
 #[inline]
+fn top_right_rgba(current: &[u8], top: &[u8], x: usize) -> [u8; 4] {
+    if x + 1 < top.len() / 4 {
+        rgba_pixel(top, x + 1)
+    } else {
+        rgba_pixel(current, 0)
+    }
+}
+
+#[inline]
 fn add_rgba_pixel(pixels: &mut [u8], x: usize, prediction: [u8; 4]) {
     let offset = x * 4;
     for channel in 0..4 {
         pixels[offset + channel] = pixels[offset + channel].wrapping_add(prediction[channel]);
-    }
-}
-
-fn predictor_rgba(
-    mode: PredictorMode,
-    left: [u8; 4],
-    top: [u8; 4],
-    top_left: [u8; 4],
-    top_right: [u8; 4],
-) -> [u8; 4] {
-    match mode {
-        PredictorMode::OpaqueBlack => [0, 0, 0, 255],
-        PredictorMode::Left => left,
-        PredictorMode::Top => top,
-        PredictorMode::TopRight => top_right,
-        PredictorMode::TopLeft => top_left,
-        PredictorMode::AverageLeftTopRightTop => average_rgba(average_rgba(left, top_right), top),
-        PredictorMode::AverageLeftTopLeft => average_rgba(left, top_left),
-        PredictorMode::AverageLeftTop => average_rgba(left, top),
-        PredictorMode::AverageTopLeftTop => average_rgba(top_left, top),
-        PredictorMode::AverageTopTopRight => average_rgba(top, top_right),
-        PredictorMode::AverageLeftTopLeftTopTopRight => {
-            average_rgba(average_rgba(left, top_left), average_rgba(top, top_right))
-        }
-        PredictorMode::Select => select_rgba(left, top, top_left),
-        PredictorMode::ClampAddSubtractFull => [
-            clamp_add_subtract_component(left[0], top[0], top_left[0]),
-            clamp_add_subtract_component(left[1], top[1], top_left[1]),
-            clamp_add_subtract_component(left[2], top[2], top_left[2]),
-            clamp_add_subtract_component(left[3], top[3], top_left[3]),
-        ],
-        PredictorMode::ClampAddSubtractHalf => {
-            let average = average_rgba(left, top);
-            [
-                clamp_add_subtract_half_component(average[0], top_left[0]),
-                clamp_add_subtract_half_component(average[1], top_left[1]),
-                clamp_add_subtract_half_component(average[2], top_left[2]),
-                clamp_add_subtract_half_component(average[3], top_left[3]),
-            ]
-        }
     }
 }
 
@@ -1286,37 +1410,29 @@ fn average_rgba(first: [u8; 4], second: [u8; 4]) -> [u8; 4] {
     ]
 }
 
-fn select_rgba(left: [u8; 4], top: [u8; 4], top_left: [u8; 4]) -> [u8; 4] {
-    let mut left_distance = 0_i32;
-    let mut top_distance = 0_i32;
-    for channel in 0..4 {
-        let prediction =
-            i32::from(left[channel]) + i32::from(top[channel]) - i32::from(top_left[channel]);
-        left_distance += (prediction - i32::from(left[channel])).abs();
-        top_distance += (prediction - i32::from(top[channel])).abs();
-    }
-    if left_distance < top_distance {
-        left
-    } else {
-        top
-    }
-}
-
 #[inline]
 fn clamp_add_subtract_half_component(average: u8, top_left: u8) -> u8 {
     let average = i16::from(average);
     (average + (average - i16::from(top_left)) / 2).clamp(0, 255) as u8
 }
 
-/// Inverts a predictor transform without a second full-image allocation.
+#[inline]
+fn clamp_add_subtract_half_rgba(left: [u8; 4], top: [u8; 4], top_left: [u8; 4]) -> [u8; 4] {
+    let average = average_rgba(left, top);
+    [
+        clamp_add_subtract_half_component(average[0], top_left[0]),
+        clamp_add_subtract_half_component(average[1], top_left[1]),
+        clamp_add_subtract_half_component(average[2], top_left[2]),
+        clamp_add_subtract_half_component(average[3], top_left[3]),
+    ]
+}
+
+/// Test-only packed reference used to validate the production RGBA predictor.
 ///
-/// The public transform primitives operate on `RgbaImage`, whose owned pixel
-/// buffer would overlap the already bounded packed output. This adapter works
-/// directly on packed ARGB rows. It dispatches the predictor once per coded
-/// tile instead of converting the mode and four neighboring pixels for every
-/// output sample.
+/// Keeping this structurally independent makes the fourteen-mode differential
+/// test useful; it is not selected or compiled into the production decoder.
 #[cfg(test)]
-fn inverse_predictor_argb(
+fn inverse_predictor_argb_reference(
     pixels: &mut [u32],
     descriptor: BlockTransformDescriptor,
     mode_pixels: &[u32],
@@ -2756,7 +2872,7 @@ mod tests {
     }
 
     #[test]
-    fn packed_predictor_rows_match_the_scalar_reference_for_every_mode() {
+    fn rgba_predictor_rows_match_the_scalar_reference_for_every_mode() {
         let descriptor = BlockTransformDescriptor {
             image_width: 3,
             image_height: 2,
@@ -2807,7 +2923,12 @@ mod tests {
             }
 
             let mut actual = residuals.clone();
-            inverse_predictor_argb(&mut actual, descriptor, &[u32::from(mode_value) << 8]).unwrap();
+            inverse_predictor_argb_reference(
+                &mut actual,
+                descriptor,
+                &[u32::from(mode_value) << 8],
+            )
+            .unwrap();
             assert_eq!(actual, expected, "predictor mode {mode_value}");
 
             let mut actual_rgba = Vec::with_capacity(residuals.len() * 4);
