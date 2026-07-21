@@ -118,6 +118,77 @@ fn intra16_prediction_uses_neighbours_and_dc_boundary_fallbacks() {
 }
 
 #[test]
+fn plane_specific_intra16_reconstruction_matches_full_macroblock() {
+    let empty = DecodedCoefficients {
+        values: [0; 16],
+        end: 0,
+        non_zero: 0,
+    };
+    let mut residuals = MacroblockResiduals {
+        y2: Some(empty),
+        luma: [empty; 16],
+        u: [empty; 4],
+        v: [empty; 4],
+        non_zero_y: 0,
+        non_zero_uv: 0,
+    };
+    residuals.y2.as_mut().unwrap().values[0] = 7;
+    residuals.luma[3].values[1] = -4;
+    residuals.u[1].values[0] = 5;
+    residuals.v[2].values[2] = -3;
+    let matrix = DequantizationMatrix {
+        y1_dc: 4,
+        y1_ac: 7,
+        y2_dc: 8,
+        y2_ac: 9,
+        uv_dc: 5,
+        uv_ac: 6,
+        uv_quant: 0,
+    };
+    let edges = MacroblockPredictionEdges {
+        top_y: Some(std::array::from_fn(|index| 31 + index as u8 * 7)),
+        left_y: Some(std::array::from_fn(|index| 203_u8.wrapping_sub(index as u8 * 5))),
+        top_left_y: 91,
+        top_u: Some(std::array::from_fn(|index| 51 + index as u8 * 8)),
+        left_u: Some(std::array::from_fn(|index| 177_u8.wrapping_sub(index as u8 * 6))),
+        top_left_u: 99,
+        top_v: Some(std::array::from_fn(|index| 39 + index as u8 * 10)),
+        left_v: Some(std::array::from_fn(|index| 191_u8.wrapping_sub(index as u8 * 7))),
+        top_left_v: 87,
+        ..MacroblockPredictionEdges::default()
+    };
+    for luma_mode in [
+        Intra16Mode::Dc,
+        Intra16Mode::Vertical,
+        Intra16Mode::Horizontal,
+        Intra16Mode::TrueMotion,
+    ] {
+        for chroma_mode in [
+            ChromaMode::Dc,
+            ChromaMode::Vertical,
+            ChromaMode::Horizontal,
+            ChromaMode::TrueMotion,
+        ] {
+            let full = reconstruct_intra_macroblock(
+                IntraMacroblock {
+                    segment: 0,
+                    skip: false,
+                    luma: LumaMode::Sixteen(luma_mode),
+                    chroma: chroma_mode,
+                },
+                &residuals,
+                matrix,
+                edges,
+            )
+            .unwrap();
+            assert_eq!(reconstruct_intra16_luma(luma_mode, &residuals, matrix, edges), full.y);
+            let (u, v) = reconstruct_intra16_chroma(chroma_mode, &residuals, matrix, edges);
+            assert_eq!((u, v), (full.u, full.v));
+        }
+    }
+}
+
+#[test]
 fn intra4_prediction_covers_all_vp8_directional_modes() {
     let top = [10, 20, 30, 40, 50, 60, 70, 80];
     let left = [50, 60, 70, 80];

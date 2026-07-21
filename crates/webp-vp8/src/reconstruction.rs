@@ -246,6 +246,47 @@ pub fn reconstruct_intra_macroblock(
     Ok(combine_macroblock_prediction(prediction, spatial))
 }
 
+pub(crate) fn reconstruct_intra16_luma(
+    mode: Intra16Mode,
+    residuals: &MacroblockResiduals,
+    matrix: DequantizationMatrix,
+    edges: MacroblockPredictionEdges,
+) -> [u8; 256] {
+    let mut coefficients = residuals
+        .luma
+        .map(|block| dequantize_block(block.values, matrix.y1_dc, matrix.y1_ac));
+    if let Some(y2) = residuals.y2 {
+        let y2_values = dequantize_block(y2.values, matrix.y2_dc, matrix.y2_ac);
+        for (block, dc) in coefficients.iter_mut().zip(inverse_wht_4x4_i32(y2_values)) {
+            block[0] = dc;
+        }
+    }
+    let residues = coefficients.map(inverse_dct_4x4_i32);
+    let mut prediction = predict_intra16_macroblock(mode, ChromaMode::Dc, edges).y;
+    combine_plane_blocks(&mut prediction, 16, 4, residues);
+    prediction
+}
+
+pub(crate) fn reconstruct_intra16_chroma(
+    mode: ChromaMode,
+    residuals: &MacroblockResiduals,
+    matrix: DequantizationMatrix,
+    edges: MacroblockPredictionEdges,
+) -> ([u8; 64], [u8; 64]) {
+    let mut prediction = predict_intra16_macroblock(Intra16Mode::Dc, mode, edges);
+    let u = residuals
+        .u
+        .map(|block| dequantize_block(block.values, matrix.uv_dc, matrix.uv_ac))
+        .map(inverse_dct_4x4_i32);
+    let v = residuals
+        .v
+        .map(|block| dequantize_block(block.values, matrix.uv_dc, matrix.uv_ac))
+        .map(inverse_dct_4x4_i32);
+    combine_plane_blocks(&mut prediction.u, 8, 2, u);
+    combine_plane_blocks(&mut prediction.v, 8, 2, v);
+    (prediction.u, prediction.v)
+}
+
 fn reconstruct_intra4_luma(
     modes: [Intra4Mode; 16],
     edges: MacroblockPredictionEdges,

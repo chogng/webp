@@ -242,21 +242,14 @@ fn select_intra16_macroblock(
         let mut coefficients = empty_dc_coefficients();
         coefficients.y2 = y2;
         coefficients.luma = luma;
-        let block = IntraMacroblock {
-            segment: 0,
-            skip: false,
-            luma: LumaMode::Sixteen(luma_mode),
-            chroma: ChromaMode::Dc,
-        };
-        let pixels = reconstruct_intra_macroblock(
-            block,
+        let pixels = crate::reconstruction::reconstruct_intra16_luma(
+            luma_mode,
             &dc_macroblock_residuals(coefficients),
             matrix,
             edges,
-        )
-        .map_err(|_| Vp8EncodeError::InvalidPlaneLayout)?;
+        );
         let score = (
-            luma_distortion(y, y_stride, &pixels.y),
+            luma_distortion(y, y_stride, &pixels),
             luma_coefficient_cost(y2, luma),
         );
         if best_luma.is_none_or(|(best_score, _, _, _)| score < best_score) {
@@ -276,21 +269,14 @@ fn select_intra16_macroblock(
         let mut coefficients = empty_dc_coefficients();
         coefficients.u = u_coefficients;
         coefficients.v = v_coefficients;
-        let block = IntraMacroblock {
-            segment: 0,
-            skip: false,
-            luma: LumaMode::Sixteen(Intra16Mode::Dc),
-            chroma: chroma_mode,
-        };
-        let pixels = reconstruct_intra_macroblock(
-            block,
+        let (pixels_u, pixels_v) = crate::reconstruction::reconstruct_intra16_chroma(
+            chroma_mode,
             &dc_macroblock_residuals(coefficients),
             matrix,
             edges,
-        )
-        .map_err(|_| Vp8EncodeError::InvalidPlaneLayout)?;
+        );
         let score = (
-            chroma_distortion(u, v, uv_stride, &pixels.u, &pixels.v),
+            chroma_distortion(u, v, uv_stride, &pixels_u, &pixels_v),
             chroma_coefficient_cost(u_coefficients, v_coefficients),
         );
         if best_chroma.is_none_or(|(best_score, _, _, _)| score < best_score) {
@@ -484,24 +470,21 @@ pub fn rgba_to_yuv420(
     let mut v = reserve_zeroed(uv_len)?;
     let source_width = usize::try_from(width).map_err(|_| Vp8EncodeError::InvalidDimensions)?;
     let source_height = usize::try_from(height).map_err(|_| Vp8EncodeError::InvalidDimensions)?;
-    for row in 0..y_height {
-        for column in 0..y_stride {
-            let [red, green, blue] = rgb_at(rgba, source_width, source_height, column, row);
-            y[row * y_stride + column] = rgb_to_y(red, green, blue);
-        }
-    }
     for row in 0..uv_height {
         for column in 0..uv_stride {
             let mut totals = [0_u16; 3];
             for y_offset in 0..2 {
                 for x_offset in 0..2 {
+                    let y_row = row * 2 + y_offset;
+                    let y_column = column * 2 + x_offset;
                     let [red, green, blue] = rgb_at(
                         rgba,
                         source_width,
                         source_height,
-                        column * 2 + x_offset,
-                        row * 2 + y_offset,
+                        y_column,
+                        y_row,
                     );
+                    y[y_row * y_stride + y_column] = rgb_to_y(red, green, blue);
                     totals[0] += u16::from(red);
                     totals[1] += u16::from(green);
                     totals[2] += u16::from(blue);

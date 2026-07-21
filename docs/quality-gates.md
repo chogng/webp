@@ -101,6 +101,22 @@ Three five-iteration quality-matrix runs measured 313.775 ms, 312.878 ms, and
 checksum `293176` per matrix, so the optimization is bit-for-bit stable on all
 21 locked inputs at quality 0, 75, and 100.
 
+## VP8 plane-specific candidate reconstruction
+
+After factoring the search, candidate scoring still sent every luma-only or
+chroma-only candidate through full macroblock reconstruction. The encoder now
+dequantizes, inverse-transforms, predicts, and combines only the plane family
+being scored; only the selected luma/chroma pair receives a full reconstruction.
+RGBA-to-YUV preparation also fills each 2x2 luma group while accumulating its
+single chroma sample, avoiding a second read of every padded RGB pixel. Unit
+tests compare both plane-specific reconstruction paths with full reconstruction
+for all 16 mode pairs.
+
+Three five-iteration runs measured 276.972 ms, 270.770 ms, and 273.375 ms.
+The 273.375 ms median is 12.6% faster than the preceding 312.921 ms result and
+54.675 ms per complete quality matrix, 61.6% faster than the original M7
+baseline. Output remains 288,010 bytes with checksum `293176` per matrix.
+
 ## VP8L entropy-path optimization record
 
 The 2026-07-20 optimization pass retained the same 41-file corpus, five

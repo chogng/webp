@@ -84,10 +84,11 @@ Lossy VP8 animation frames naturally remain gated on M7.
 - Record allocation and CPU hotspots, run external oracle comparisons where
   applicable, and set reviewed regression thresholds.
 
-**Status: in progress.** The first VP8 encoder profile removed redundant
-cross-product work from intra16 mode search while preserving bit-for-bit
-output, improving the locked quality matrix by 56%. Cross-encoder comparisons,
-reviewed regression thresholds, and the remaining public paths are still open.
+**Status: in progress.** VP8 encoder profiling removed redundant cross-product
+work and plane reconstruction from intra16 mode search while preserving
+bit-for-bit output, improving the locked quality matrix by 61.6% in total.
+Cross-encoder comparisons, reviewed regression thresholds, and the remaining
+public paths are still open.
 
 Each milestone is independently shippable; a later performance or coding-tool
 milestone must not silently change the public correctness contract established
