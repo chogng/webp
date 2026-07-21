@@ -168,3 +168,45 @@ fn dc_predicted_frame_uses_reconstructed_neighbour_prediction() {
             .all(|&sample| sample == 134));
     }
 }
+
+#[test]
+fn intra16_selector_uses_vertical_prediction_when_top_edge_matches_source() {
+    let matrix = crate::derive_dequantization(
+        crate::QuantizationHeader {
+            base_index: 0,
+            y1_dc_delta: 0,
+            y2_dc_delta: 0,
+            y2_ac_delta: 0,
+            uv_dc_delta: 0,
+            uv_ac_delta: 0,
+        },
+        &crate::SegmentHeader {
+            enabled: false,
+            update_map: false,
+            absolute_delta: false,
+            quantizer: [0; 4],
+            filter_strength: [0; 4],
+            probabilities: [255; 3],
+        },
+    )[0];
+    let top_y = std::array::from_fn(|column| 32 + column as u8 * 8);
+    let y: [u8; 256] = std::array::from_fn(|index| top_y[index % 16]);
+    let (block, coefficients, _) = select_intra16_macroblock(
+        &y,
+        16,
+        &[128; 64],
+        &[128; 64],
+        8,
+        matrix,
+        crate::MacroblockPredictionEdges {
+            top_y: Some(top_y),
+            top_u: Some([128; 8]),
+            top_v: Some([128; 8]),
+            ..crate::MacroblockPredictionEdges::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(block.luma, crate::LumaMode::Sixteen(crate::Intra16Mode::Vertical));
+    assert!(coefficients.y2.iter().all(|&value| value == 0));
+    assert!(coefficients.luma.iter().flatten().all(|&value| value == 0));
+}
