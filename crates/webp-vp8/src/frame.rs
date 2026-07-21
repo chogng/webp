@@ -3,12 +3,12 @@
 use webp_core::{DecodeError, DecodeErrorKind, DecodeLimits, checked_image_bytes};
 
 use crate::loop_filter::{MacroblockFilter, filter_macroblock};
+use crate::partition::parse_partition_layout_with_mode_decoder;
 use crate::{
     BoolDecoder, ChromaMode, DecodedCoefficients, Intra4Mode, Intra16Mode, IntraMacroblock,
     LoopFilterStrength, LumaMode, MacroblockPixels, MacroblockPredictionEdges, MacroblockResiduals,
     ResidualContext, Vp8Header, decode_intra_residuals, derive_dequantization,
-    derive_loop_filter_strengths, parse_intra_mode_row, parse_partition_layout_with_mode_decoder,
-    reconstruct_intra_macroblock,
+    derive_loop_filter_strengths, parse_intra_mode_row, reconstruct_intra_macroblock,
 };
 
 /// Macroblock-aligned YUV 4:2:0 samples reconstructed from a VP8 key frame.
