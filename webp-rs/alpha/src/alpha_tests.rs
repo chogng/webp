@@ -84,6 +84,35 @@ fn validates_header_lengths_and_limits() {
         .kind(),
         DecodeErrorKind::InvalidParameter
     );
+    assert_eq!(
+        decode(
+            &[0],
+            0,
+            1,
+            CompatibilityProfile::SpecStrict,
+            &DecodeLimits::default()
+        )
+        .unwrap_err()
+        .kind(),
+        DecodeErrorKind::InvalidParameter
+    );
+
+    let input_limited = DecodeLimits {
+        max_input_bytes: 1,
+        ..DecodeLimits::default()
+    };
+    assert_eq!(
+        decode(
+            &[0, 1],
+            1,
+            1,
+            CompatibilityProfile::SpecStrict,
+            &input_limited
+        )
+        .unwrap_err()
+        .kind(),
+        DecodeErrorKind::LimitExceeded
+    );
 }
 
 #[test]

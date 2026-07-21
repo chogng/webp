@@ -29,12 +29,45 @@ pub enum AlphaFilter {
     Gradient,
 }
 
+/// Informative preprocessing declared by an `ALPH` header.
+///
+/// The WebP container specification does not prescribe how a decoder must
+/// display level-reduced samples, so decoding preserves their stored values.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum AlphaPreprocessing {
+    #[default]
+    None,
+    LevelReduction,
+}
+
 /// Validated fields from the one-byte `ALPH` header.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AlphaHeader {
     pub compression: AlphaCompression,
     pub filter: AlphaFilter,
-    pub preprocessing: u8,
+    pub preprocessing: AlphaPreprocessing,
+}
+
+impl AlphaHeader {
+    /// Serializes the validated header fields with reserved bits cleared.
+    #[must_use]
+    pub const fn to_byte(self) -> u8 {
+        let compression = match self.compression {
+            AlphaCompression::Raw => 0,
+            AlphaCompression::Lossless => 1,
+        };
+        let filter = match self.filter {
+            AlphaFilter::None => 0,
+            AlphaFilter::Horizontal => 1,
+            AlphaFilter::Vertical => 2,
+            AlphaFilter::Gradient => 3,
+        };
+        let preprocessing = match self.preprocessing {
+            AlphaPreprocessing::None => 0,
+            AlphaPreprocessing::LevelReduction => 1,
+        };
+        compression | (filter << 2) | (preprocessing << 4)
+    }
 }
 
 /// Parses an `ALPH` header according to the selected compatibility profile.
@@ -74,14 +107,17 @@ pub fn parse_header(
         3 => AlphaFilter::Gradient,
         _ => unreachable!("two-bit ALPH filter"),
     };
-    let preprocessing = (byte >> 4) & 0b11;
-    if preprocessing > 1 {
-        return Err(DecodeError::new(
-            DecodeErrorKind::InvalidBitstream,
-            Some(0),
-            "unsupported ALPH preprocessing method",
-        ));
-    }
+    let preprocessing = match (byte >> 4) & 0b11 {
+        0 => AlphaPreprocessing::None,
+        1 => AlphaPreprocessing::LevelReduction,
+        _ => {
+            return Err(DecodeError::new(
+                DecodeErrorKind::InvalidBitstream,
+                Some(0),
+                "unsupported ALPH preprocessing method",
+            ));
+        }
+    };
     Ok(AlphaHeader {
         compression,
         filter,
@@ -101,6 +137,14 @@ pub fn decode(
     profile: CompatibilityProfile,
     limits: &DecodeLimits,
 ) -> Result<Vec<u8>, DecodeError> {
+    if width == 0 || height == 0 {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidParameter,
+            None,
+            "ALPH dimensions must be non-zero",
+        ));
+    }
+    limits.check_input_len(payload.len())?;
     limits.check_image(width, height)?;
     let header = parse_header(payload, profile)?;
     let plane_len = checked_image_bytes(width, height, 1)?;

@@ -1140,21 +1140,17 @@ fn wrap_vp8(
     height: u32,
     alpha: Option<Vec<u8>>,
 ) -> Result<Vec<u8>, EncodeError> {
-    let alpha_payload = if let Some(samples) = alpha {
-        let capacity = samples
-            .len()
-            .checked_add(1)
-            .ok_or_else(EncodeError::output_size_overflow)?;
-        let mut alpha_payload = Vec::new();
-        alpha_payload
-            .try_reserve_exact(capacity)
-            .map_err(|_| EncodeError::allocation_failed())?;
-        alpha_payload.push(0); // Raw ALPH compression with no spatial filter.
-        alpha_payload.extend_from_slice(&samples);
-        Some(alpha_payload)
-    } else {
-        None
-    };
+    let alpha_payload = alpha
+        .map(|samples| {
+            webp_alpha::encode(
+                &samples,
+                width,
+                height,
+                webp_alpha::AlphaEncodeOptions::default(),
+            )
+            .map_err(map_alpha_encode_error)
+        })
+        .transpose()?;
     let mut chunk_size = chunk_storage_len(payload.len())?;
     if let Some(alpha) = alpha_payload.as_deref() {
         chunk_size = chunk_size
@@ -1197,6 +1193,15 @@ fn map_vp8_encode_error(error: webp_vp8::Vp8EncodeError) -> EncodeError {
         webp_vp8::Vp8EncodeError::FirstPartitionTooLarge
         | webp_vp8::Vp8EncodeError::InvalidPlaneLayout
         | webp_vp8::Vp8EncodeError::InvalidQuantizer => EncodeError::unsupported_lossy_profile(),
+    }
+}
+
+fn map_alpha_encode_error(error: webp_alpha::AlphaEncodeError) -> EncodeError {
+    match error {
+        webp_alpha::AlphaEncodeError::InvalidDimensions => EncodeError::invalid_dimensions(),
+        webp_alpha::AlphaEncodeError::InvalidSampleLength => EncodeError::invalid_rgba_length(),
+        webp_alpha::AlphaEncodeError::SizeOverflow => EncodeError::output_size_overflow(),
+        webp_alpha::AlphaEncodeError::AllocationFailed => EncodeError::allocation_failed(),
     }
 }
 
