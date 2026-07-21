@@ -80,7 +80,7 @@ fn decode_phases_clic() {
         let other = summary.total.saturating_sub(measured);
         let total_ms = summary.total.as_secs_f64() * 1_000.0;
         eprintln!(
-            "method={method} files={} rgba_bytes={} checksum={} total_ms={total_ms:.3} entropy_ms={:.3} entropy_pct={:.1} rgba_conversion_ms={:.3} rgba_conversion_pct={:.1} predictor_ms={:.3} predictor_pct={:.1} other_ms={:.3} other_pct={:.1}",
+            "method={method} files={} rgba_bytes={} checksum={} total_ms={total_ms:.3} entropy_ms={:.3} entropy_pct={:.1} rgba_conversion_ms={:.3} rgba_conversion_pct={:.1} predictor_ms={:.3} predictor_pct={:.1} other_ms={:.3} other_pct={:.1} literal_pixels={} batched_literals={} cache_hits={} copy_commands={} copy_pixels={} meta_runs={}",
             summary.files,
             summary.rgba_bytes,
             summary.checksum,
@@ -92,6 +92,12 @@ fn decode_phases_clic() {
             percentage(summary.phases.predictor, summary.total),
             milliseconds(other),
             percentage(other, summary.total),
+            summary.phases.entropy_paths.literal_pixels,
+            summary.phases.entropy_paths.batched_literals,
+            summary.phases.entropy_paths.cache_hits,
+            summary.phases.entropy_paths.copy_commands,
+            summary.phases.entropy_paths.copy_pixels,
+            summary.phases.entropy_paths.meta_runs,
         );
     }
 }

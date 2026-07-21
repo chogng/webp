@@ -44,6 +44,62 @@ struct DecodePhaseTimings {
     entropy: std::time::Duration,
     rgba_conversion: std::time::Duration,
     predictor: std::time::Duration,
+    entropy_paths: EntropyPathCounters,
+}
+
+#[cfg(test)]
+#[derive(Clone, Copy, Default)]
+struct EntropyPathCounters {
+    literal_pixels: u64,
+    batched_literals: u64,
+    cache_hits: u64,
+    copy_commands: u64,
+    copy_pixels: u64,
+    meta_runs: u64,
+}
+
+#[cfg(test)]
+impl EntropyPathCounters {
+    fn add_assign(&mut self, other: Self) {
+        self.literal_pixels += other.literal_pixels;
+        self.batched_literals += other.batched_literals;
+        self.cache_hits += other.cache_hits;
+        self.copy_commands += other.copy_commands;
+        self.copy_pixels += other.copy_pixels;
+        self.meta_runs += other.meta_runs;
+    }
+}
+
+#[cfg(test)]
+std::thread_local! {
+    static ENTROPY_PATH_COUNTERS: std::cell::Cell<EntropyPathCounters> =
+        std::cell::Cell::new(EntropyPathCounters {
+            literal_pixels: 0,
+            batched_literals: 0,
+            cache_hits: 0,
+            copy_commands: 0,
+            copy_pixels: 0,
+            meta_runs: 0,
+        });
+}
+
+#[cfg(test)]
+fn reset_entropy_path_counters() {
+    ENTROPY_PATH_COUNTERS.with(|counters| counters.set(EntropyPathCounters::default()));
+}
+
+#[cfg(test)]
+fn entropy_path_counters() -> EntropyPathCounters {
+    ENTROPY_PATH_COUNTERS.with(std::cell::Cell::get)
+}
+
+#[cfg(test)]
+fn record_entropy_path(update: impl FnOnce(&mut EntropyPathCounters)) {
+    ENTROPY_PATH_COUNTERS.with(|counters| {
+        let mut current = counters.get();
+        update(&mut current);
+        counters.set(current);
+    });
 }
 
 #[cfg(test)]
@@ -123,6 +179,10 @@ fn decode_no_transform_inner(
     )?;
     #[cfg(test)]
     let entropy_started = std::time::Instant::now();
+    #[cfg(test)]
+    if timings.is_some() {
+        reset_entropy_path_counters();
+    }
     let output = decode_entropy_image(
         &mut bits,
         decoded_transforms.coded_width,
@@ -136,6 +196,7 @@ fn decode_no_transform_inner(
     #[cfg(test)]
     if let Some(timings) = timings.as_mut() {
         timings.entropy += entropy_started.elapsed();
+        timings.entropy_paths.add_assign(entropy_path_counters());
     }
     let mut output = TransformPixels::Argb(output);
 
@@ -259,6 +320,10 @@ fn decode_entropy_image(
 
     while output.len() < pixels {
         let (codes, run_end) = code_cursor.run_for_pixel(output.len(), pixels)?;
+        #[cfg(test)]
+        if code_cursor.is_meta() {
+            record_entropy_path(|paths| paths.meta_runs += 1);
+        }
         decode_entropy_run(
             codes,
             &mut shifted_bits,
@@ -290,6 +355,11 @@ fn decode_entropy_run(
         shifted_bits.fill();
         let green = match decode_green_or_literal(codes, shifted_bits, budget)? {
             GreenOrLiteral::Literal(color) => {
+                #[cfg(test)]
+                record_entropy_path(|paths| {
+                    paths.literal_pixels += 1;
+                    paths.batched_literals += 1;
+                });
                 output.emit_literal(color)?;
                 continue;
             }
@@ -309,6 +379,8 @@ fn decode_entropy_run(
             debug_assert!(red < CHANNEL_ALPHABET_SIZE);
             debug_assert!(blue < CHANNEL_ALPHABET_SIZE);
             debug_assert!(alpha < CHANNEL_ALPHABET_SIZE);
+            #[cfg(test)]
+            record_entropy_path(|paths| paths.literal_pixels += 1);
             output.emit_literal(pack_argb(red as u8, green as u8, blue as u8, alpha as u8))?;
             continue;
         }
@@ -322,6 +394,8 @@ fn decode_entropy_run(
                     "VP8L color-cache symbol exceeds cache size",
                 ));
             }
+            #[cfg(test)]
+            record_entropy_path(|paths| paths.cache_hits += 1);
             output.emit_cache_hit(cache_index)?;
             continue;
         }
@@ -344,6 +418,11 @@ fn decode_entropy_run(
         })?;
         let distance_code = decode_distance_shifted(shifted_bits, budget, distance_prefix)?;
         let distance = distance_code_to_distance(distance_code, width)?;
+        #[cfg(test)]
+        record_entropy_path(|paths| {
+            paths.copy_commands += 1;
+            paths.copy_pixels += length as u64;
+        });
         output.copy_lz77(length, distance, pixels, budget)?;
     }
     Ok(())
@@ -1870,6 +1949,11 @@ impl<'a> EntropyCodeCursor<'a> {
                 Ok((group, run_end))
             }
         }
+    }
+
+    #[cfg(test)]
+    const fn is_meta(&self) -> bool {
+        matches!(self, Self::Meta { .. })
     }
 }
 
