@@ -84,6 +84,23 @@ not container serialization. Locked `dwebp` pixel-oracle tests cover quality
 0/75/100, alpha, and a multi-macroblock image. A pinned-libwebp encode-rate
 comparison and a reviewed regression threshold remain M9 work.
 
+## VP8 factored intra16 search
+
+The first M9 encoder pass uses the independence of VP8's intra16 luma and
+chroma predictions. The original bounded search evaluated all 16 mode pairs,
+repeating identical luma transform/reconstruction work for each chroma mode
+and vice versa. The encoder now evaluates four luma candidates and four
+chroma candidates separately, combines their independently optimal
+lexicographic distortion/coefficient scores, and reconstructs the selected
+pair once. A direct differential test proves the factored result equals the
+previous exhaustive 16-pair search.
+
+Three five-iteration quality-matrix runs measured 313.775 ms, 312.878 ms, and
+312.921 ms. The 312.921 ms median is 62.584 ms per complete 63-encode matrix,
+56.0% faster than the 142.349 ms M7 baseline. Output remains 288,010 bytes and
+checksum `293176` per matrix, so the optimization is bit-for-bit stable on all
+21 locked inputs at quality 0, 75, and 100.
+
 ## VP8L entropy-path optimization record
 
 The 2026-07-20 optimization pass retained the same 41-file corpus, five

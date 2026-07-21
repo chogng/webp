@@ -222,87 +222,148 @@ fn select_intra16_macroblock(
     matrix: DequantizationMatrix,
     edges: crate::MacroblockPredictionEdges,
 ) -> Result<(IntraMacroblock, Vp8DcMacroblockCoefficients, crate::MacroblockPixels), Vp8EncodeError> {
-    let mut best = None;
+    if y_stride < 16
+        || uv_stride < 8
+        || !has_plane_extent(y, y_stride, 16, 16)
+        || !has_plane_extent(u, uv_stride, 8, 8)
+        || !has_plane_extent(v, uv_stride, 8, 8)
+    {
+        return Err(Vp8EncodeError::InvalidPlaneLayout);
+    }
+    let mut best_luma = None;
     for luma_mode in [
         Intra16Mode::Dc,
         Intra16Mode::Vertical,
         Intra16Mode::Horizontal,
         Intra16Mode::TrueMotion,
     ] {
-        for chroma_mode in [
-            ChromaMode::Dc,
-            ChromaMode::Vertical,
-            ChromaMode::Horizontal,
-            ChromaMode::TrueMotion,
-        ] {
-            let block = IntraMacroblock {
-                segment: 0,
-                skip: false,
-                luma: LumaMode::Sixteen(luma_mode),
-                chroma: chroma_mode,
-            };
-            let prediction = predict_intra16_macroblock(luma_mode, chroma_mode, edges);
-            let coefficients = quantize_intra16_macroblock(
-                y, y_stride, u, v, uv_stride, prediction, matrix,
-            )?;
-            let pixels = reconstruct_intra_macroblock(
-                block,
-                &dc_macroblock_residuals(coefficients),
-                matrix,
-                edges,
-            )
-            .map_err(|_| Vp8EncodeError::InvalidPlaneLayout)?;
-            let score = (
-                macroblock_distortion(y, y_stride, u, v, uv_stride, pixels)?,
-                macroblock_coefficient_cost(coefficients),
-            );
-            if best.is_none_or(|(best_score, _, _, _)| score < best_score) {
-                best = Some((score, block, coefficients, pixels));
-            }
+        let prediction = predict_intra16_macroblock(luma_mode, ChromaMode::Dc, edges);
+        let (y2, luma) = quantize_luma_plane(y, y_stride, &prediction.y, matrix);
+        let mut coefficients = empty_dc_coefficients();
+        coefficients.y2 = y2;
+        coefficients.luma = luma;
+        let block = IntraMacroblock {
+            segment: 0,
+            skip: false,
+            luma: LumaMode::Sixteen(luma_mode),
+            chroma: ChromaMode::Dc,
+        };
+        let pixels = reconstruct_intra_macroblock(
+            block,
+            &dc_macroblock_residuals(coefficients),
+            matrix,
+            edges,
+        )
+        .map_err(|_| Vp8EncodeError::InvalidPlaneLayout)?;
+        let score = (
+            luma_distortion(y, y_stride, &pixels.y),
+            luma_coefficient_cost(y2, luma),
+        );
+        if best_luma.is_none_or(|(best_score, _, _, _)| score < best_score) {
+            best_luma = Some((score, luma_mode, y2, luma));
         }
     }
-    best.map(|(_, block, coefficients, pixels)| (block, coefficients, pixels))
-        .ok_or(Vp8EncodeError::InvalidPlaneLayout)
+    let mut best_chroma = None;
+    for chroma_mode in [
+        ChromaMode::Dc,
+        ChromaMode::Vertical,
+        ChromaMode::Horizontal,
+        ChromaMode::TrueMotion,
+    ] {
+        let prediction = predict_intra16_macroblock(Intra16Mode::Dc, chroma_mode, edges);
+        let u_coefficients = quantize_chroma_plane(u, uv_stride, &prediction.u, matrix);
+        let v_coefficients = quantize_chroma_plane(v, uv_stride, &prediction.v, matrix);
+        let mut coefficients = empty_dc_coefficients();
+        coefficients.u = u_coefficients;
+        coefficients.v = v_coefficients;
+        let block = IntraMacroblock {
+            segment: 0,
+            skip: false,
+            luma: LumaMode::Sixteen(Intra16Mode::Dc),
+            chroma: chroma_mode,
+        };
+        let pixels = reconstruct_intra_macroblock(
+            block,
+            &dc_macroblock_residuals(coefficients),
+            matrix,
+            edges,
+        )
+        .map_err(|_| Vp8EncodeError::InvalidPlaneLayout)?;
+        let score = (
+            chroma_distortion(u, v, uv_stride, &pixels.u, &pixels.v),
+            chroma_coefficient_cost(u_coefficients, v_coefficients),
+        );
+        if best_chroma.is_none_or(|(best_score, _, _, _)| score < best_score) {
+            best_chroma = Some((score, chroma_mode, u_coefficients, v_coefficients));
+        }
+    }
+    let (_, luma_mode, y2, luma) = best_luma.ok_or(Vp8EncodeError::InvalidPlaneLayout)?;
+    let (_, chroma_mode, u, v) = best_chroma.ok_or(Vp8EncodeError::InvalidPlaneLayout)?;
+    let block = IntraMacroblock {
+        segment: 0,
+        skip: false,
+        luma: LumaMode::Sixteen(luma_mode),
+        chroma: chroma_mode,
+    };
+    let coefficients = Vp8DcMacroblockCoefficients { y2, luma, u, v };
+    let pixels = reconstruct_intra_macroblock(
+        block,
+        &dc_macroblock_residuals(coefficients),
+        matrix,
+        edges,
+    )
+    .map_err(|_| Vp8EncodeError::InvalidPlaneLayout)?;
+    Ok((block, coefficients, pixels))
 }
 
-fn macroblock_coefficient_cost(coefficients: Vp8DcMacroblockCoefficients) -> u64 {
-    coefficients
-        .y2
-        .into_iter()
-        .chain(coefficients.luma.into_iter().flatten())
-        .chain(coefficients.u.into_iter().flatten())
-        .chain(coefficients.v.into_iter().flatten())
+fn empty_dc_coefficients() -> Vp8DcMacroblockCoefficients {
+    Vp8DcMacroblockCoefficients {
+        y2: [0; 16],
+        luma: [[0; 16]; 16],
+        u: [[0; 16]; 4],
+        v: [[0; 16]; 4],
+    }
+}
+
+fn coefficient_cost(values: impl Iterator<Item = i16>) -> u64 {
+    values
         .map(|value| u64::from(value.unsigned_abs()))
         .sum()
 }
 
-fn macroblock_distortion(
-    y: &[u8],
-    y_stride: usize,
-    u: &[u8],
-    v: &[u8],
-    uv_stride: usize,
-    pixels: crate::MacroblockPixels,
-) -> Result<u64, Vp8EncodeError> {
-    if !has_plane_extent(y, y_stride, 16, 16)
-        || !has_plane_extent(u, uv_stride, 8, 8)
-        || !has_plane_extent(v, uv_stride, 8, 8)
-    {
-        return Err(Vp8EncodeError::InvalidPlaneLayout);
-    }
+fn luma_coefficient_cost(y2: [i16; 16], luma: [[i16; 16]; 16]) -> u64 {
+    coefficient_cost(y2.into_iter().chain(luma.into_iter().flatten()))
+}
+
+fn chroma_coefficient_cost(u: [[i16; 16]; 4], v: [[i16; 16]; 4]) -> u64 {
+    coefficient_cost(u.into_iter().flatten().chain(v.into_iter().flatten()))
+}
+
+fn luma_distortion(y: &[u8], y_stride: usize, pixels: &[u8; 256]) -> u64 {
     let mut score = 0_u64;
     for row in 0..16 {
         for column in 0..16 {
-            score += u64::from(y[row * y_stride + column].abs_diff(pixels.y[row * 16 + column]));
+            score += u64::from(y[row * y_stride + column].abs_diff(pixels[row * 16 + column]));
         }
     }
+    score
+}
+
+fn chroma_distortion(
+    u: &[u8],
+    v: &[u8],
+    uv_stride: usize,
+    pixels_u: &[u8; 64],
+    pixels_v: &[u8; 64],
+) -> u64 {
+    let mut score = 0_u64;
     for row in 0..8 {
         for column in 0..8 {
-            score += u64::from(u[row * uv_stride + column].abs_diff(pixels.u[row * 8 + column]));
-            score += u64::from(v[row * uv_stride + column].abs_diff(pixels.v[row * 8 + column]));
+            score += u64::from(u[row * uv_stride + column].abs_diff(pixels_u[row * 8 + column]));
+            score += u64::from(v[row * uv_stride + column].abs_diff(pixels_v[row * 8 + column]));
         }
     }
-    Ok(score)
+    score
 }
 
 fn dc_macroblock_residuals(coefficients: Vp8DcMacroblockCoefficients) -> MacroblockResiduals {
@@ -512,6 +573,21 @@ fn quantize_intra16_macroblock(
     {
         return Err(Vp8EncodeError::InvalidPlaneLayout);
     }
+    let (y2, luma) = quantize_luma_plane(y, y_stride, &prediction.y, matrix);
+    Ok(Vp8DcMacroblockCoefficients {
+        y2,
+        luma,
+        u: quantize_chroma_plane(u, uv_stride, &prediction.u, matrix),
+        v: quantize_chroma_plane(v, uv_stride, &prediction.v, matrix),
+    })
+}
+
+fn quantize_luma_plane(
+    y: &[u8],
+    y_stride: usize,
+    prediction: &[u8; 256],
+    matrix: DequantizationMatrix,
+) -> ([i16; 16], [[i16; 16]; 16]) {
     let mut luma = [[0_i16; 16]; 16];
     let mut luma_dc = [0_i32; 16];
     for block_y in 0..4 {
@@ -522,7 +598,7 @@ fn quantize_intra16_macroblock(
                 y_stride,
                 block_x * 4,
                 block_y * 4,
-                &prediction.y,
+                prediction,
                 16,
             ));
             luma_dc[block] = transformed[0];
@@ -532,12 +608,7 @@ fn quantize_intra16_macroblock(
         }
     }
     let y2 = quantize_block(forward_wht_4x4_i32(luma_dc), matrix.y2_dc, matrix.y2_ac);
-    Ok(Vp8DcMacroblockCoefficients {
-        y2,
-        luma,
-        u: quantize_chroma_plane(u, uv_stride, &prediction.u, matrix),
-        v: quantize_chroma_plane(v, uv_stride, &prediction.v, matrix),
-    })
+    (y2, luma)
 }
 
 fn quantize_chroma_plane(

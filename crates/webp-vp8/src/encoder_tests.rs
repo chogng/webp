@@ -210,3 +210,98 @@ fn intra16_selector_uses_vertical_prediction_when_top_edge_matches_source() {
     assert!(coefficients.y2.iter().all(|&value| value == 0));
     assert!(coefficients.luma.iter().flatten().all(|&value| value == 0));
 }
+
+#[test]
+fn factored_intra16_search_matches_exhaustive_mode_pairs() {
+    let matrix = crate::derive_dequantization(
+        crate::QuantizationHeader {
+            base_index: 37,
+            y1_dc_delta: 0,
+            y2_dc_delta: 0,
+            y2_ac_delta: 0,
+            uv_dc_delta: 0,
+            uv_ac_delta: 0,
+        },
+        &crate::SegmentHeader {
+            enabled: false,
+            update_map: false,
+            absolute_delta: false,
+            quantizer: [0; 4],
+            filter_strength: [0; 4],
+            probabilities: [255; 3],
+        },
+    )[0];
+    let y: [u8; 256] = std::array::from_fn(|index| {
+        let row = index / 16;
+        let column = index % 16;
+        (row * 11 + column * 7 + 23) as u8
+    });
+    let u: [u8; 64] = std::array::from_fn(|index| (index * 13 + 41) as u8);
+    let v: [u8; 64] = std::array::from_fn(|index| (index * 17 + 19) as u8);
+    let edges = crate::MacroblockPredictionEdges {
+        top_y: Some(std::array::from_fn(|index| 31 + index as u8 * 9)),
+        left_y: Some(std::array::from_fn(|index| 211_u8.wrapping_sub(index as u8 * 5))),
+        top_left_y: 97,
+        top_u: Some(std::array::from_fn(|index| 61 + index as u8 * 8)),
+        left_u: Some(std::array::from_fn(|index| 181_u8.wrapping_sub(index as u8 * 7))),
+        top_left_u: 101,
+        top_v: Some(std::array::from_fn(|index| 37 + index as u8 * 11)),
+        left_v: Some(std::array::from_fn(|index| 203_u8.wrapping_sub(index as u8 * 9))),
+        top_left_v: 89,
+        ..crate::MacroblockPredictionEdges::default()
+    };
+    let factored = select_intra16_macroblock(&y, 16, &u, &v, 8, matrix, edges).unwrap();
+    let exhaustive = exhaustive_intra16_search(&y, &u, &v, matrix, edges);
+    assert_eq!(factored, exhaustive);
+}
+
+fn exhaustive_intra16_search(
+    y: &[u8; 256],
+    u: &[u8; 64],
+    v: &[u8; 64],
+    matrix: crate::DequantizationMatrix,
+    edges: crate::MacroblockPredictionEdges,
+) -> (IntraMacroblock, Vp8DcMacroblockCoefficients, crate::MacroblockPixels) {
+    let mut best = None;
+    for luma_mode in [
+        crate::Intra16Mode::Dc,
+        crate::Intra16Mode::Vertical,
+        crate::Intra16Mode::Horizontal,
+        crate::Intra16Mode::TrueMotion,
+    ] {
+        for chroma_mode in [
+            crate::ChromaMode::Dc,
+            crate::ChromaMode::Vertical,
+            crate::ChromaMode::Horizontal,
+            crate::ChromaMode::TrueMotion,
+        ] {
+            let block = IntraMacroblock {
+                segment: 0,
+                skip: false,
+                luma: crate::LumaMode::Sixteen(luma_mode),
+                chroma: chroma_mode,
+            };
+            let prediction = predict_intra16_macroblock(luma_mode, chroma_mode, edges);
+            let coefficients =
+                quantize_intra16_macroblock(y, 16, u, v, 8, prediction, matrix).unwrap();
+            let pixels = reconstruct_intra_macroblock(
+                block,
+                &dc_macroblock_residuals(coefficients),
+                matrix,
+                edges,
+            )
+            .unwrap();
+            let score = (
+                luma_distortion(y, 16, &pixels.y)
+                    + chroma_distortion(u, v, 8, &pixels.u, &pixels.v),
+                luma_coefficient_cost(coefficients.y2, coefficients.luma)
+                    + chroma_coefficient_cost(coefficients.u, coefficients.v),
+            );
+            if best.is_none_or(|(best_score, _, _, _)| score < best_score) {
+                best = Some((score, block, coefficients, pixels));
+            }
+        }
+    }
+    best.map(|(_, block, coefficients, pixels)| (block, coefficients, pixels))
+        .unwrap()
+}
