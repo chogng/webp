@@ -3,21 +3,25 @@
 //! Run with `VP8L_PREDICTOR_BENCH_ITERATIONS=3 cargo test --release -p
 //! webp-vp8l-literal predictor_phase_clic -- --ignored --nocapture`.
 
-use std::{
-    collections::BTreeMap,
-    env, fs,
-    hint::black_box,
-    path::{Path, PathBuf},
-    time::{Duration, Instant},
-};
+use std::collections::BTreeMap;
+use std::env;
+use std::fs;
+use std::hint::black_box;
+use std::path::Path;
+use std::path::PathBuf;
+use std::time::Duration;
+use std::time::Instant;
 
-use webp_core::{BitReader, DecodeLimits};
-use webp_vp8l::{HEADER_LEN, parse_header};
+use webp_core::BitReader;
+use webp_core::DecodeLimits;
+use webp_vp8l::HEADER_LEN;
+use webp_vp8l::parse_header;
 
-use super::{
-    DecodePhaseTimings, DecodedTransform, decode_no_transform_profiled, inverse_predictor_rgba,
-    read_supported_transforms,
-};
+use super::decode_no_transform_profiled;
+use crate::decode_profile::DecodePhaseTimings;
+use crate::inverse_predictor::inverse_predictor_rgba;
+use crate::transform_list::DecodedTransform;
+use crate::transform_list::read_transform_list;
 
 #[derive(Default)]
 struct MethodStats {
@@ -124,7 +128,7 @@ fn predictor_phase_clic() {
             .unwrap_or_else(|error| panic!("{}: {error}", path.display()));
         let mut budget = limits.work_budget();
         let mut retained_transform_bytes = 0;
-        let transforms = read_supported_transforms(
+        let transforms = read_transform_list(
             &mut bits,
             &mut budget,
             &header,

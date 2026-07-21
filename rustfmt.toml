@@ -1,0 +1,4 @@
+edition = "2024"
+# Stable rustfmt currently warns about this option but still applies it. The
+# warning does not require switching ordinary formatting to nightly.
+imports_granularity = "Item"
