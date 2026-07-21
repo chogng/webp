@@ -11,18 +11,19 @@
 
 ## Module-private tests
 
-Put private tests for `src/frame.rs` in the sibling
-`src/frame_tests.rs`, declared at the end of `frame.rs`:
+Put private tests for `src/<module>.rs` in the sibling
+`src/<module>_tests.rs`, declared at the end of the implementation module:
 
 ```rust
 #[cfg(test)]
-#[path = "frame_tests.rs"]
+#[path = "<module>_tests.rs"]
 mod tests;
 ```
 
-This is a `frame::tests` child module and may use `frame`'s private items.
-Keep module-specific fixtures and builders there. Do not move existing inline
-tests solely for naming; move them when extracting their implementation.
+Replace `<module>` with the implementation filename. This child module may use
+its parent's private items. Keep module-specific fixtures and builders there.
+Do not move existing inline tests solely for naming; move them when extracting
+their implementation.
 
 ## Integration tests
 
