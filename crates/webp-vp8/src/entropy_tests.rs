@@ -48,8 +48,8 @@ fn coefficient_decoder_handles_large_category_values_and_ac_only_start() {
     writer.write_bool(true, nodes[2]); // value exceeds one
     writer.write_bool(true, nodes[3]); // category path
     writer.write_bool(true, nodes[6]);
-    writer.write_bool(false, nodes[8]);
-    writer.write_bool(true, nodes[9]);
+    writer.write_bool(true, nodes[8]);
+    writer.write_bool(false, nodes[10]);
     for &probability in CATEGORY_PROBABILITIES[2] {
         writer.write_bool(false, probability);
     }
@@ -137,6 +137,34 @@ fn coefficient_encoder_round_trips_zero_runs_signs_and_small_magnitudes() {
     assert_eq!(decoded.values, values);
     assert_eq!(decoded.non_zero, 2);
     assert_eq!(decoded.end, 6);
+}
+
+#[test]
+fn coefficient_encoder_round_trips_large_y2_values_with_neighbour_context() {
+    let probabilities = CoefficientProbabilities::default();
+    let mut values = [0_i16; 16];
+    values[0] = 720;
+    let mut writer = BoolEncoder::new();
+    encode_coefficients(
+        &mut writer,
+        &probabilities,
+        CoefficientBlockType::LumaDc,
+        1,
+        0,
+        values,
+    )
+    .unwrap();
+    let bytes = writer.finish().unwrap();
+    let mut decoder = BoolDecoder::new(&bytes, &DecodeLimits::default()).unwrap();
+    let decoded = decode_coefficients(
+        &mut decoder,
+        &probabilities,
+        CoefficientBlockType::LumaDc,
+        1,
+        0,
+    )
+    .unwrap();
+    assert_eq!(decoded.values, values);
 }
 
 #[test]

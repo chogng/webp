@@ -34,11 +34,7 @@ impl TestBoolWriter {
             self.range = split;
         }
         if self.range < 127 {
-            let shift = if self.range == 0 {
-                7
-            } else {
-                7 - self.range.ilog2() as i32
-            };
+            let shift = 7 - (self.range + 1).ilog2() as i32;
             self.range = ((self.range + 1) << shift) - 1;
             self.value <<= shift;
             self.pending_bits += shift;

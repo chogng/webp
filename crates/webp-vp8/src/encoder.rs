@@ -7,10 +7,12 @@
 
 use crate::coefficients::{COEFFICIENT_DEFAULTS, COEFFICIENT_UPDATE_PROBABILITIES};
 use crate::{
-    BoolEncodeError, BoolEncoder, CoefficientBlockType, CoefficientEncodeError,
-    CoefficientProbabilities, DequantizationMatrix, QuantizationHeader, SegmentHeader,
-    derive_dequantization, encode_coefficients, forward_dct_4x4_i32, forward_wht_4x4_i32,
-    quantize_block,
+    BoolEncodeError, BoolEncoder, ChromaMode, CoefficientBlockType, CoefficientEncodeError,
+    CoefficientProbabilities, DecodedCoefficients, DequantizationMatrix, Intra16Mode,
+    IntraMacroblock, LumaMode, MacroblockResiduals, QuantizationHeader, SegmentHeader,
+    Vp8YuvImage, derive_dequantization, encode_coefficients, forward_dct_4x4_i32,
+    forward_wht_4x4_i32, predict_intra16_macroblock, quantize_block,
+    reconstruct_intra_macroblock,
 };
 
 const KEY_FRAME_HEADER_LEN: usize = 10;
@@ -113,9 +115,9 @@ pub fn encode_dc_predicted_macroblock_key_frame_with_quantizer(
 /// Emits a visible VP8 key frame from DC-predicted macroblocks.
 ///
 /// Every visible dimension supported by VP8 is accepted. The source planes
-/// must be macroblock padded as produced by [`rgba_to_yuv420`]. This initial
-/// whole-frame form deliberately keeps DC prediction fixed at 128 while the
-/// encoder's reconstructed-neighbour mode search is added in a later slice.
+/// must be macroblock padded as produced by [`rgba_to_yuv420`]. Each
+/// macroblock is reconstructed locally before its neighbours are encoded, so
+/// its residuals use the same DC prediction borders that a decoder will see.
 pub fn encode_dc_predicted_key_frame_with_quantizer(
     source: &Vp8SourceYuv,
     quantizer: u8,
@@ -154,6 +156,27 @@ pub fn encode_dc_predicted_key_frame_with_quantizer(
         return Err(Vp8EncodeError::InvalidPlaneLayout);
     }
     let matrix = quantization_matrix(quantizer);
+    let reconstructed_y_len = y_width
+        .checked_mul(y_height)
+        .ok_or(Vp8EncodeError::AllocationFailed)?;
+    let reconstructed_uv_len = uv_width
+        .checked_mul(uv_height)
+        .ok_or(Vp8EncodeError::AllocationFailed)?;
+    let mut reconstructed = Vp8YuvImage {
+        width: source.width,
+        height: source.height,
+        y_stride: y_width,
+        uv_stride: uv_width,
+        y: reserve_zeroed(reconstructed_y_len)?,
+        u: reserve_zeroed(reconstructed_uv_len)?,
+        v: reserve_zeroed(reconstructed_uv_len)?,
+    };
+    let block = IntraMacroblock {
+        segment: 0,
+        skip: false,
+        luma: LumaMode::Sixteen(Intra16Mode::Dc),
+        chroma: ChromaMode::Dc,
+    };
     let mut macroblocks = Vec::new();
     macroblocks
         .try_reserve_exact(macroblock_count)
@@ -162,20 +185,53 @@ pub fn encode_dc_predicted_key_frame_with_quantizer(
         for macroblock_x in 0..macroblock_width {
             let y_offset = macroblock_y * 16 * source.y_stride + macroblock_x * 16;
             let uv_offset = macroblock_y * 8 * source.uv_stride + macroblock_x * 8;
-            macroblocks.push(quantize_dc_macroblock(
+            let edges = reconstructed.edges(macroblock_x, macroblock_y);
+            let prediction = predict_intra16_macroblock(Intra16Mode::Dc, ChromaMode::Dc, edges);
+            let coefficients = quantize_dc_macroblock(
                 &source.y[y_offset..],
                 source.y_stride,
                 &source.u[uv_offset..],
                 &source.v[uv_offset..],
                 source.uv_stride,
-                [128; 3],
+                [prediction.y[0], prediction.u[0], prediction.v[0]],
                 matrix,
-            )?);
+            )?;
+            let pixels = reconstruct_intra_macroblock(
+                block,
+                &dc_macroblock_residuals(coefficients),
+                matrix,
+                edges,
+            )
+            .map_err(|_| Vp8EncodeError::InvalidPlaneLayout)?;
+            reconstructed.store_macroblock(macroblock_x, macroblock_y, pixels);
+            macroblocks.push(coefficients);
         }
     }
     let first_partition = write_first_partition(macroblock_count, quantizer)?;
     let token_partition = write_dc_macroblocks_token_partition(&macroblocks, macroblock_width)?;
     assemble_key_frame(source.width, source.height, first_partition, token_partition)
+}
+
+fn dc_macroblock_residuals(coefficients: Vp8DcMacroblockCoefficients) -> MacroblockResiduals {
+    MacroblockResiduals {
+        y2: Some(decoded_coefficients(coefficients.y2)),
+        luma: coefficients.luma.map(decoded_coefficients),
+        u: coefficients.u.map(decoded_coefficients),
+        v: coefficients.v.map(decoded_coefficients),
+        non_zero_y: 0,
+        non_zero_uv: 0,
+    }
+}
+
+fn decoded_coefficients(values: [i16; 16]) -> DecodedCoefficients {
+    let non_zero = values.iter().filter(|&&value| value != 0).count() as u8;
+    DecodedCoefficients {
+        values,
+        // Reconstruction consumes the values directly. The token partition
+        // reader owns the more detailed entropy-position bookkeeping.
+        end: if non_zero == 0 { 0 } else { 16 },
+        non_zero,
+    }
 }
 
 fn quantization_matrix(quantizer: u8) -> DequantizationMatrix {

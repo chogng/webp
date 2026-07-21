@@ -131,6 +131,23 @@ fn production_boolean_encoder_round_trips_mixed_probability_vectors() {
 }
 
 #[test]
+fn production_boolean_encoder_round_trips_long_category_probability_vectors() {
+    let probabilities = crate::coefficients::CATEGORY_PROBABILITIES[3];
+    let expected = [
+        false, true, false, true, false, false, false, true, true, false, true,
+    ];
+    let mut encoder = BoolEncoder::new();
+    for (&bit, &probability) in expected.iter().zip(probabilities) {
+        encoder.write_bool(bit, probability).unwrap();
+    }
+    let bytes = encoder.finish().unwrap();
+    let mut decoder = BoolDecoder::new(&bytes, &DecodeLimits::default()).unwrap();
+    for (index, (&bit, &probability)) in expected.iter().zip(probabilities).enumerate() {
+        assert_eq!(decoder.read_bool(probability).unwrap(), bit, "symbol {index}");
+    }
+}
+
+#[test]
 fn boolean_decoder_handles_extreme_probabilities() {
     let mut true_values = BoolDecoder::new(&[0xff], &DecodeLimits::default()).unwrap();
     assert_eq!(true_values.read_bool(0), Ok(true));

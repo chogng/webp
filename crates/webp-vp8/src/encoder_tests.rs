@@ -142,3 +142,29 @@ fn dc_predicted_macroblock_key_frame_reconstructs_its_quantized_luma() {
     assert!(decoded.u.iter().all(|&sample| sample == 128));
     assert!(decoded.v.iter().all(|&sample| sample == 128));
 }
+
+#[test]
+fn dc_predicted_frame_uses_reconstructed_neighbour_prediction() {
+    let source = Vp8SourceYuv {
+        width: 32,
+        height: 16,
+        y_stride: 32,
+        uv_stride: 16,
+        y: (0..16)
+            .flat_map(|_| (0..32).map(|column| if column < 16 { 124 } else { 134 }))
+            .collect(),
+        u: vec![128; 16 * 8],
+        v: vec![128; 16 * 8],
+    };
+    let encoded = encode_dc_predicted_key_frame_with_quantizer(&source, 0).unwrap();
+    let header = parse_riff_payload(&encoded, None, &DecodeLimits::default()).unwrap();
+    let decoded = decode_intra_frame(&encoded, &header, &DecodeLimits::default()).unwrap();
+    for row in 0..16 {
+        assert!(decoded.y[row * decoded.y_stride..row * decoded.y_stride + 16]
+            .iter()
+            .all(|&sample| sample == 124));
+        assert!(decoded.y[row * decoded.y_stride + 16..row * decoded.y_stride + 32]
+            .iter()
+            .all(|&sample| sample == 134));
+    }
+}

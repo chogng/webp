@@ -143,6 +143,45 @@ fn public_lossy_vp8_profile_matches_pinned_dwebp_pixels() {
 }
 
 #[test]
+fn public_lossy_vp8_multimacroblock_profile_matches_pinned_dwebp_pixels() {
+    let Some(dwebp) = pinned_dwebp() else {
+        eprintln!("skip VP8 encoder oracle: fetch the pinned libwebp oracle");
+        return;
+    };
+    let mut rgba = Vec::new();
+    for y in 0_u8..16 {
+        for x in 0_u8..32 {
+            let [red, green, blue] = if x < 16 {
+                [40, y.wrapping_mul(11), 220]
+            } else {
+                [220, x.wrapping_mul(7), 40]
+            };
+            rgba.extend_from_slice(&[red, green, blue, 255]);
+        }
+    }
+    let encoded = encode_lossy_rgba_with_options(32, 16, &rgba, LossyEncodeOptions { quality: 75 })
+        .expect("encode multi-macroblock public lossy VP8 profile");
+    let rust = decode(&encoded, &DecodeOptions::default())
+        .expect("decode multi-macroblock public lossy VP8 profile");
+    let scratch = ScratchDirectory::new();
+    let source = scratch.0.join("public-lossy-multi.webp");
+    let target = scratch.0.join("public-lossy-multi.pam");
+    fs::write(&source, encoded).expect("write multi-macroblock public lossy WebP");
+    let output = Command::new(dwebp)
+        .arg(&source)
+        .args(["-pam", "-o"])
+        .arg(&target)
+        .output()
+        .expect("run pinned dwebp");
+    assert!(
+        output.status.success(),
+        "pinned dwebp rejected multi-macroblock public lossy VP8: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+    assert_eq!(pam_rgba(&target, 32, 16), rust.rgba);
+}
+
+#[test]
 fn public_lossy_vp8_alpha_profile_preserves_oracle_alpha() {
     let Some(dwebp) = pinned_dwebp() else {
         eprintln!("skip VP8 encoder oracle: fetch the pinned libwebp oracle");
