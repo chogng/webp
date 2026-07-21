@@ -1,6 +1,8 @@
 [workspace]
 members = [
     "crates/webp-core",
+    "crates/webp-alpha",
+    "crates/webp-animation",
     "crates/webp-container",
     "crates/webp-vp8",
     "crates/webp-vp8l",

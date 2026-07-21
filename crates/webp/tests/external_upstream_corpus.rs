@@ -10,6 +10,17 @@ use webp_container::VP8L;
 
 const UPSTREAM_SMOKE_SELECTION: &str =
     include_str!("../../../tests/corpora/libwebp-test-data-smoke-v1.txt");
+const ALPHA_VECTORS: &[&str] = &[
+    "alpha_no_compression.webp",
+    "alpha_filter_0_method_0.webp",
+    "alpha_filter_1_method_0.webp",
+    "alpha_filter_2_method_0.webp",
+    "alpha_filter_3_method_0.webp",
+    "alpha_filter_0_method_1.webp",
+    "alpha_filter_1_method_1.webp",
+    "alpha_filter_2_method_1.webp",
+    "alpha_filter_3_method_1.webp",
+];
 
 fn corpus_root() -> Option<PathBuf> {
     let cargo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -77,6 +88,64 @@ fn selected_upstream_lossless_vectors_decode_directly() {
             usize::try_from(image.width * image.height * 4).expect("small fixture dimensions"),
             "{name}: RGBA length"
         );
+    }
+}
+
+#[test]
+fn selected_upstream_alpha_vectors_decode_with_non_opaque_alpha() {
+    let Some(root) = corpus_root() else {
+        return;
+    };
+    let oracle = pinned_oracle_root().map(|root| root.join("build/dwebp"));
+    let oracle = oracle.filter(|dwebp| dwebp.is_file());
+    let scratch = oracle.as_ref().map(|_| {
+        let unique = SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .expect("system clock is after Unix epoch")
+            .as_nanos();
+        let path =
+            std::env::temp_dir().join(format!("webp-alpha-oracle-{}-{unique}", std::process::id()));
+        fs::create_dir(&path).expect("create alpha-oracle scratch directory");
+        ScratchDirectory(path)
+    });
+    for name in ALPHA_VECTORS {
+        let path = root.join(name);
+        let bytes =
+            fs::read(&path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
+        let image = decode(&bytes, &DecodeOptions::default())
+            .unwrap_or_else(|error| panic!("{name}: alpha decode failed: {error}"));
+        assert!(
+            image.rgba.chunks_exact(4).any(|pixel| pixel[3] != 255),
+            "{name}: fixture must exercise non-opaque alpha"
+        );
+        if let (Some(dwebp), Some(scratch)) = (&oracle, &scratch) {
+            let output = scratch.0.join(format!("{name}.pam"));
+            let result = Command::new(dwebp)
+                .arg(&path)
+                .arg("-pam")
+                .arg("-o")
+                .arg(&output)
+                .output()
+                .expect("run pinned dwebp for alpha vector");
+            assert!(
+                result.status.success(),
+                "{name}: dwebp failed: {}",
+                String::from_utf8_lossy(&result.stderr)
+            );
+            let oracle = pam_rgba(&output, image.width, image.height);
+            for (actual, expected) in image.rgba.chunks_exact(4).zip(oracle.chunks_exact(4)) {
+                // dwebp's PAM writer premultiplies RGB for translucent pixels,
+                // whereas this crate's public contract is straight RGBA. Alpha
+                // remains directly comparable, as do RGB components at alpha 255.
+                assert_eq!(
+                    actual[3], expected[3],
+                    "{name}: alpha differs from pinned dwebp"
+                );
+                if actual[3] == 255 {
+                    assert_eq!(actual[..3], expected[..3], "{name}: opaque RGB differs");
+                }
+            }
+        }
     }
 }
 

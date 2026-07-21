@@ -85,11 +85,28 @@ checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 name = "webp"
 version = "0.1.0"
 dependencies = [
+ "webp-alpha",
+ "webp-animation",
  "webp-container",
  "webp-core",
  "webp-vp8",
  "webp-vp8l",
  "webp-vp8l-literal",
+]
+
+[[package]]
+name = "webp-alpha"
+version = "0.1.0"
+dependencies = [
+ "webp-core",
+ "webp-vp8l-literal",
+]
+
+[[package]]
+name = "webp-animation"
+version = "0.1.0"
+dependencies = [
+ "webp-core",
 ]
 
 [[package]]

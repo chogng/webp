@@ -32,6 +32,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "animation_raw"
+path = "fuzz_targets/animation_raw.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "vp8l_header_raw"
 path = "fuzz_targets/vp8l_header_raw.rs"
 test = false

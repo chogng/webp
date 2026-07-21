@@ -48,6 +48,21 @@ def vp8l_riff(payload: bytes) -> bytes:
     return b"RIFF" + len(body).to_bytes(4, "little") + body
 
 
+def chunk(fourcc: bytes, payload: bytes) -> bytes:
+    padding = b"\0" if len(payload) % 2 else b""
+    return fourcc + len(payload).to_bytes(4, "little") + payload + padding
+
+
+def minimal_animation() -> bytes:
+    """A valid 1x1 ANIM/ANMF WebP that reaches canvas composition."""
+    vp8x = bytes((0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0))
+    anim = bytes(6)
+    frame_header = bytes(12) + bytes((1, 0, 0, 0))
+    frame = frame_header + chunk(b"VP8L", literal_vp8l())
+    body = b"WEBP" + chunk(b"VP8X", vp8x) + chunk(b"ANIM", anim) + chunk(b"ANMF", frame)
+    return b"RIFF" + len(body).to_bytes(4, "little") + body
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -93,11 +108,16 @@ def main() -> None:
         output / "vp8l_header_raw" / "valid-vp8l-header.webp",
         vp8l_riff(raw_seeds["header-only"]),
     )
+    write_if_changed(output / "animation_raw" / "minimal-animation.webp", minimal_animation())
+    external_animations = REPOSITORY / "third_party" / "corpus" / "animation-v1"
+    if external_animations.is_dir():
+        for animation in sorted(external_animations.glob("*.webp")):
+            write_if_changed(output / "animation_raw" / animation.name, animation.read_bytes())
 
     print(
         f"seeded {len(fixture_files)} fixture inputs for {len(targets)} targets and "
         f"{len(raw_seeds)} raw VP8L, {len(huffman_seeds)} Huffman, and "
-        f"{len(transform_seeds)} transform seeds under {output}"
+        f"{len(transform_seeds)} transform seeds plus animation seeds under {output}"
     )
 
 

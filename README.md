@@ -1,11 +1,10 @@
 # webp-rs
 
 A safe-Rust WebP implementation, built from a test-first plan. The current
-milestone is M2 foundation work: the M1 VP8L decoder is functionally complete
-but performance pending, while the
-lossy VP8 path now has hardened key-frame/header validation and public image
-information. VP8 entropy, reconstruction, filtering, and pixel output are not
-yet implemented.
+milestone is M3 functional integration: static VP8L and VP8 key frames decode
+to straight RGBA8, including `ALPH` transparency, and animated containers
+decode to display-ready canvas frames. Performance work remains deliberately
+deferred until the remaining functional scope is complete.
 
 ## Current guarantees
 
@@ -15,12 +14,16 @@ yet implemented.
 - Metadata can be inspected without allocating pixel buffers.
 - VP8L headers, canonical Huffman tables, LZ77 copy, and predictor primitives
   are connected to the static VP8L public pixel decoder.
-- VP8 frame tags, key-frame start codes, dimensions, VP8X canvas agreement,
-  and first-partition boundaries are checked before entropy-state allocation.
-- VP8 boolean entropy values and fixed-width literals have bounded,
-  deterministic decoding primitives plus a dedicated fuzz target.
-- VP8 `read_info` works for unextended still-image containers; VP8 `decode`
-  explicitly reports that pixel decoding is pending.
+- VP8 key frames decode through bounded entropy, reconstruction, loop
+  filtering, and YUV-to-RGBA conversion.
+- `ALPH` supports raw and headerless-VP8L compression with all four spatial
+  filters; strict parsing checks alpha feature flags in static and animated
+  containers.
+- Animated `ANIM`/`ANMF` containers validate frame geometry and resources;
+  `decode_animation` returns full display-order RGBA canvas snapshots after
+  blend and disposal.
+- External libwebp vectors cover ALPH filters and animated blend/dispose
+  composition, including pixel-level oracle checks where representations match.
 
 Run the workspace test suite with:
 
@@ -31,6 +34,8 @@ cargo test --workspace
 Codec milestones also require the conformance, robustness, performance, and
 resource gates in [`docs/quality-gates.md`](docs/quality-gates.md); passing
 the test suite alone does not mark a decoder milestone complete.
+M3's functional exit record is in
+[`docs/m3-alpha-animation.md`](docs/m3-alpha-animation.md).
 
 ## Bazel
 
