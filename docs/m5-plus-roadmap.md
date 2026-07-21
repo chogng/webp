@@ -41,7 +41,8 @@ Each emitted coding-tool profile is validated through public Rust round trips
 and the locked `dwebp` oracle: color indexing, non-palette cache hits,
 non-palette left prediction with bounded distance-one LZ77, adaptive Huffman
 tables, and the global color transform. A release one-pass rate record is
-captured in the quality gates; cross-encoder thresholds remain M9 work.
+captured in the quality gates. The pinned comparison records Rust as 2.96x
+faster while producing 1.291x as many bytes; M9 owns the reviewed thresholds.
 
 ## M7: static lossy VP8 encoding
 

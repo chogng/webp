@@ -54,15 +54,18 @@ pinned `MustAccept` VP8L fixture once before timing, then measures only
 bash tools/benchmark-vp8l-encode.sh 5
 ```
 
-Record the command output, corpus revision, and generated output-byte count
-before setting an encoder throughput or size-regression threshold. The first
-encoder baseline remains pending until those measurements and a comparable
-pinned-libwebp encode harness are recorded.
-
 The 2026-07-20 single-pass Rust baseline processed 41 inputs, 22,954,432 RGBA
 bytes, and produced 18,301,768 WebP bytes in 623.300 ms (checksum `18305130`).
-It is an informative M6 rate record only: a pinned-libwebp encoding comparison
-and reviewed regression threshold remain M9 quality-gate work.
+
+The benchmark now also builds a native helper against the exact libwebp commit
+in `corpus-lock.toml` and calls `WebPEncodeLosslessRGBA` over the same retained
+41 RGBA inputs. Three five-iteration runs measured Rust at 2.985 s, 2.978 s,
+and 2.983 s, with a 2.983 s median (38.5 MB/s). Pinned libwebp measured 8.828
+s, 8.949 s, and 8.837 s, with an 8.837 s median (13.0 MB/s); Rust is 2.96x
+faster. Rust produces 18,301,768 bytes per matrix versus libwebp's 14,176,624,
+a 1.291x size ratio. This is a product comparison between Rust's bounded
+transform/cache/LZ77 profile and libwebp's default lossless effort, rather than
+a claim of equal encoder search work.
 
 ## VP8 static encoder baseline
 
