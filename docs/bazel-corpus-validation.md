@@ -16,11 +16,14 @@ The `test` job runs, in order:
    --test_tag_filters=-external-corpus //...` builds and runs ordinary
    `rust_test` targets. Committed fixtures enter the sandbox through Bazel
    `data` declarations, so tests cannot rely on undeclared machine-local files.
-4. **Cargo-to-Bazel dependency mapping.** Bazel resolves third-party crates
-   directly from the committed `webp-rs/Cargo.lock`; no separate generated
-   crate-universe lock is maintained. `cargo run -p xtask -- bazel-deps check`
-   verifies that the small workspace path-dependency map matches the Cargo
-   manifests.
+4. **Cargo-to-Bazel dependency mapping.** `rules_rs` resolves third-party and
+   workspace crates directly from the committed `webp-rs/Cargo.lock` and Cargo
+   manifests; no separate generated dependency map or Bazel-specific Cargo
+   lock is maintained.
+
+The `windows-bazel` job runs the same ordinary Bazel tests on a native Windows
+runner. `.bazelrc` selects the MSVC host ABI there so Rust and C/C++ toolchains
+resolve consistently.
 
 External-corpus targets carry the `manual` and `external-corpus` tags.
 `third_party/` is Git-ignored and contains only downloaded test data, the

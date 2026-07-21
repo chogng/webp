@@ -3,22 +3,40 @@ module(
     version = "0.1.0",
 )
 
-# Keep the Bazel Rust toolchain and Cargo dependency resolver deterministic and
-# compatible with the Rust language features used by the workspace.
-bazel_dep(name = "rules_rust", version = "0.71.3")
+# Keep the Bazel Rust toolchain and Cargo dependency resolver deterministic,
+# cross-platform, and compatible with the workspace's Rust language features.
+bazel_dep(name = "llvm", version = "0.8.9")
+bazel_dep(name = "platforms", version = "1.1.0")
+bazel_dep(name = "rules_rs", version = "0.0.93")
 
-rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
-rust.toolchain(
+toolchains = use_extension("@rules_rs//rs/toolchains:module_extension.bzl", "toolchains")
+toolchains.toolchain(
     edition = "2024",
-    versions = ["1.88.0"],
+    version = "1.88.0",
 )
-use_repo(rust, "rust_toolchains")
-register_toolchains("@rust_toolchains//:all")
+use_repo(toolchains, "default_rust_toolchains")
 
-crate = use_extension("@rules_rust//crate_universe:extensions.bzl", "crate")
+# The rules_rs wrappers use this patched rules_rust facade internally.
+patched_rules_rust = use_extension("@rules_rs//rs:rules_rust.bzl", "rules_rust")
+use_repo(patched_rules_rust, "rules_rust")
+
+register_toolchains(
+    "@default_rust_toolchains//:all",
+    "@llvm//toolchain:all",
+)
+
+crate = use_extension("@rules_rs//rs:extensions.bzl", "crate")
 crate.from_cargo(
     name = "crates",
-    cargo_lockfile = "//webp-rs:Cargo.lock",
-    manifests = ["//webp-rs:Cargo.toml"],
+    cargo_lock = "//webp-rs:Cargo.lock",
+    cargo_toml = "//webp-rs:Cargo.toml",
+    platform_triples = [
+        "aarch64-apple-darwin",
+        "aarch64-pc-windows-msvc",
+        "aarch64-unknown-linux-gnu",
+        "x86_64-apple-darwin",
+        "x86_64-pc-windows-msvc",
+        "x86_64-unknown-linux-gnu",
+    ],
 )
 use_repo(crate, "crates")

@@ -63,7 +63,7 @@ roadmap and completed M5/M8 profiles are in
 
 ## Bazel
 
-The workspace also supports Bazel through Bzlmod and `rules_rust`. Bazel uses
+The workspace also supports Bazel through Bzlmod and `rules_rs`. Bazel uses
 the checked-in Cargo manifests and lockfiles to resolve third-party crates, so
 Cargo remains the dependency source of truth.
 
@@ -71,9 +71,9 @@ Cargo remains the dependency source of truth.
 bazel test --test_output=errors --test_tag_filters=-external-corpus //...
 ```
 
-Use Bazelisk to select the pinned version in `.bazelversion`. Bazel 9 maintains
-the Bzlmod graph lock and the Rust crate-universe lock separately. Update the
-Bzlmod lock after changing `MODULE.bazel`:
+Use Bazelisk to select the pinned version in `.bazelversion`. `rules_rs` reads
+the committed Cargo lock directly, while Bazel 9 maintains the Bzlmod graph
+lock. Update the Bzlmod lock after changing `MODULE.bazel`:
 
 ```sh
 bazel mod deps --lockfile_mode=update

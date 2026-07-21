@@ -21,8 +21,6 @@ jobs:
         working-directory: webp-rs
       - run: cargo test --workspace
         working-directory: webp-rs
-      - run: cargo run -p xtask -- bazel-deps check
-        working-directory: webp-rs
       - uses: bazelbuild/setup-bazelisk@v3
       - run: bash tools/check-module-bazel-lock.sh
       - run: bazel test --test_output=errors --test_tag_filters=-external-corpus //...
@@ -30,6 +28,13 @@ jobs:
         working-directory: webp-rs
       - run: cargo run -p xtask -- feature-matrix check
         working-directory: webp-rs
+
+  windows-bazel:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: bazelbuild/setup-bazelisk@v3
+      - run: bazel test --test_output=errors --test_tag_filters=-external-corpus //webp-rs/...
 
   upstream-corpus:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

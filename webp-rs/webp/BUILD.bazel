@@ -1,5 +1,5 @@
 load("//:defs.bzl", "webp_rust_crate")
-load("@rules_rust//rust:defs.bzl", "rust_test")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 webp_rust_crate(
     name = "webp",

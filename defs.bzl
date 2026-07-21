@@ -1,8 +1,8 @@
 """Project-level Bazel helpers for the workspace's conventional Rust crates."""
 
-load("//:cargo_deps.bzl", "workspace_deps")
-load("@crates//:defs.bzl", "all_crate_deps", "crate_edition")
-load("@rules_rust//rust:defs.bzl", "rust_library", "rust_test")
+load("@crates//:defs.bzl", cargo_aliases = "aliases", "all_crate_deps")
+load("@rules_rs//rs:rust_library.bzl", "rust_library")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 
 def webp_rust_crate(
@@ -18,8 +18,8 @@ def webp_rust_crate(
     """Defines a conventional workspace Rust library and its unit-test target.
 
     The target name follows its package directory while `crate_name` follows
-    the Rust library name. Cargo metadata supplies dependencies and the Rust
-    edition. Every workspace crate uses `src/lib.rs`, public visibility, and a
+    the Rust library name. Cargo metadata supplies dependencies. Every workspace
+    crate uses Rust 2024, `src/lib.rs`, public visibility, and a
     `unit_tests` target. Keep the non-default parts explicit at the call site.
     """
     if deps_extra == None:
@@ -37,13 +37,13 @@ def webp_rust_crate(
 
     rust_library(
         name = name,
-        aliases = aliases,
+        aliases = cargo_aliases() | aliases,
         crate_name = crate_name,
         srcs = native.glob(["src/**/*.rs"]),
         crate_root = "src/lib.rs",
-        edition = crate_edition(),
-        deps = workspace_deps() + all_crate_deps(normal = True) + deps_extra,
-        proc_macro_deps = all_crate_deps(proc_macro = True) + proc_macro_deps_extra,
+        edition = "2024",
+        deps = all_crate_deps(normal = True) + deps_extra,
+        proc_macro_deps = proc_macro_deps_extra,
         visibility = visibility,
     )
 
@@ -53,5 +53,4 @@ def webp_rust_crate(
         compile_data = test_compile_data,
         data = test_data,
         deps = all_crate_deps(normal_dev = True) + test_deps_extra,
-        proc_macro_deps = all_crate_deps(proc_macro_dev = True),
     )

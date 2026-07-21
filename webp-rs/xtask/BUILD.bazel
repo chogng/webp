@@ -1,14 +1,14 @@
-load("@crates//:defs.bzl", "all_crate_deps", "aliases", "crate_edition")
-load("@rules_rust//rust:defs.bzl", "rust_binary", "rust_test")
+load("@crates//:defs.bzl", "aliases", "all_crate_deps")
+load("@rules_rs//rs:rust_binary.bzl", "rust_binary")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 rust_binary(
     name = "xtask",
     aliases = aliases(),
     compile_data = ["//:corpus_lock"],
-    srcs = glob(["src/**/*.rs"]),
-    edition = crate_edition(),
+    srcs = ["src/main.rs"],
+    edition = "2024",
     deps = all_crate_deps(normal = True),
-    proc_macro_deps = all_crate_deps(proc_macro = True),
     visibility = ["//visibility:public"],
 )
 
