@@ -10,6 +10,8 @@ mod loop_filter;
 mod partition;
 mod quantization;
 mod reconstruction;
+#[cfg(test)]
+mod test_support;
 mod transform;
 
 pub use bitstream::BoolDecoder;

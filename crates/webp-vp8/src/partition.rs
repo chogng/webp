@@ -35,6 +35,10 @@ const FRAME_TAG_LEN: usize = 3;
 pub(crate) const KEY_FRAME_HEADER_LEN: usize = 10;
 pub(crate) const KEY_FRAME_START_CODE: [u8; 3] = [0x9d, 0x01, 0x2a];
 
+#[cfg(test)]
+#[path = "partition_tests.rs"]
+mod tests;
+
 /// The parsed prefix of a VP8 first partition.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct FirstPartitionHeader {
