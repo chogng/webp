@@ -2,7 +2,7 @@
 ## Test module organization
 - When adding a new test module, define its contents in a separate sibling file rather than inline in the implementation file.
 - Use an explicit #[path = "..._tests.rs"] attribute so the test filename is descriptive and easy to locate:
-```text
+```rust
 #[cfg(test)]
 #[path = "parser_tests.rs"]
 mod tests;
