@@ -64,6 +64,26 @@ bytes, and produced 18,301,768 WebP bytes in 623.300 ms (checksum `18305130`).
 It is an informative M6 rate record only: a pinned-libwebp encoding comparison
 and reviewed regression threshold remain M9 quality-gate work.
 
+## VP8 static encoder baseline
+
+The bounded static intra16 VP8 profile has a release matrix benchmark over the
+21 locked `reference-v1` lossy inputs. It decodes those inputs once before
+timing, then encodes every retained RGBA image at quality 0, 75, and 100:
+
+```sh
+bash tools/benchmark-vp8-encode.sh 1
+```
+
+The 2026-07-20 baseline performed 63 encodes over 4,128,768 RGBA bytes in
+142.349 ms, produced 288,010 WebP bytes, and reported checksum `293176`.
+Encoder working data is bounded by macroblock-padded source YUV planes, equally
+sized reconstructed YUV planes, and one coefficient record per macroblock;
+the 16-mode candidate loop retains only its winning reconstruction. The main
+CPU cost is therefore the bounded transform/quantize/reconstruct scoring loop,
+not container serialization. Locked `dwebp` pixel-oracle tests cover quality
+0/75/100, alpha, and a multi-macroblock image. A pinned-libwebp encode-rate
+comparison and a reviewed regression threshold remain M9 work.
+
 ## VP8L entropy-path optimization record
 
 The 2026-07-20 optimization pass retained the same 41-file corpus, five

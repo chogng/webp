@@ -51,10 +51,17 @@ captured in the quality gates; cross-encoder thresholds remain M9 work.
 - Exit requires locked `dwebp` pixel-oracle coverage plus quality and resource
   measurements across the reviewed encoder option matrix.
 
-**Status: in progress.** The VP8 boolean arithmetic writer and a strict,
-locked-`dwebp`-validated DC/zero-residual key-frame payload are implemented.
-RGB(A)-to-YUV conversion, quantized coefficients, and the public lossy-image
-API remain the next pieces of this milestone.
+**Status: complete for the bounded static intra16 profile.** The public API
+accepts explicit quality 0 through 100, converts straight RGBA8 to padded
+YUV420, preserves alpha through a strict raw `ALPH` container path, and emits
+one-token-partition key frames. Every macroblock evaluates DC, vertical,
+horizontal, and true-motion luma/chroma prediction, then deterministically
+ranks reconstructed distortion and quantized coefficient cost. It uses the
+same reconstructed-neighbour borders as the decoder, including at visible
+edges. RGB(A), opaque multi-macroblock, alpha, and quality-matrix outputs are
+validated by the locked `dwebp` pixel oracle. The release matrix benchmark and
+resource notes are recorded in the quality gates; cross-encoder thresholds
+remain M9 work.
 
 ## M8: animation encoding
 
