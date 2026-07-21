@@ -15,10 +15,11 @@ use webp_vp8l::{
 use webp_vp8l_color_cache::{ColorCacheOutput, MAX_COLOR_CACHE_BITS, MIN_COLOR_CACHE_BITS};
 use webp_vp8l_color_transform::ColorTransformMultipliers;
 use webp_vp8l_entropy::{
-    copy_lz77_pixels, decode_distance, decode_length, distance_code_to_distance,
+    copy_lz77_pixels, decode_distance_shifted, decode_length_shifted, distance_code_to_distance,
 };
 use webp_vp8l_huffman::{
-    HuffmanTable, MAX_SECONDARY_TABLE_STORAGE_BYTES, ROOT_TABLE_STORAGE_BYTES, read_huffman_code,
+    FastHuffmanTable, MAX_SECONDARY_TABLE_STORAGE_BYTES, ROOT_TABLE_STORAGE_BYTES,
+    read_huffman_code,
 };
 use webp_vp8l_indexing::{Palette, TRANSPARENT_BLACK};
 use webp_vp8l_transform::{PredictorMode, Rgba};
@@ -85,7 +86,7 @@ pub fn decode_no_transform(
         limits,
         &mut retained_transform_bytes,
     )?;
-    let mut output = decode_entropy_image(
+    let output = decode_entropy_image(
         &mut bits,
         decoded_transforms.coded_width,
         decoded_transforms.coded_height,
@@ -95,25 +96,26 @@ pub fn decode_no_transform(
         retained_transform_bytes,
         rgba_len,
     )?;
+    let mut output = TransformPixels::Argb(output);
 
     for transform in decoded_transforms.transforms.iter().rev() {
         match transform {
-            DecodedTransform::SubtractGreen => inverse_subtract_green_argb(&mut output),
+            DecodedTransform::SubtractGreen => inverse_subtract_green_argb(output.argb_mut()?),
             DecodedTransform::Predictor {
                 descriptor,
                 mode_pixels,
             } => {
-                inverse_predictor_argb(&mut output, *descriptor, mode_pixels)?;
+                inverse_predictor_rgba(output.rgba_mut()?, *descriptor, mode_pixels)?;
             }
             DecodedTransform::Color {
                 descriptor,
                 multipliers,
-            } => inverse_color_argb(&mut output, *descriptor, multipliers)?,
+            } => inverse_color_argb(output.argb_mut()?, *descriptor, multipliers)?,
             DecodedTransform::ColorIndexing {
                 descriptor,
                 palette,
             } => inverse_color_indexing_argb(
-                &mut output,
+                output.argb_mut()?,
                 *descriptor,
                 palette,
                 retained_transform_bytes,
@@ -123,18 +125,7 @@ pub fn decode_no_transform(
         }
     }
     drop(decoded_transforms);
-
-    let mut rgba = Vec::new();
-    rgba.try_reserve_exact(rgba_len).map_err(|_| {
-        DecodeError::new(
-            DecodeErrorKind::AllocationFailed,
-            None,
-            "RGBA output allocation failed",
-        )
-    })?;
-    for pixel in output {
-        rgba.extend_from_slice(&unpack_rgba(pixel));
-    }
+    let rgba = output.into_rgba(rgba_len)?;
 
     Ok(LiteralImage { header, rgba })
 }
@@ -203,18 +194,23 @@ fn decode_entropy_image(
     };
     let mut code_cursor = codes.cursor(width)?;
     let mut output = PixelOutput::new(color_cache_bits, pixels)?;
+    let mut shifted_bits = bits.shifted();
 
     while output.len() < pixels {
+        shifted_bits.fill();
         let codes = code_cursor.for_pixel(output.len())?;
-        let green = decode_symbol(&codes.green, bits, budget)?;
+        let green = decode_fast_symbol(&codes.green, &mut shifted_bits, budget)?;
         if green < CHANNEL_ALPHABET_SIZE {
             // Green has already consumed one symbol work unit. Charge the
             // three literal channels together so the hot path performs one
             // checked budget decrement instead of three more.
             budget.consume(3)?;
-            let red = codes.red.decode(bits)?;
-            let blue = codes.blue.decode(bits)?;
-            let alpha = codes.alpha.decode(bits)?;
+            let red = usize::from(codes.red.decode(&mut shifted_bits)?);
+            let blue = usize::from(codes.blue.decode(&mut shifted_bits)?);
+            if shifted_bits.available_bits() < 15 {
+                shifted_bits.fill();
+            }
+            let alpha = usize::from(codes.alpha.decode(&mut shifted_bits)?);
             debug_assert!(red < CHANNEL_ALPHABET_SIZE);
             debug_assert!(blue < CHANNEL_ALPHABET_SIZE);
             debug_assert!(alpha < CHANNEL_ALPHABET_SIZE);
@@ -242,8 +238,8 @@ fn decode_entropy_image(
                 "VP8L length prefix does not fit u8",
             )
         })?;
-        let length = decode_length(bits, budget, length_prefix)?;
-        let distance_prefix = decode_symbol(&codes.distance, bits, budget)?;
+        let length = decode_length_shifted(&mut shifted_bits, budget, length_prefix)?;
+        let distance_prefix = decode_fast_symbol(&codes.distance, &mut shifted_bits, budget)?;
         let distance_prefix = u8::try_from(distance_prefix).map_err(|_| {
             DecodeError::new(
                 DecodeErrorKind::InvalidBitstream,
@@ -251,11 +247,12 @@ fn decode_entropy_image(
                 "VP8L distance prefix does not fit u8",
             )
         })?;
-        let distance_code = decode_distance(bits, budget, distance_prefix)?;
+        let distance_code = decode_distance_shifted(&mut shifted_bits, budget, distance_prefix)?;
         let distance = distance_code_to_distance(distance_code, width)?;
         output.copy_lz77(length, distance, pixels, budget)?;
     }
 
+    drop(shifted_bits);
     Ok(output.into_pixels())
 }
 
@@ -696,6 +693,88 @@ const fn unpack_rgba(pixel: u32) -> [u8; 4] {
     ]
 }
 
+/// Internal transform storage with explicit, replaceable layout backends.
+///
+/// Entropy and color indexing naturally operate on VP8L's packed ARGB words,
+/// while predictor reconstruction benefits from channel-contiguous RGBA byte
+/// lanes. Keeping the conversion at this private boundary leaves the public
+/// transform crate and its other callers unchanged.
+enum TransformPixels {
+    Argb(Vec<u32>),
+    Rgba(Vec<u8>),
+}
+
+impl TransformPixels {
+    fn argb_mut(&mut self) -> Result<&mut Vec<u32>, DecodeError> {
+        if let Self::Rgba(bytes) = self {
+            if !bytes.len().is_multiple_of(4) {
+                return Err(DecodeError::new(
+                    DecodeErrorKind::InvalidBitstream,
+                    None,
+                    "VP8L RGBA transform buffer has unexpected length",
+                ));
+            }
+            let mut packed = Vec::new();
+            packed.try_reserve_exact(bytes.len() / 4).map_err(|_| {
+                DecodeError::new(
+                    DecodeErrorKind::AllocationFailed,
+                    None,
+                    "VP8L packed transform allocation failed",
+                )
+            })?;
+            for pixel in bytes.chunks_exact(4) {
+                packed.push(pack_argb(pixel[0], pixel[1], pixel[2], pixel[3]));
+            }
+            *self = Self::Argb(packed);
+        }
+        match self {
+            Self::Argb(pixels) => Ok(pixels),
+            Self::Rgba(_) => unreachable!("RGBA transform buffer was converted to ARGB"),
+        }
+    }
+
+    fn rgba_mut(&mut self) -> Result<&mut Vec<u8>, DecodeError> {
+        if let Self::Argb(pixels) = self {
+            let actual_len = pixels.len().checked_mul(4).ok_or_else(|| {
+                DecodeError::new(
+                    DecodeErrorKind::LimitExceeded,
+                    None,
+                    "VP8L RGBA transform length overflow",
+                )
+            })?;
+            let mut bytes = Vec::new();
+            bytes.try_reserve_exact(actual_len).map_err(|_| {
+                DecodeError::new(
+                    DecodeErrorKind::AllocationFailed,
+                    None,
+                    "RGBA output allocation failed",
+                )
+            })?;
+            for &pixel in pixels.iter() {
+                bytes.extend_from_slice(&unpack_rgba(pixel));
+            }
+            *self = Self::Rgba(bytes);
+        }
+        match self {
+            Self::Rgba(bytes) => Ok(bytes),
+            Self::Argb(_) => unreachable!("ARGB transform buffer was converted to RGBA"),
+        }
+    }
+
+    fn into_rgba(mut self, expected_rgba_len: usize) -> Result<Vec<u8>, DecodeError> {
+        self.rgba_mut()?;
+        match self {
+            Self::Rgba(bytes) if bytes.len() == expected_rgba_len => Ok(bytes),
+            Self::Rgba(_) => Err(DecodeError::new(
+                DecodeErrorKind::InvalidBitstream,
+                None,
+                "VP8L final RGBA buffer has unexpected length",
+            )),
+            Self::Argb(_) => unreachable!("ARGB transform buffer was converted to RGBA"),
+        }
+    }
+}
+
 /// Reverses VP8L color indexing in packed ARGB form.  The decoder keeps the
 /// narrow entropy output alive until the expanded row-major output is fully
 /// initialized, so this explicitly accounts for both buffers plus the final
@@ -931,6 +1010,304 @@ const fn color_delta(multiplier: i8, channel: i8) -> i32 {
     ((multiplier as i32) * (channel as i32)) >> 5
 }
 
+/// Reconstructs predictor residuals in the final RGBA byte layout.
+///
+/// This backend keeps the four channels visible to LLVM as a four-byte lane
+/// group. In particular, the clamped add/subtract modes no longer unpack and
+/// repack a `u32` around every component. The descriptor and mode image stay
+/// in the existing packed representation, so the layout change is private to
+/// the main-image transform pipeline.
+fn inverse_predictor_rgba(
+    pixels: &mut [u8],
+    descriptor: BlockTransformDescriptor,
+    mode_pixels: &[u32],
+) -> Result<(), DecodeError> {
+    let width = usize::try_from(descriptor.image_width).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor image width does not fit usize",
+        )
+    })?;
+    let height = usize::try_from(descriptor.image_height).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor image height does not fit usize",
+        )
+    })?;
+    let row_bytes = width.checked_mul(4).ok_or_else(|| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor row byte size overflow",
+        )
+    })?;
+    let expected_bytes = row_bytes.checked_mul(height).ok_or_else(|| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor image byte size overflow",
+        )
+    })?;
+    if pixels.len() != expected_bytes {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L predictor output length does not match image dimensions",
+        ));
+    }
+
+    let mode_width = usize::try_from(descriptor.transform_width).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor mode width does not fit usize",
+        )
+    })?;
+    let expected_modes = mode_width
+        .checked_mul(usize::try_from(descriptor.transform_height).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L predictor mode height does not fit usize",
+            )
+        })?)
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L predictor mode pixel count overflow",
+            )
+        })?;
+    if mode_pixels.len() != expected_modes {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L predictor mode image has unexpected dimensions",
+        ));
+    }
+
+    let block_size = usize::try_from(descriptor.block_size()).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor block size does not fit usize",
+        )
+    })?;
+
+    // The first row has fixed black/left predictors independent of its mode
+    // subimage. RGBA's alpha byte is the only nonzero black component.
+    pixels[3] = pixels[3].wrapping_add(255);
+    for byte in 4..row_bytes {
+        pixels[byte] = pixels[byte].wrapping_add(pixels[byte - 4]);
+    }
+
+    for y in 1..height {
+        let row_start = y * row_bytes;
+        let (previous_rows, current_and_after) = pixels.split_at_mut(row_start);
+        let top = &previous_rows[row_start - row_bytes..row_start];
+        let current = &mut current_and_after[..row_bytes];
+        for channel in 0..4 {
+            current[channel] = current[channel].wrapping_add(top[channel]);
+        }
+
+        let mode_row = (y / block_size) * mode_width;
+        let mut x = 1;
+        while x < width {
+            let block_x = x / block_size;
+            let mode =
+                PredictorMode::try_from(((mode_pixels[mode_row + block_x] >> 8) & 0x0f) as u8)
+                    .map_err(|_| {
+                        DecodeError::new(
+                            DecodeErrorKind::InvalidBitstream,
+                            None,
+                            "VP8L predictor mode must be in 0..=13",
+                        )
+                    })?;
+            let x_end = (x & !(block_size - 1))
+                .saturating_add(block_size)
+                .min(width);
+            apply_predictor_run_rgba(current, top, x, x_end, mode);
+            x = x_end;
+        }
+    }
+    Ok(())
+}
+
+fn apply_predictor_run_rgba(
+    current: &mut [u8],
+    top: &[u8],
+    start_x: usize,
+    end_x: usize,
+    mode: PredictorMode,
+) {
+    match mode {
+        PredictorMode::OpaqueBlack => {
+            for pixel in current[start_x * 4..end_x * 4].chunks_exact_mut(4) {
+                pixel[3] = pixel[3].wrapping_add(255);
+            }
+        }
+        PredictorMode::Left => {
+            for byte in start_x * 4..end_x * 4 {
+                current[byte] = current[byte].wrapping_add(current[byte - 4]);
+            }
+        }
+        PredictorMode::Top => add_aligned_rgba(&mut current[start_x * 4..end_x * 4], top, start_x),
+        PredictorMode::TopLeft => {
+            add_aligned_rgba(&mut current[start_x * 4..end_x * 4], top, start_x - 1);
+        }
+        PredictorMode::ClampAddSubtractFull => {
+            apply_clamped_add_subtract_full_rgba(current, top, start_x, end_x);
+        }
+        _ => {
+            let right_edge = rgba_pixel(current, 0);
+            for x in start_x..end_x {
+                let left = rgba_pixel(current, x - 1);
+                let top_pixel = rgba_pixel(top, x);
+                let top_left = rgba_pixel(top, x - 1);
+                let top_right = if x + 1 < top.len() / 4 {
+                    rgba_pixel(top, x + 1)
+                } else {
+                    right_edge
+                };
+                let prediction = predictor_rgba(mode, left, top_pixel, top_left, top_right);
+                add_rgba_pixel(current, x, prediction);
+            }
+        }
+    }
+}
+
+fn add_aligned_rgba(current: &mut [u8], top: &[u8], top_start_x: usize) {
+    let top = &top[top_start_x * 4..top_start_x * 4 + current.len()];
+    for (residual, &prediction) in current.iter_mut().zip(top) {
+        *residual = residual.wrapping_add(prediction);
+    }
+}
+
+fn apply_clamped_add_subtract_full_rgba(
+    current: &mut [u8],
+    top: &[u8],
+    start_x: usize,
+    end_x: usize,
+) {
+    let byte_len = (end_x - start_x) * 4;
+    let (reconstructed, residual_and_after) = current.split_at_mut(start_x * 4);
+    let mut left: [u8; 4] = reconstructed[reconstructed.len() - 4..]
+        .try_into()
+        .expect("predictor run has a reconstructed left pixel");
+    let residuals = &mut residual_and_after[..byte_len];
+    let top_left = &top[(start_x - 1) * 4..][..byte_len];
+    let top = &top[start_x * 4..][..byte_len];
+
+    for ((residual, top_left), top) in residuals
+        .chunks_exact_mut(4)
+        .zip(top_left.chunks_exact(4))
+        .zip(top.chunks_exact(4))
+    {
+        left = [
+            residual[0].wrapping_add(clamp_add_subtract_component(left[0], top[0], top_left[0])),
+            residual[1].wrapping_add(clamp_add_subtract_component(left[1], top[1], top_left[1])),
+            residual[2].wrapping_add(clamp_add_subtract_component(left[2], top[2], top_left[2])),
+            residual[3].wrapping_add(clamp_add_subtract_component(left[3], top[3], top_left[3])),
+        ];
+        residual.copy_from_slice(&left);
+    }
+}
+
+#[inline]
+fn clamp_add_subtract_component(left: u8, top: u8, top_left: u8) -> u8 {
+    (i16::from(left) + i16::from(top) - i16::from(top_left)).clamp(0, 255) as u8
+}
+
+#[inline]
+fn rgba_pixel(pixels: &[u8], x: usize) -> [u8; 4] {
+    let offset = x * 4;
+    pixels[offset..offset + 4]
+        .try_into()
+        .expect("validated RGBA pixel")
+}
+
+#[inline]
+fn add_rgba_pixel(pixels: &mut [u8], x: usize, prediction: [u8; 4]) {
+    let offset = x * 4;
+    for channel in 0..4 {
+        pixels[offset + channel] = pixels[offset + channel].wrapping_add(prediction[channel]);
+    }
+}
+
+fn predictor_rgba(
+    mode: PredictorMode,
+    left: [u8; 4],
+    top: [u8; 4],
+    top_left: [u8; 4],
+    top_right: [u8; 4],
+) -> [u8; 4] {
+    match mode {
+        PredictorMode::OpaqueBlack => [0, 0, 0, 255],
+        PredictorMode::Left => left,
+        PredictorMode::Top => top,
+        PredictorMode::TopRight => top_right,
+        PredictorMode::TopLeft => top_left,
+        PredictorMode::AverageLeftTopRightTop => average_rgba(average_rgba(left, top_right), top),
+        PredictorMode::AverageLeftTopLeft => average_rgba(left, top_left),
+        PredictorMode::AverageLeftTop => average_rgba(left, top),
+        PredictorMode::AverageTopLeftTop => average_rgba(top_left, top),
+        PredictorMode::AverageTopTopRight => average_rgba(top, top_right),
+        PredictorMode::AverageLeftTopLeftTopTopRight => {
+            average_rgba(average_rgba(left, top_left), average_rgba(top, top_right))
+        }
+        PredictorMode::Select => select_rgba(left, top, top_left),
+        PredictorMode::ClampAddSubtractFull => [
+            clamp_add_subtract_component(left[0], top[0], top_left[0]),
+            clamp_add_subtract_component(left[1], top[1], top_left[1]),
+            clamp_add_subtract_component(left[2], top[2], top_left[2]),
+            clamp_add_subtract_component(left[3], top[3], top_left[3]),
+        ],
+        PredictorMode::ClampAddSubtractHalf => {
+            let average = average_rgba(left, top);
+            [
+                clamp_add_subtract_half_component(average[0], top_left[0]),
+                clamp_add_subtract_half_component(average[1], top_left[1]),
+                clamp_add_subtract_half_component(average[2], top_left[2]),
+                clamp_add_subtract_half_component(average[3], top_left[3]),
+            ]
+        }
+    }
+}
+
+#[inline]
+fn average_rgba(first: [u8; 4], second: [u8; 4]) -> [u8; 4] {
+    [
+        (first[0] & second[0]).wrapping_add((first[0] ^ second[0]) >> 1),
+        (first[1] & second[1]).wrapping_add((first[1] ^ second[1]) >> 1),
+        (first[2] & second[2]).wrapping_add((first[2] ^ second[2]) >> 1),
+        (first[3] & second[3]).wrapping_add((first[3] ^ second[3]) >> 1),
+    ]
+}
+
+fn select_rgba(left: [u8; 4], top: [u8; 4], top_left: [u8; 4]) -> [u8; 4] {
+    let mut left_distance = 0_i32;
+    let mut top_distance = 0_i32;
+    for channel in 0..4 {
+        let prediction =
+            i32::from(left[channel]) + i32::from(top[channel]) - i32::from(top_left[channel]);
+        left_distance += (prediction - i32::from(left[channel])).abs();
+        top_distance += (prediction - i32::from(top[channel])).abs();
+    }
+    if left_distance < top_distance {
+        left
+    } else {
+        top
+    }
+}
+
+#[inline]
+fn clamp_add_subtract_half_component(average: u8, top_left: u8) -> u8 {
+    let average = i16::from(average);
+    (average + (average - i16::from(top_left)) / 2).clamp(0, 255) as u8
+}
+
 /// Inverts a predictor transform without a second full-image allocation.
 ///
 /// The public transform primitives operate on `RgbaImage`, whose owned pixel
@@ -938,6 +1315,7 @@ const fn color_delta(multiplier: i8, channel: i8) -> i32 {
 /// directly on packed ARGB rows. It dispatches the predictor once per coded
 /// tile instead of converting the mode and four neighboring pixels for every
 /// output sample.
+#[cfg(test)]
 fn inverse_predictor_argb(
     pixels: &mut [u32],
     descriptor: BlockTransformDescriptor,
@@ -1044,6 +1422,7 @@ fn inverse_predictor_argb(
     Ok(())
 }
 
+#[cfg(test)]
 fn apply_predictor_run(
     pixels: &mut [u32],
     start: usize,
@@ -1125,6 +1504,7 @@ fn apply_predictor_run(
     }
 }
 
+#[cfg(test)]
 #[inline]
 fn add_argb_pixels(first: u32, second: u32) -> u32 {
     const ALPHA_GREEN: u32 = 0xff00_ff00;
@@ -1134,21 +1514,25 @@ fn add_argb_pixels(first: u32, second: u32) -> u32 {
     (alpha_green & ALPHA_GREEN) | (red_blue & RED_BLUE)
 }
 
+#[cfg(test)]
 #[inline]
 fn average_argb2(first: u32, second: u32) -> u32 {
     (((first ^ second) & 0xfefe_fefe) >> 1).wrapping_add(first & second)
 }
 
+#[cfg(test)]
 #[inline]
 fn average_argb3(first: u32, second: u32, third: u32) -> u32 {
     average_argb2(average_argb2(first, second), third)
 }
 
+#[cfg(test)]
 #[inline]
 fn average_argb4(first: u32, second: u32, third: u32, fourth: u32) -> u32 {
     average_argb2(average_argb2(first, second), average_argb2(third, fourth))
 }
 
+#[cfg(test)]
 #[inline]
 fn select_argb(left: u32, top: u32, top_left: u32) -> u32 {
     let distance_difference = select_component(top >> 24, left >> 24, top_left >> 24)
@@ -1166,6 +1550,7 @@ fn select_argb(left: u32, top: u32, top_left: u32) -> u32 {
     if distance_difference <= 0 { top } else { left }
 }
 
+#[cfg(test)]
 #[inline]
 fn select_component(first: u32, second: u32, reference: u32) -> i32 {
     let first = first as i32 - reference as i32;
@@ -1173,12 +1558,14 @@ fn select_component(first: u32, second: u32, reference: u32) -> i32 {
     second.abs() - first.abs()
 }
 
+#[cfg(test)]
 fn clamp_add_subtract_full_argb(first: u32, second: u32, third: u32) -> u32 {
     pack_argb_components(|shift| {
         component(first, shift) + component(second, shift) - component(third, shift)
     })
 }
 
+#[cfg(test)]
 fn clamp_add_subtract_half_argb(first: u32, second: u32, third: u32) -> u32 {
     let average = average_argb2(first, second);
     pack_argb_components(|shift| {
@@ -1187,11 +1574,13 @@ fn clamp_add_subtract_half_argb(first: u32, second: u32, third: u32) -> u32 {
     })
 }
 
+#[cfg(test)]
 #[inline]
 fn component(pixel: u32, shift: u32) -> i32 {
     ((pixel >> shift) & 0xff) as i32
 }
 
+#[cfg(test)]
 fn pack_argb_components(mut value_at: impl FnMut(u32) -> i32) -> u32 {
     let blue = value_at(0).clamp(0, 255) as u32;
     let green = value_at(8).clamp(0, 255) as u32;
@@ -1210,11 +1599,11 @@ const fn argb_to_rgba(pixel: u32) -> Rgba {
 }
 
 struct HuffmanCodes {
-    green: HuffmanTable,
-    red: HuffmanTable,
-    blue: HuffmanTable,
-    alpha: HuffmanTable,
-    distance: HuffmanTable,
+    green: FastHuffmanTable,
+    red: FastHuffmanTable,
+    blue: FastHuffmanTable,
+    alpha: FastHuffmanTable,
+    distance: FastHuffmanTable,
 }
 
 /// The maximum number of prefix tables in one VP8L meta-prefix group.
@@ -1591,7 +1980,9 @@ fn meta_group_storage_upper_bound(color_cache_size: usize) -> Result<usize, Deco
         })?;
     symbol_count
         .checked_mul(MAX_HUFFMAN_CODE_STORAGE_BYTES)
-        .and_then(|value| value.checked_add(HUFFMAN_TABLES_PER_GROUP * size_of::<HuffmanTable>()))
+        .and_then(|value| {
+            value.checked_add(HUFFMAN_TABLES_PER_GROUP * size_of::<FastHuffmanTable>())
+        })
         // A normal code header has one transient root table while its final
         // table is being built. Include that extra allocation per group as a
         // conservative bound for both retained and skipped meta groups.
@@ -1768,18 +2159,21 @@ fn read_table(
     bits: &mut BitReader<'_>,
     budget: &mut WorkBudget,
     alphabet_size: usize,
-) -> Result<HuffmanTable, DecodeError> {
+) -> Result<FastHuffmanTable, DecodeError> {
     budget.consume(1)?;
-    read_huffman_code(bits, alphabet_size)
+    read_huffman_code(bits, alphabet_size)?.into_fast()
 }
 
-fn decode_symbol(
-    table: &HuffmanTable,
-    bits: &mut BitReader<'_>,
+fn decode_fast_symbol(
+    table: &FastHuffmanTable,
+    bits: &mut webp_core::ShiftedBitReader<'_, '_>,
     budget: &mut WorkBudget,
 ) -> Result<usize, DecodeError> {
     budget.consume(1)?;
-    table.decode(bits)
+    if bits.available_bits() < 15 {
+        bits.fill();
+    }
+    table.decode(bits).map(usize::from)
 }
 
 #[cfg(test)]
@@ -2415,6 +2809,18 @@ mod tests {
             let mut actual = residuals.clone();
             inverse_predictor_argb(&mut actual, descriptor, &[u32::from(mode_value) << 8]).unwrap();
             assert_eq!(actual, expected, "predictor mode {mode_value}");
+
+            let mut actual_rgba = Vec::with_capacity(residuals.len() * 4);
+            for &pixel in &residuals {
+                actual_rgba.extend_from_slice(&unpack_rgba(pixel));
+            }
+            inverse_predictor_rgba(&mut actual_rgba, descriptor, &[u32::from(mode_value) << 8])
+                .unwrap();
+            let actual_rgba = actual_rgba
+                .chunks_exact(4)
+                .map(|pixel| pack_argb(pixel[0], pixel[1], pixel[2], pixel[3]))
+                .collect::<Vec<_>>();
+            assert_eq!(actual_rgba, expected, "RGBA predictor mode {mode_value}");
         }
     }
 

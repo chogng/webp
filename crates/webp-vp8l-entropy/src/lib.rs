@@ -6,7 +6,7 @@
 //! LZ77 copy operation that the entropy decoder will call after decoding its
 //! Huffman symbols.
 
-use webp_core::{BitReader, DecodeError, DecodeErrorKind, WorkBudget};
+use webp_core::{BitReader, DecodeError, DecodeErrorKind, ShiftedBitReader, WorkBudget};
 
 pub const LENGTH_PREFIX_COUNT: u8 = 24;
 pub const DISTANCE_PREFIX_COUNT: u8 = 40;
@@ -35,6 +35,42 @@ pub fn decode_distance(
     prefix: u8,
 ) -> Result<usize, DecodeError> {
     let value = decode_prefix_value(reader, budget, prefix, DISTANCE_PREFIX_COUNT)?;
+    usize::try_from(value).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "distance code does not fit platform usize",
+        )
+    })
+}
+
+/// Shift-register counterpart of [`decode_length`] for dense VP8L entropy
+/// loops. Prefix validation and work accounting are unchanged.
+#[inline]
+pub fn decode_length_shifted(
+    reader: &mut ShiftedBitReader<'_, '_>,
+    budget: &mut WorkBudget,
+    prefix: u8,
+) -> Result<usize, DecodeError> {
+    let value = decode_prefix_value_shifted(reader, budget, prefix, LENGTH_PREFIX_COUNT)?;
+    usize::try_from(value).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "length does not fit platform usize",
+        )
+    })
+}
+
+/// Shift-register counterpart of [`decode_distance`] for dense VP8L entropy
+/// loops.
+#[inline]
+pub fn decode_distance_shifted(
+    reader: &mut ShiftedBitReader<'_, '_>,
+    budget: &mut WorkBudget,
+    prefix: u8,
+) -> Result<usize, DecodeError> {
+    let value = decode_prefix_value_shifted(reader, budget, prefix, DISTANCE_PREFIX_COUNT)?;
     usize::try_from(value).map_err(|_| {
         DecodeError::new(
             DecodeErrorKind::InvalidBitstream,
@@ -131,6 +167,30 @@ pub fn copy_lz77_pixels(
 
 fn decode_prefix_value(
     reader: &mut BitReader<'_>,
+    budget: &mut WorkBudget,
+    prefix: u8,
+    prefix_count: u8,
+) -> Result<u32, DecodeError> {
+    if prefix >= prefix_count {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "invalid VP8L length/distance prefix",
+        ));
+    }
+    budget.consume(1)?;
+    if prefix < 4 {
+        return Ok(u32::from(prefix) + 1);
+    }
+    let extra_bits = (prefix - 2) >> 1;
+    let offset = (2_u32 + u32::from(prefix & 1)) << extra_bits;
+    let extra = reader.read_bits(extra_bits)?;
+    Ok(offset + extra + 1)
+}
+
+#[inline]
+fn decode_prefix_value_shifted(
+    reader: &mut ShiftedBitReader<'_, '_>,
     budget: &mut WorkBudget,
     prefix: u8,
     prefix_count: u8,

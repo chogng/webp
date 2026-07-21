@@ -5,7 +5,7 @@ mod bit_io;
 mod error;
 mod limits;
 
-pub use bit_io::{BitReader, BitWriter};
+pub use bit_io::{BitReader, BitWriter, ShiftedBitReader};
 pub use error::{DecodeError, DecodeErrorKind};
 pub use limits::{
     CompatibilityProfile, DecodeLimits, WorkBudget, checked_chunk_end, checked_image_bytes,

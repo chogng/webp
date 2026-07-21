@@ -6,13 +6,15 @@
 //! their bits least-significant bit first, so the table stores each canonical
 //! code with exactly its significant bits reversed.
 
-use webp_core::{BitReader, DecodeError, DecodeErrorKind};
+use webp_core::{BitReader, DecodeError, DecodeErrorKind, ShiftedBitReader};
 
 /// The longest code allowed by the VP8L format.
 pub const MAX_CODE_LENGTH: u8 = 15;
 
 const ROOT_TABLE_BITS: u8 = 8;
 const ROOT_TABLE_SIZE: usize = 1 << ROOT_TABLE_BITS;
+const FAST_ROOT_TABLE_BITS: u8 = 10;
+const FAST_ENTRY_VALUE_MASK: u16 = 0x0fff;
 
 /// Permutation used to transmit the code lengths of a normal VP8L Huffman
 /// header.  The first `4 + ReadBits(4)` entries are present on the wire.
@@ -263,6 +265,22 @@ pub struct HuffmanTable {
     root_table: Box<[RootTableEntry; ROOT_TABLE_SIZE]>,
     secondary_table: Vec<RootTableEntry>,
     max_code_length: u8,
+}
+
+/// A packed VP8L symbol table for dense pixel entropy decoding.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FastHuffmanTable(FastHuffmanTableInner);
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+enum FastHuffmanTableInner {
+    Single(u16),
+    Packed {
+        root_bits: u8,
+        root_mask: u16,
+        root: Vec<u16>,
+        secondary: Vec<u16>,
+    },
+    Fallback(Box<HuffmanTable>),
 }
 
 impl HuffmanTable {
@@ -603,6 +621,170 @@ impl HuffmanTable {
     #[must_use]
     pub const fn max_code_length(&self) -> u8 {
         self.max_code_length
+    }
+
+    /// Converts this validated table into the packed representation used by
+    /// the VP8L pixel loop. The generic table remains available to parsers and
+    /// other strict, low-volume callers.
+    pub fn into_fast(self) -> Result<FastHuffmanTable, DecodeError> {
+        FastHuffmanTable::from_validated(self)
+    }
+}
+
+impl FastHuffmanTable {
+    fn from_validated(table: HuffmanTable) -> Result<Self, DecodeError> {
+        for &symbol in &table.symbols {
+            u16::try_from(symbol).map_err(|_| invalid("VP8L fast Huffman symbol exceeds u16"))?;
+        }
+        if table.max_code_length == 0 {
+            return Ok(Self(FastHuffmanTableInner::Single(table.symbols[0] as u16)));
+        }
+        if table
+            .symbols
+            .iter()
+            .any(|&symbol| symbol > usize::from(FAST_ENTRY_VALUE_MASK))
+        {
+            return Ok(Self(FastHuffmanTableInner::Fallback(Box::new(table))));
+        }
+
+        let root_bits = table.max_code_length.min(FAST_ROOT_TABLE_BITS);
+        let root_size = 1_usize << root_bits;
+        let root_mask = u16::try_from(root_size - 1)
+            .map_err(|_| invalid("VP8L fast Huffman root mask exceeds u16"))?;
+        let mut secondary_bits = vec![0_u8; root_size];
+        for length in root_bits + 1..=table.max_code_length {
+            let length_index = usize::from(length);
+            for code_index in 0..table.code_count[length_index] {
+                let canonical = table.first_code[length_index] + code_index as u32;
+                let wire = reverse_code(canonical as u16, length);
+                let prefix = usize::from(wire) & usize::from(root_mask);
+                secondary_bits[prefix] = secondary_bits[prefix].max(length - root_bits);
+            }
+        }
+
+        let mut secondary_offsets = vec![0_usize; root_size];
+        let mut secondary_len = 0_usize;
+        for (prefix, &bits) in secondary_bits.iter().enumerate() {
+            if bits == 0 {
+                continue;
+            }
+            secondary_offsets[prefix] = secondary_len;
+            secondary_len = secondary_len
+                .checked_add(1_usize << bits)
+                .ok_or_else(|| invalid("VP8L fast Huffman secondary size overflow"))?;
+        }
+        if secondary_len > usize::from(FAST_ENTRY_VALUE_MASK) + 1 {
+            return Ok(Self(FastHuffmanTableInner::Fallback(Box::new(table))));
+        }
+
+        let mut root = vec![0_u16; root_size];
+        for (prefix, &bits) in secondary_bits.iter().enumerate() {
+            if bits == 0 {
+                continue;
+            }
+            root[prefix] = (u16::from(root_bits + bits) << 12)
+                | u16::try_from(secondary_offsets[prefix])
+                    .map_err(|_| invalid("VP8L fast Huffman secondary offset exceeds u16"))?;
+        }
+        let mut secondary = vec![0_u16; secondary_len];
+
+        for length in 1..=table.max_code_length {
+            let length_index = usize::from(length);
+            for code_index in 0..table.code_count[length_index] {
+                let symbol_index = table.first_symbol[length_index] + code_index;
+                let symbol = table.symbols[symbol_index] as u16;
+                let canonical = table.first_code[length_index] + code_index as u32;
+                let wire = reverse_code(canonical as u16, length);
+                if length <= root_bits {
+                    let packed = (u16::from(length) << 12) | symbol;
+                    let stride = 1_usize << length;
+                    for entry in root.iter_mut().skip(usize::from(wire)).step_by(stride) {
+                        *entry = packed;
+                    }
+                    continue;
+                }
+
+                let prefix = usize::from(wire) & usize::from(root_mask);
+                let table_bits = secondary_bits[prefix];
+                let extra_bits = length - root_bits;
+                let table_len = 1_usize << table_bits;
+                let code = usize::from(wire >> root_bits);
+                let stride = 1_usize << extra_bits;
+                let offset = secondary_offsets[prefix];
+                let packed = (symbol << 4) | u16::from(length);
+                for index in (code..table_len).step_by(stride) {
+                    secondary[offset + index] = packed;
+                }
+            }
+        }
+
+        Ok(Self(FastHuffmanTableInner::Packed {
+            root_bits,
+            root_mask,
+            root,
+            secondary,
+        }))
+    }
+
+    /// Reads one symbol from the shift-register entropy reader.
+    #[inline]
+    pub fn decode(&self, bits: &mut ShiftedBitReader<'_, '_>) -> Result<u16, DecodeError> {
+        match &self.0 {
+            FastHuffmanTableInner::Single(symbol) => Ok(*symbol),
+            FastHuffmanTableInner::Packed {
+                root_bits,
+                root_mask,
+                root,
+                secondary,
+            } => {
+                let lookahead = bits.peek_full() as u16;
+                let entry = root[usize::from(lookahead & root_mask)];
+                let length = (entry >> 12) as u8;
+                if length <= *root_bits {
+                    bits.consume(length)?;
+                    return Ok(entry & FAST_ENTRY_VALUE_MASK);
+                }
+                decode_fast_secondary(secondary, lookahead, entry, *root_bits, bits)
+            }
+            FastHuffmanTableInner::Fallback(table) => table.decode_shifted(bits),
+        }
+    }
+}
+
+#[inline(never)]
+fn decode_fast_secondary(
+    secondary: &[u16],
+    lookahead: u16,
+    root_entry: u16,
+    root_bits: u8,
+    bits: &mut ShiftedBitReader<'_, '_>,
+) -> Result<u16, DecodeError> {
+    let table_bits = (root_entry >> 12) as u8 - root_bits;
+    let index = usize::from(root_entry & FAST_ENTRY_VALUE_MASK)
+        + (usize::from(lookahead >> root_bits) & ((1_usize << table_bits) - 1));
+    let entry = *secondary
+        .get(index)
+        .ok_or_else(|| invalid("VP8L fast Huffman secondary index is missing"))?;
+    let length = (entry & 0x0f) as u8;
+    bits.consume(length)?;
+    Ok(entry >> 4)
+}
+
+impl HuffmanTable {
+    fn decode_shifted(&self, bits: &mut ShiftedBitReader<'_, '_>) -> Result<u16, DecodeError> {
+        if self.max_code_length == 0 {
+            return u16::try_from(self.symbols[0])
+                .map_err(|_| invalid("VP8L fast Huffman symbol exceeds u16"));
+        }
+        let mut code = 0_u16;
+        for length in 1..=self.max_code_length {
+            code |= (bits.read_bits(1)? as u16) << (length - 1);
+            if let Some(symbol) = self.symbol_for_code(code, length) {
+                return u16::try_from(symbol)
+                    .map_err(|_| invalid("VP8L fast Huffman symbol exceeds u16"));
+            }
+        }
+        Err(invalid("VP8L Huffman code does not exist in table"))
     }
 }
 
@@ -989,6 +1171,69 @@ mod tests {
         for symbol in symbols {
             assert_eq!(table.decode(&mut reader), Ok(symbol));
         }
+    }
+
+    #[test]
+    fn fast_table_decodes_root_and_secondary_codes() {
+        let mut lengths = (1..MAX_CODE_LENGTH).collect::<Vec<_>>();
+        lengths.extend([MAX_CODE_LENGTH, MAX_CODE_LENGTH]);
+        let symbols = (0..lengths.len()).collect::<Vec<_>>();
+        let encoded = encoded_symbols(&lengths, &symbols);
+        let table = HuffmanTable::from_code_lengths(&lengths)
+            .unwrap()
+            .into_fast()
+            .unwrap();
+        let mut owner = BitReader::new(&encoded);
+        {
+            let mut reader = owner.shifted();
+            for symbol in symbols {
+                reader.fill();
+                assert_eq!(table.decode(&mut reader), Ok(symbol as u16));
+            }
+        }
+        assert_eq!(
+            owner.bit_position(),
+            lengths.iter().map(|&v| usize::from(v)).sum()
+        );
+    }
+
+    #[test]
+    fn fast_table_tail_error_preserves_the_consumed_cursor() {
+        let table = HuffmanTable::from_code_lengths(&[1, 2, 3, 3])
+            .unwrap()
+            .into_fast()
+            .unwrap();
+        let mut owner = BitReader::with_bit_position(&[0b1100_0000], 6).unwrap();
+        {
+            let mut reader = owner.shifted();
+            reader.fill();
+            assert_eq!(
+                table.decode(&mut reader).unwrap_err().kind(),
+                DecodeErrorKind::UnexpectedEof
+            );
+        }
+        assert_eq!(owner.bit_position(), 6);
+    }
+
+    #[test]
+    fn fast_table_falls_back_for_symbols_outside_packed_entry_range() {
+        let mut lengths = vec![0; usize::from(FAST_ENTRY_VALUE_MASK) + 2];
+        lengths[0] = 1;
+        lengths[usize::from(FAST_ENTRY_VALUE_MASK) + 1] = 1;
+        let table = HuffmanTable::from_code_lengths(&lengths)
+            .unwrap()
+            .into_fast()
+            .unwrap();
+        let mut owner = BitReader::new(&[0b0000_0010]);
+        let mut reader = owner.shifted();
+        reader.fill();
+        assert_eq!(table.decode(&mut reader), Ok(0));
+        assert_eq!(table.decode(&mut reader), Ok(FAST_ENTRY_VALUE_MASK + 1));
+    }
+
+    #[test]
+    fn fast_table_handle_remains_cache_compact() {
+        assert!(core::mem::size_of::<FastHuffmanTable>() <= 64);
     }
 
     #[test]

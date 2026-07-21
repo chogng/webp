@@ -145,6 +145,71 @@ loop, advances them without a `Result` boundary per symbol, and checks stream
 state at grouped decode boundaries. Parser and final RGBA packing costs are
 too small to warrant dedicated optimization work.
 
+## VP8L packed entropy backend
+
+The next pass isolates the dense pixel stream from the strict parser path.
+`BitReader` retains its existing transactional API for headers and other
+callers, while an explicitly borrowed shift-register adapter amortizes input
+loads inside entropy expansion and synchronizes the checked cursor on drop.
+Likewise, the generic validated `HuffmanTable` remains available unchanged;
+the pixel decoder converts it to a packed ten-bit-root backend whose direct
+and secondary entries are two bytes. Pathological alphabets that do not fit
+the packed entry format retain the generic fallback.
+
+The dominant image's entropy phase fell from roughly 97.3 ms to 83.5 ms, a
+14% phase improvement. Three complete five-iteration runs measured 0.827 s,
+0.834 s, and 0.877 s for Rust, with a 0.834 s median. The matching libwebp
+median was 0.525 s. Relative to the preceding committed 0.892 s result this is
+a 6.5% end-to-end improvement, but entropy remained the largest individual
+gap.
+
+The retained design is intentionally smaller than several rejected
+prototypes. A two-symbol table occupying roughly one megabyte regressed from
+cache pressure, a specialized single-group dispatch was neutral, and deriving
+the absolute cursor instead of maintaining it regressed the dominant image by
+about 4%. Those variants were removed. Direct tests cover arbitrary starting
+bit offsets, refill boundaries, exact tail EOF behaviour, fifteen-bit codes,
+and the generic fallback.
+
+The implementation was developed against the VP8L format description, the
+pinned libwebp oracle, and an architectural/performance study of the safe-Rust
+[`image-webp`](https://github.com/image-rs/image-webp) decoder. `image-webp` is
+not a dependency and no external decoder code is linked into this project.
+
+## VP8L decoupled RGBA predictor backend
+
+Profiling the dominant 2048x2048 image showed that all 4,190,209 non-border
+pixels select predictor mode 12, clamped add/subtract. The packed implementation
+therefore spent most of its time repeatedly extracting, clamping, and repacking
+four channels. Rather than add a file-specific branch, the transform pipeline
+now has a private layout boundary: entropy, color, and indexing may retain
+packed ARGB, while predictor reconstruction requests an RGBA-byte backend.
+The shared `webp-vp8l-transform` crate and all of its callers are unchanged.
+
+The mode-12 kernel receives separate current-row, top-row, and top-left slices
+and iterates four-byte channel groups. This exposes non-aliasing and channel
+parallelism to the optimizer while staying in safe, portable Rust. Other
+predictor modes use the same backend, and a differential test compares all
+fourteen modes with the independent specification implementation, including
+the right-edge top-right rule. The layout wrapper converts only when transform
+order requires it and validates intermediate dimensions against each
+transform descriptor rather than coupling them to final image width.
+
+The dominant file fell from roughly 146 ms to 121 ms per decode. Three complete
+five-iteration runs measured Rust at 0.700 s, 0.700 s, and 0.697 s; the 0.700 s
+median is 164.0 MB/s. The corresponding libwebp runs were 0.534 s, 0.535 s,
+and 0.537 s, with a 0.535 s median (214.5 MB/s), leaving a 1.31x gap. Together
+with the packed entropy backend, this is 21.5% faster than the preceding
+committed 0.892 s result and 63.0% faster than the original 1.894 s baseline.
+Every run retained checksum `96355`.
+
+Both layouts are already included in the decoder's conservative allocation
+accounting: conversion can briefly retain one packed four-byte pixel buffer
+and one four-byte RGBA buffer, matching the previous packed-output plus final
+RGBA lifetime. The remaining material optimization target is entropy symbol
+expansion; parser and final layout costs remain below the threshold for a
+dedicated pass.
+
 ## Applying the gates to later milestones
 
 M0 owns the reusable fixture, corpus-pin, and benchmark infrastructure. Each

@@ -58,6 +58,37 @@ impl<'a> BitReader<'a> {
         self.bit_position
     }
 
+    /// Borrows this reader as a shift-register bit buffer for entropy loops.
+    ///
+    /// The strict `BitReader` API remains unchanged; callers opt into this
+    /// representation only while a dense sequence of small reads is active.
+    /// Dropping the adapter synchronizes the consumed position back here.
+    #[inline]
+    pub fn shifted(&mut self) -> ShiftedBitReader<'_, 'a> {
+        let bit_position = self.bit_position;
+        let byte_position = bit_position / 8;
+        let bit_offset = bit_position % 8;
+        let (buffer, nbits, next_byte_position) = if bit_offset != 0 {
+            match self.data.get(byte_position) {
+                Some(&byte) => (
+                    u64::from(byte) >> bit_offset,
+                    (8 - bit_offset) as u8,
+                    byte_position + 1,
+                ),
+                None => (0, 0, byte_position),
+            }
+        } else {
+            (0, 0, byte_position)
+        };
+        ShiftedBitReader {
+            reader: self,
+            buffer,
+            nbits,
+            next_byte_position,
+            bit_position,
+        }
+    }
+
     #[must_use]
     #[inline]
     pub fn remaining_bits(&self) -> usize {
@@ -239,6 +270,118 @@ impl<'a> BitReader<'a> {
             ));
         }
         Ok(end)
+    }
+}
+
+/// An LSB-first shift register for dense entropy decoding.
+///
+/// This adapter amortizes slice access and cursor arithmetic across many
+/// small reads. It remains fully bounds checked and reports EOF before
+/// advancing past the physical input.
+#[derive(Debug)]
+pub struct ShiftedBitReader<'reader, 'data> {
+    reader: &'reader mut BitReader<'data>,
+    buffer: u64,
+    nbits: u8,
+    next_byte_position: usize,
+    bit_position: usize,
+}
+
+impl ShiftedBitReader<'_, '_> {
+    /// Refills the register to at least 56 bits when enough input remains.
+    #[inline]
+    pub fn fill(&mut self) {
+        if self.nbits >= 56 {
+            return;
+        }
+
+        let remaining = &self.reader.data[self.next_byte_position..];
+        if let Some(bytes) = remaining.get(..8) {
+            let lookahead = u64::from_le_bytes(bytes.try_into().expect("eight-byte shift window"));
+            let byte_count = usize::from((63 - self.nbits) / 8);
+            self.buffer |= lookahead << self.nbits;
+            self.nbits += (byte_count * 8) as u8;
+            self.next_byte_position += byte_count;
+            return;
+        }
+
+        for &byte in remaining {
+            if self.nbits > 56 {
+                break;
+            }
+            self.buffer |= u64::from(byte) << self.nbits;
+            self.nbits += 8;
+            self.next_byte_position += 1;
+        }
+    }
+
+    /// Returns the buffered lookahead without consuming it.
+    #[must_use]
+    #[inline]
+    pub const fn peek_full(&self) -> u64 {
+        self.buffer
+    }
+
+    /// Number of physical input bits currently buffered.
+    #[must_use]
+    #[inline]
+    pub const fn available_bits(&self) -> u8 {
+        self.nbits
+    }
+
+    /// Consumes already-buffered bits.
+    #[inline]
+    pub fn consume(&mut self, count: u8) -> Result<(), DecodeError> {
+        if count > 32 {
+            return Err(DecodeError::new(
+                DecodeErrorKind::InvalidParameter,
+                Some(self.bit_position / 8),
+                "cannot consume more than 32 bits",
+            ));
+        }
+        if self.nbits < count {
+            return Err(DecodeError::new(
+                DecodeErrorKind::UnexpectedEof,
+                Some(self.bit_position / 8),
+                "truncated bitstream",
+            ));
+        }
+        self.buffer >>= count;
+        self.nbits -= count;
+        self.bit_position += usize::from(count);
+        Ok(())
+    }
+
+    /// Reads up to 32 bits, refilling first when necessary.
+    #[inline]
+    pub fn read_bits(&mut self, count: u8) -> Result<u32, DecodeError> {
+        if count > 32 {
+            return Err(DecodeError::new(
+                DecodeErrorKind::InvalidParameter,
+                Some(self.bit_position / 8),
+                "cannot read more than 32 bits",
+            ));
+        }
+        if self.nbits < count {
+            self.fill();
+        }
+        let mask = if count == 32 {
+            u64::from(u32::MAX)
+        } else if count == 0 {
+            0
+        } else {
+            (1_u64 << count) - 1
+        };
+        let value = (self.buffer & mask) as u32;
+        self.consume(count)?;
+        Ok(value)
+    }
+}
+
+impl Drop for ShiftedBitReader<'_, '_> {
+    fn drop(&mut self) {
+        self.reader.bit_position = self.bit_position;
+        self.reader.window_valid = false;
     }
 }
 
@@ -481,5 +624,47 @@ mod tests {
             writer.write_bits(0, 33).unwrap_err().kind(),
             DecodeErrorKind::InvalidParameter
         );
+    }
+
+    #[test]
+    fn shifted_reader_matches_strict_reads_across_offsets_and_refills() {
+        let data = [
+            0x13, 0xa7, 0x5c, 0xe1, 0x09, 0xff, 0x42, 0x81, 0x36, 0xc8, 0x7d, 0x2a, 0xb4, 0x60,
+            0x9e, 0x31, 0x55,
+        ];
+        for start in [0, 1, 3, 7, 8, 11, 31, 63, 95, 127] {
+            let mut strict = BitReader::with_bit_position(&data, start).unwrap();
+            let mut shifted_owner = BitReader::with_bit_position(&data, start).unwrap();
+            {
+                let mut shifted = shifted_owner.shifted();
+                for width in [1, 7, 13, 3, 15, 8, 2, 19, 5, 11, 4, 16] {
+                    if strict.remaining_bits() < usize::from(width) {
+                        break;
+                    }
+                    assert_eq!(shifted.read_bits(width), strict.read_bits(width));
+                }
+            }
+            assert_eq!(shifted_owner.bit_position(), strict.bit_position());
+            assert_eq!(
+                shifted_owner.remaining_bits(),
+                strict.remaining_bits(),
+                "start={start}"
+            );
+        }
+    }
+
+    #[test]
+    fn shifted_reader_reports_tail_eof_without_overadvancing() {
+        let mut owner = BitReader::with_bit_position(&[0b1011_0101], 3).unwrap();
+        {
+            let mut shifted = owner.shifted();
+            assert_eq!(shifted.read_bits(5), Ok(0b10110));
+            assert_eq!(
+                shifted.read_bits(1).unwrap_err().kind(),
+                DecodeErrorKind::UnexpectedEof
+            );
+        }
+        assert_eq!(owner.bit_position(), 8);
+        assert_eq!(owner.remaining_bits(), 0);
     }
 }
