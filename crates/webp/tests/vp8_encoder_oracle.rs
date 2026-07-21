@@ -117,25 +117,29 @@ fn public_lossy_vp8_profile_matches_pinned_dwebp_pixels() {
             ]);
         }
     }
-    let encoded = encode_lossy_rgba_with_options(16, 16, &rgba, LossyEncodeOptions { quality: 75 })
-        .expect("encode public lossy VP8 profile");
-    let rust = decode(&encoded, &DecodeOptions::default()).expect("decode public lossy VP8 profile");
     let scratch = ScratchDirectory::new();
-    let source = scratch.0.join("public-lossy.webp");
-    let target = scratch.0.join("public-lossy.pam");
-    fs::write(&source, encoded).expect("write public lossy WebP");
-    let output = Command::new(dwebp)
-        .arg(&source)
-        .args(["-pam", "-o"])
-        .arg(&target)
-        .output()
-        .expect("run pinned dwebp");
-    assert!(
-        output.status.success(),
-        "pinned dwebp rejected public lossy VP8: {}",
-        String::from_utf8_lossy(&output.stderr)
-    );
-    assert_eq!(pam_rgba(&target, 16, 16), rust.rgba);
+    for quality in [0, 75, 100] {
+        let encoded =
+            encode_lossy_rgba_with_options(16, 16, &rgba, LossyEncodeOptions { quality })
+                .expect("encode public lossy VP8 profile");
+        let rust =
+            decode(&encoded, &DecodeOptions::default()).expect("decode public lossy VP8 profile");
+        let source = scratch.0.join(format!("public-lossy-{quality}.webp"));
+        let target = scratch.0.join(format!("public-lossy-{quality}.pam"));
+        fs::write(&source, encoded).expect("write public lossy WebP");
+        let output = Command::new(&dwebp)
+            .arg(&source)
+            .args(["-pam", "-o"])
+            .arg(&target)
+            .output()
+            .expect("run pinned dwebp");
+        assert!(
+            output.status.success(),
+            "pinned dwebp rejected public lossy VP8 at quality {quality}: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        assert_eq!(pam_rgba(&target, 16, 16), rust.rgba, "quality {quality}");
+    }
 }
 
 #[test]

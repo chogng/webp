@@ -113,11 +113,17 @@ pub fn encode_lossy_rgba_with_options(
         return Err(EncodeError::invalid_quality());
     }
     validate_input(width, height, rgba)?;
-    let alpha = rgba
-        .chunks_exact(4)
-        .map(|pixel| pixel[3])
-        .collect::<Vec<_>>();
-    let has_alpha = alpha.iter().any(|&value| value != u8::MAX);
+    let has_alpha = rgba.chunks_exact(4).any(|pixel| pixel[3] != u8::MAX);
+    let alpha = if has_alpha {
+        let mut alpha = Vec::new();
+        alpha
+            .try_reserve_exact(rgba.len() / 4)
+            .map_err(|_| EncodeError::allocation_failed())?;
+        alpha.extend(rgba.chunks_exact(4).map(|pixel| pixel[3]));
+        Some(alpha)
+    } else {
+        None
+    };
     let source = webp_vp8::rgba_to_yuv420(width, height, rgba)
         .map_err(map_vp8_encode_error)?;
     let quantizer = u8::try_from((u16::from(100 - options.quality) * 127) / 100)
@@ -126,7 +132,7 @@ pub fn encode_lossy_rgba_with_options(
         &source, quantizer,
     )
     .map_err(map_vp8_encode_error)?;
-    wrap_vp8(payload, width, height, has_alpha.then_some(alpha))
+    wrap_vp8(payload, width, height, alpha)
 }
 
 /// Encodes a static RGBA8 image as a lossless WebP file with raw metadata.
