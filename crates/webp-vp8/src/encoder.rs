@@ -5,7 +5,10 @@
 //! public RGB(A) lossy encoder: RGB-to-YUV, transform/quantization and
 //! coefficient selection build on this verified partition layout.
 
-use crate::coefficients::{COEFFICIENT_DEFAULTS, COEFFICIENT_UPDATE_PROBABILITIES};
+use crate::coefficients::{
+    COEFFICIENT_BANDS, COEFFICIENT_DEFAULTS, COEFFICIENT_UPDATE_PROBABILITIES,
+    COEFFICIENT_ZIGZAG,
+};
 use crate::{
     BoolEncodeError, BoolEncoder, ChromaMode, CoefficientBlockType, CoefficientEncodeError,
     CoefficientProbabilities, DecodedCoefficients, DequantizationMatrix, Intra16Mode,
@@ -81,7 +84,8 @@ pub fn encode_neutral_key_frame(width: u32, height: u32) -> Result<Vec<u8>, Vp8E
         .checked_mul(macroblock_height)
         .ok_or(Vp8EncodeError::AllocationFailed)?;
     let blocks = vec![dc_intra_macroblock(); macroblock_count];
-    let first_partition = write_first_partition(&blocks, 0, None)?;
+    let first_partition =
+        write_first_partition(&blocks, 0, &CoefficientProbabilities::default(), None)?;
     let token_partition = write_zero_token_partition(macroblock_count)?;
     assemble_key_frame(width, height, first_partition, token_partition)
 }
@@ -200,14 +204,24 @@ pub fn encode_dc_predicted_key_frame_with_quantizer(
             macroblocks.push(coefficients);
         }
     }
-    let regular_first = write_first_partition(&blocks, quantizer, None)?;
-    let regular_tokens =
-        write_dc_macroblocks_token_partition(&macroblocks, &blocks, macroblock_width, false)?;
+    let (regular_first, regular_tokens) = write_best_coefficient_partitions(
+        &macroblocks,
+        &blocks,
+        macroblock_width,
+        quantizer,
+        false,
+        None,
+    )?;
     let (first_partition, token_partition) = if let Some(skip_probability) = skip_probability(&blocks)
     {
-        let skip_first = write_first_partition(&blocks, quantizer, Some(skip_probability))?;
-        let skip_tokens =
-            write_dc_macroblocks_token_partition(&macroblocks, &blocks, macroblock_width, true)?;
+        let (skip_first, skip_tokens) = write_best_coefficient_partitions(
+            &macroblocks,
+            &blocks,
+            macroblock_width,
+            quantizer,
+            true,
+            Some(skip_probability),
+        )?;
         let skip_size = partition_pair_len(&skip_first, &skip_tokens)?;
         let regular_size = partition_pair_len(&regular_first, &regular_tokens)?;
         if skip_size < regular_size {
@@ -352,6 +366,190 @@ fn partition_pair_len(first: &[u8], tokens: &[u8]) -> Result<usize, Vp8EncodeErr
         .len()
         .checked_add(tokens.len())
         .ok_or(Vp8EncodeError::AllocationFailed)
+}
+
+fn write_best_coefficient_partitions(
+    macroblocks: &[Vp8DcMacroblockCoefficients],
+    blocks: &[IntraMacroblock],
+    macroblock_width: usize,
+    quantizer: u8,
+    honor_skip: bool,
+    skip_probability: Option<u8>,
+) -> Result<(Vec<u8>, Vec<u8>), Vp8EncodeError> {
+    let defaults = CoefficientProbabilities::default();
+    let default_first = write_first_partition(blocks, quantizer, &defaults, skip_probability)?;
+    let default_tokens = write_dc_macroblocks_token_partition(
+        macroblocks,
+        blocks,
+        macroblock_width,
+        honor_skip,
+        &defaults,
+    )?;
+    let statistics =
+        collect_coefficient_statistics(macroblocks, blocks, macroblock_width, honor_skip)?;
+    let adapted = statistics.adapted_probabilities();
+    if adapted == defaults {
+        return Ok((default_first, default_tokens));
+    }
+    let adapted_first = write_first_partition(blocks, quantizer, &adapted, skip_probability)?;
+    let adapted_tokens = write_dc_macroblocks_token_partition(
+        macroblocks,
+        blocks,
+        macroblock_width,
+        honor_skip,
+        &adapted,
+    )?;
+    if partition_pair_len(&adapted_first, &adapted_tokens)?
+        < partition_pair_len(&default_first, &default_tokens)?
+    {
+        Ok((adapted_first, adapted_tokens))
+    } else {
+        Ok((default_first, default_tokens))
+    }
+}
+
+type CoefficientNodeCounts = [[[[[u64; 2]; 11]; 3]; 8]; 4];
+
+struct CoefficientStatistics {
+    nodes: CoefficientNodeCounts,
+}
+
+impl CoefficientStatistics {
+    fn new() -> Self {
+        Self {
+            nodes: [[[[[0; 2]; 11]; 3]; 8]; 4],
+        }
+    }
+
+    fn record(
+        &mut self,
+        coefficient_type: CoefficientBlockType,
+        context: u8,
+        start: u8,
+        values: [i16; 16],
+    ) -> Result<(), Vp8EncodeError> {
+        if context > 2 || start >= 16 || values[..usize::from(start)].iter().any(|&value| value != 0)
+        {
+            return Err(Vp8EncodeError::InvalidPlaneLayout);
+        }
+        let mut position = usize::from(start);
+        let mut coefficient_context = usize::from(context);
+        while position < 16 {
+            let has_more = ((position)..16).any(|next| values[COEFFICIENT_ZIGZAG[next]] != 0);
+            self.record_node(coefficient_type, position, coefficient_context, 0, has_more);
+            if !has_more {
+                return Ok(());
+            }
+            while values[COEFFICIENT_ZIGZAG[position]] == 0 {
+                self.record_node(coefficient_type, position, coefficient_context, 1, false);
+                position += 1;
+                coefficient_context = 0;
+            }
+            self.record_node(coefficient_type, position, coefficient_context, 1, true);
+            let value = values[COEFFICIENT_ZIGZAG[position]];
+            let magnitude = value.unsigned_abs();
+            self.record_node(coefficient_type, position, coefficient_context, 2, magnitude != 1);
+            if magnitude > 1 {
+                self.record_magnitude(coefficient_type, position, coefficient_context, magnitude)?;
+            }
+            position += 1;
+            coefficient_context = if magnitude == 1 { 1 } else { 2 };
+        }
+        Ok(())
+    }
+
+    fn record_magnitude(
+        &mut self,
+        coefficient_type: CoefficientBlockType,
+        position: usize,
+        context: usize,
+        magnitude: u16,
+    ) -> Result<(), Vp8EncodeError> {
+        let at_least_five = magnitude >= 5;
+        self.record_node(coefficient_type, position, context, 3, at_least_five);
+        if !at_least_five {
+            let at_least_three = magnitude >= 3;
+            self.record_node(coefficient_type, position, context, 4, at_least_three);
+            if at_least_three {
+                self.record_node(coefficient_type, position, context, 5, magnitude == 4);
+            }
+            return Ok(());
+        }
+        let at_least_eleven = magnitude >= 11;
+        self.record_node(coefficient_type, position, context, 6, at_least_eleven);
+        if !at_least_eleven {
+            self.record_node(coefficient_type, position, context, 7, magnitude >= 7);
+            return Ok(());
+        }
+        let category = match magnitude {
+            11..=18 => 0,
+            19..=34 => 1,
+            35..=66 => 2,
+            67..=2_114 => 3,
+            _ => return Err(Vp8EncodeError::FirstPartitionTooLarge),
+        };
+        let high = category / 2;
+        let low = category % 2;
+        self.record_node(coefficient_type, position, context, 8, high != 0);
+        self.record_node(coefficient_type, position, context, 9 + high, low != 0);
+        Ok(())
+    }
+
+    fn record_node(
+        &mut self,
+        coefficient_type: CoefficientBlockType,
+        position: usize,
+        context: usize,
+        node: usize,
+        bit: bool,
+    ) {
+        self.nodes[coefficient_type as usize][COEFFICIENT_BANDS[position]][context][node]
+            [usize::from(bit)] += 1;
+    }
+
+    fn adapted_probabilities(&self) -> CoefficientProbabilities {
+        let mut probabilities = CoefficientProbabilities::default();
+        for (coefficient_type, bands) in self.nodes.iter().enumerate() {
+            for (band, contexts) in bands.iter().enumerate() {
+                for (context, nodes) in contexts.iter().enumerate() {
+                    for (node, counts) in nodes.iter().enumerate() {
+                        let total = counts[0] + counts[1];
+                        if total == 0 {
+                            continue;
+                        }
+                        let candidate = (255 - counts[1] * 255 / total) as u8;
+                        let current = COEFFICIENT_DEFAULTS[coefficient_type][band][context][node];
+                        let update = COEFFICIENT_UPDATE_PROBABILITIES[coefficient_type][band]
+                            [context][node];
+                        let current_cost = branch_cost(*counts, current) + bit_cost(false, update);
+                        let candidate_cost = branch_cost(*counts, candidate)
+                            + bit_cost(true, update)
+                            + 8 * 256;
+                        if candidate != current && candidate_cost < current_cost {
+                            probabilities.values[coefficient_type][band][context][node] = candidate;
+                        }
+                    }
+                }
+            }
+        }
+        probabilities
+    }
+}
+
+fn branch_cost(counts: [u64; 2], probability: u8) -> u64 {
+    counts[0] * bit_cost(false, probability) + counts[1] * bit_cost(true, probability)
+}
+
+fn bit_cost(bit: bool, probability: u8) -> u64 {
+    // A deterministic Q8 log2 approximation is sufficient to shortlist
+    // profitable node updates. The complete encoded partition byte lengths
+    // remain the authoritative no-expansion decision.
+    let likelihood = if bit { 255 - probability } else { probability }.max(1);
+    let likelihood = u32::from(likelihood);
+    let exponent = 31 - likelihood.leading_zeros();
+    let unit = 1_u32 << exponent;
+    let fraction = ((likelihood - unit) << 8) / unit;
+    u64::from((8 - exponent) * 256 - fraction)
 }
 
 fn coefficient_cost(values: impl Iterator<Item = i16>) -> u64 {
@@ -709,6 +907,7 @@ const fn rgb_to_v(red: u8, green: u8, blue: u8) -> u8 {
 fn write_first_partition(
     blocks: &[IntraMacroblock],
     quantizer: u8,
+    probabilities: &CoefficientProbabilities,
     skip_probability: Option<u8>,
 ) -> Result<Vec<u8>, Vp8EncodeError> {
     let mut bits = BoolEncoder::new();
@@ -725,11 +924,17 @@ fn write_first_partition(
         bits.write_bool(false, 128)?; // Quantizer delta absent.
     }
     bits.write_bool(false, 128)?; // Refresh entropy probabilities.
-    for groups in COEFFICIENT_UPDATE_PROBABILITIES {
-        for contexts in groups {
-            for nodes in contexts {
-                for probability in nodes {
-                    bits.write_bool(false, probability)?; // Retain defaults.
+    for (coefficient_type, bands) in COEFFICIENT_UPDATE_PROBABILITIES.iter().enumerate() {
+        for (band, contexts) in bands.iter().enumerate() {
+            for (context, nodes) in contexts.iter().enumerate() {
+                for (node, &update_probability) in nodes.iter().enumerate() {
+                    let probability = probabilities.values[coefficient_type][band][context][node];
+                    let update = probability
+                        != COEFFICIENT_DEFAULTS[coefficient_type][band][context][node];
+                    bits.write_bool(update, update_probability)?;
+                    if update {
+                        bits.write_literal(u32::from(probability), 8)?;
+                    }
                 }
             }
         }
@@ -802,11 +1007,129 @@ fn write_zero_token_partition(macroblock_count: usize) -> Result<Vec<u8>, Vp8Enc
     bits.finish().map_err(Into::into)
 }
 
+fn collect_coefficient_statistics(
+    macroblocks: &[Vp8DcMacroblockCoefficients],
+    blocks: &[IntraMacroblock],
+    macroblock_width: usize,
+    honor_skip: bool,
+) -> Result<CoefficientStatistics, Vp8EncodeError> {
+    if macroblock_width == 0
+        || macroblocks.len() != blocks.len()
+        || !macroblocks.len().is_multiple_of(macroblock_width)
+    {
+        return Err(Vp8EncodeError::InvalidPlaneLayout);
+    }
+    let mut statistics = CoefficientStatistics::new();
+    let mut top_y2 = vec![false; macroblock_width];
+    let mut top_luma = vec![[false; 4]; macroblock_width];
+    let mut top_u = vec![[false; 2]; macroblock_width];
+    let mut top_v = vec![[false; 2]; macroblock_width];
+    for (row, block_row) in macroblocks
+        .chunks_exact(macroblock_width)
+        .zip(blocks.chunks_exact(macroblock_width))
+    {
+        let mut left_y2 = false;
+        let mut left_luma = [false; 4];
+        let mut left_u = [false; 2];
+        let mut left_v = [false; 2];
+        for (column, (coefficients, block)) in row
+            .iter()
+            .copied()
+            .zip(block_row.iter().copied())
+            .enumerate()
+        {
+            if honor_skip && block.skip {
+                top_y2[column] = false;
+                top_luma[column] = [false; 4];
+                top_u[column] = [false; 2];
+                top_v[column] = [false; 2];
+                left_y2 = false;
+                left_luma = [false; 4];
+                left_u = [false; 2];
+                left_v = [false; 2];
+                continue;
+            }
+            let y2_context = u8::from(top_y2[column]) + u8::from(left_y2);
+            statistics.record(
+                CoefficientBlockType::LumaDc,
+                y2_context,
+                0,
+                coefficients.y2,
+            )?;
+            let y2_present = coefficients.y2.iter().any(|&value| value != 0);
+            top_y2[column] = y2_present;
+            left_y2 = y2_present;
+            record_luma_statistics(
+                &mut statistics,
+                coefficients.luma,
+                &mut top_luma[column],
+                &mut left_luma,
+            )?;
+            record_chroma_statistics(
+                &mut statistics,
+                coefficients.u,
+                &mut top_u[column],
+                &mut left_u,
+            )?;
+            record_chroma_statistics(
+                &mut statistics,
+                coefficients.v,
+                &mut top_v[column],
+                &mut left_v,
+            )?;
+        }
+    }
+    Ok(statistics)
+}
+
+fn record_luma_statistics(
+    statistics: &mut CoefficientStatistics,
+    blocks: [[i16; 16]; 16],
+    top: &mut [bool; 4],
+    left: &mut [bool; 4],
+) -> Result<(), Vp8EncodeError> {
+    for row in 0..4 {
+        let mut left_block = left[row];
+        for column in 0..4 {
+            let block = blocks[row * 4 + column];
+            let context = u8::from(top[column]) + u8::from(left_block);
+            statistics.record(CoefficientBlockType::Luma16Ac, context, 1, block)?;
+            let present = block[1..].iter().any(|&value| value != 0);
+            top[column] = present;
+            left_block = present;
+        }
+        left[row] = left_block;
+    }
+    Ok(())
+}
+
+fn record_chroma_statistics(
+    statistics: &mut CoefficientStatistics,
+    blocks: [[i16; 16]; 4],
+    top: &mut [bool; 2],
+    left: &mut [bool; 2],
+) -> Result<(), Vp8EncodeError> {
+    for row in 0..2 {
+        let mut left_block = left[row];
+        for column in 0..2 {
+            let block = blocks[row * 2 + column];
+            let context = u8::from(top[column]) + u8::from(left_block);
+            statistics.record(CoefficientBlockType::ChromaAc, context, 0, block)?;
+            let present = block.iter().any(|&value| value != 0);
+            top[column] = present;
+            left_block = present;
+        }
+        left[row] = left_block;
+    }
+    Ok(())
+}
+
 fn write_dc_macroblocks_token_partition(
     macroblocks: &[Vp8DcMacroblockCoefficients],
     blocks: &[IntraMacroblock],
     macroblock_width: usize,
     honor_skip: bool,
+    probabilities: &CoefficientProbabilities,
 ) -> Result<Vec<u8>, Vp8EncodeError> {
     if macroblock_width == 0
         || macroblocks.len() != blocks.len()
@@ -814,7 +1137,6 @@ fn write_dc_macroblocks_token_partition(
     {
         return Err(Vp8EncodeError::InvalidPlaneLayout);
     }
-    let probabilities = CoefficientProbabilities::default();
     let mut bits = BoolEncoder::new();
     let mut top_y2 = vec![false; macroblock_width];
     let mut top_luma = vec![[false; 4]; macroblock_width];
@@ -848,7 +1170,7 @@ fn write_dc_macroblocks_token_partition(
             let y2_context = u8::from(top_y2[column]) + u8::from(left_y2);
             write_coefficients(
                 &mut bits,
-                &probabilities,
+                probabilities,
                 CoefficientBlockType::LumaDc,
                 y2_context,
                 0,
@@ -859,21 +1181,21 @@ fn write_dc_macroblocks_token_partition(
             left_y2 = y2_present;
             write_luma_coefficients(
                 &mut bits,
-                &probabilities,
+                probabilities,
                 coefficients.luma,
                 &mut top_luma[column],
                 &mut left_luma,
             )?;
             write_chroma_coefficients(
                 &mut bits,
-                &probabilities,
+                probabilities,
                 coefficients.u,
                 &mut top_u[column],
                 &mut left_u,
             )?;
             write_chroma_coefficients(
                 &mut bits,
-                &probabilities,
+                probabilities,
                 coefficients.v,
                 &mut top_v[column],
                 &mut left_v,

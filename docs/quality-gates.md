@@ -153,6 +153,31 @@ still produced 288,010 bytes and checksum `293176` per matrix. Rust measured
 libwebp median was 334.754 ms. The next rate pass must therefore target the
 non-zero coefficient stream rather than flat macroblocks.
 
+## VP8 frame-adaptive coefficient probabilities
+
+The encoder now records both outcomes for every VP8 coefficient-tree node,
+indexed by coefficient type, band, neighbour context, and node. It derives a
+candidate probability table from the complete frame and transmits only updates
+whose estimated token savings cover their update flag and eight-bit literal.
+The estimate uses a deterministic fixed-point log approximation only as a
+shortlist: default and adapted first/token partition pairs are both encoded,
+and the adapted pair is retained only when its exact combined byte length is
+smaller. The same selection is applied independently to regular and
+macroblock-skip profiles. A repeated non-zero distribution test requires real
+probability updates, while the pinned `dwebp` matrix validates their decoded
+pixels.
+
+Three five-iteration runs measured 374.015 ms, 375.813 ms, and 373.553 ms for
+Rust, with a 374.015 ms median. The matching libwebp runs measured 329.267 ms,
+333.221 ms, and 330.766 ms, with a 330.766 ms median, so Rust is now 13.1%
+slower after the additional statistics and candidate encoding work. Output
+fell from 288,010 to 183,802 bytes per matrix, a 36.18% reduction, with
+benchmark checksum `188968`; locked-oracle decoded pixels remain unchanged.
+The remaining size ratio is 1.359x against libwebp's 135,226 bytes, down from
+2.13x. Subsequent VP8 work should add an explicit rate/distortion gate before
+changing mode selection and should recover the duplicate candidate-encoding
+CPU cost.
+
 ## VP8L entropy-path optimization record
 
 The 2026-07-20 optimization pass retained the same 41-file corpus, five

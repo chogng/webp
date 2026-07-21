@@ -192,6 +192,43 @@ fn zero_residual_frames_select_macroblock_skip_when_it_is_smaller() {
 }
 
 #[test]
+fn repeated_coefficient_events_select_frame_probability_updates() {
+    let width = 128_usize;
+    let height = 128_usize;
+    let y = (0..width * height)
+        .map(|index| {
+            let row = index / width;
+            let column = index % width;
+            if (row / 4 + column / 4).is_multiple_of(2) {
+                48
+            } else {
+                208
+            }
+        })
+        .collect();
+    let source = Vp8SourceYuv {
+        width: width as u32,
+        height: height as u32,
+        y_stride: width,
+        uv_stride: width / 2,
+        y,
+        u: vec![128; width * height / 4],
+        v: vec![128; width * height / 4],
+    };
+    let encoded = encode_dc_predicted_key_frame_with_quantizer(&source, 75).unwrap();
+    let header = parse_riff_payload(&encoded, None, &DecodeLimits::default()).unwrap();
+    let layout = crate::parse_partition_layout(&encoded, &header, &DecodeLimits::default())
+        .unwrap();
+    assert_ne!(
+        layout.header.coefficients.values,
+        COEFFICIENT_DEFAULTS,
+        "a repeated non-zero token distribution should amortize frame updates"
+    );
+    let decoded = decode_intra_frame(&encoded, &header, &DecodeLimits::default()).unwrap();
+    assert_eq!((decoded.width, decoded.height), (128, 128));
+}
+
+#[test]
 fn intra16_selector_uses_vertical_prediction_when_top_edge_matches_source() {
     let matrix = crate::derive_dequantization(
         crate::QuantizationHeader {

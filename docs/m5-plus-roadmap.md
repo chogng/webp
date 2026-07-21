@@ -89,10 +89,13 @@ work and plane reconstruction from intra16 mode search while preserving
 bit-for-bit output, improving the locked quality matrix by 61.6% in total.
 The pinned libwebp comparison shows Rust 20.3% faster but producing 2.13x as
 many bytes. Zero-residual macroblock skipping now uses an adaptive probability
-and an exact no-expansion decision, but the locked matrix contains no profitable
-skip candidates; VP8 encoder work therefore shifts to non-zero coefficient
-rate/quality decisions. Reviewed regression thresholds and the remaining
-public paths are still open.
+and an exact no-expansion decision. Frame-adaptive coefficient probabilities
+then reduce the locked matrix from 288,010 to 183,802 bytes (36.18%) and narrow
+the libwebp size ratio from 2.13x to 1.359x, at the cost of moving Rust from
+20.3% faster to 13.1% slower on the same comparison. VP8 encoder work therefore
+shifts to an explicit rate/distortion gate and recovery of candidate-encoding
+CPU cost. Reviewed regression thresholds and the remaining public paths are
+still open.
 
 Each milestone is independently shippable; a later performance or coding-tool
 milestone must not silently change the public correctness contract established
