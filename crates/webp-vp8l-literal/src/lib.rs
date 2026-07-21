@@ -858,8 +858,26 @@ const fn unpack_rgba(pixel: u32) -> [u8; 4] {
 }
 
 fn extend_rgba_from_argb(output: &mut Vec<u8>, pixels: &[u32]) {
-    let mut blocks = pixels.chunks_exact(4);
+    let mut blocks = pixels.chunks_exact(8);
     for block in &mut blocks {
+        let first = unpack_rgba(block[0]);
+        let second = unpack_rgba(block[1]);
+        let third = unpack_rgba(block[2]);
+        let fourth = unpack_rgba(block[3]);
+        let fifth = unpack_rgba(block[4]);
+        let sixth = unpack_rgba(block[5]);
+        let seventh = unpack_rgba(block[6]);
+        let eighth = unpack_rgba(block[7]);
+        output.extend_from_slice(&[
+            first[0], first[1], first[2], first[3], second[0], second[1], second[2], second[3],
+            third[0], third[1], third[2], third[3], fourth[0], fourth[1], fourth[2], fourth[3],
+            fifth[0], fifth[1], fifth[2], fifth[3], sixth[0], sixth[1], sixth[2], sixth[3],
+            seventh[0], seventh[1], seventh[2], seventh[3], eighth[0], eighth[1], eighth[2],
+            eighth[3],
+        ]);
+    }
+    let mut tail_blocks = blocks.remainder().chunks_exact(4);
+    for block in &mut tail_blocks {
         let first = unpack_rgba(block[0]);
         let second = unpack_rgba(block[1]);
         let third = unpack_rgba(block[2]);
@@ -869,7 +887,7 @@ fn extend_rgba_from_argb(output: &mut Vec<u8>, pixels: &[u32]) {
             third[0], third[1], third[2], third[3], fourth[0], fourth[1], fourth[2], fourth[3],
         ]);
     }
-    for &pixel in blocks.remainder() {
+    for &pixel in tail_blocks.remainder() {
         output.extend_from_slice(&unpack_rgba(pixel));
     }
 }
