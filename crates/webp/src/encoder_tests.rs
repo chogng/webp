@@ -1,5 +1,5 @@
 use super::*;
-use crate::{DecodeOptions, decode};
+use crate::{decode, DecodeOptions};
 
 #[test]
 fn literal_vp8l_encoder_round_trips_straight_rgba() {
@@ -93,6 +93,60 @@ fn encoder_emits_bounded_distance_one_lz77_runs() {
 }
 
 #[test]
+fn encoder_uses_cache_and_lz77_on_non_palette_images() {
+    let (cache_width, cache_rgba) = non_palette_cache_input();
+    assert!(
+        try_make_palette_plan(&cache_rgba, cache_width)
+            .expect("inspect cache input palette")
+            .is_none(),
+        "the cache input has more than the encoder's palette bound"
+    );
+    let cache_bits = select_color_cache_bits(&cache_rgba, cache_width, true, false);
+    let (cache_tokens, _) =
+        collect_entropy_tokens(&cache_rgba, cache_width, true, false, cache_bits)
+            .expect("tokenize cache input");
+    assert!(
+        cache_tokens
+            .iter()
+            .any(|token| matches!(token, EntropyToken::Cache(_))),
+        "a non-adjacent repeat reaches the main-stream color cache"
+    );
+    let cache_encoded =
+        encode_lossless_rgba(cache_width as u32, 1, &cache_rgba).expect("encode cache input");
+    assert_eq!(
+        decode(&cache_encoded, &DecodeOptions::default())
+            .expect("decode cache input")
+            .rgba,
+        cache_rgba
+    );
+
+    let (copy_width, copy_height, copy_rgba) = non_palette_copy_input();
+    assert!(
+        try_make_palette_plan(&copy_rgba, copy_width)
+            .expect("inspect copy input palette")
+            .is_none(),
+        "the copy input has more than the encoder's palette bound"
+    );
+    assert!(select_left_predictor(&copy_rgba, copy_width));
+    let (copy_tokens, _) =
+        collect_entropy_tokens(&copy_rgba, copy_width, true, true, 0).expect("tokenize copy input");
+    assert!(
+        copy_tokens
+            .iter()
+            .any(|token| matches!(token, EntropyToken::Copy { length } if *length >= 3)),
+        "repeated non-palette rows reach bounded distance-one LZ77"
+    );
+    let copy_encoded = encode_lossless_rgba(copy_width as u32, copy_height as u32, &copy_rgba)
+        .expect("encode copy input");
+    assert_eq!(
+        decode(&copy_encoded, &DecodeOptions::default())
+            .expect("decode copy input")
+            .rgba,
+        copy_rgba
+    );
+}
+
+#[test]
 fn encoder_selects_left_prediction_only_for_repeated_transformed_neighbours() {
     let repeated = [
         10, 20, 30, 255, 10, 20, 30, 255, 10, 20, 30, 255, 10, 20, 30, 255,
@@ -167,4 +221,31 @@ fn literal_vp8l_encoder_rejects_unrepresentable_dimensions_and_bad_input_length(
         encode_lossless_rgba(1, 1, &[]).unwrap_err(),
         EncodeError::invalid_rgba_length()
     );
+}
+
+fn non_palette_cache_input() -> (usize, Vec<u8>) {
+    let mut rgba = Vec::new();
+    for _ in 0..2 {
+        for value in 0_u8..18 {
+            rgba.extend_from_slice(&[value.wrapping_mul(13), 0, value.wrapping_mul(29), 255]);
+        }
+    }
+    (36, rgba)
+}
+
+fn non_palette_copy_input() -> (usize, usize, Vec<u8>) {
+    let width = 32;
+    let mut rgba = Vec::new();
+    for row in 0_u8..17 {
+        let pixel = [
+            row.wrapping_mul(11).wrapping_add(7),
+            row.wrapping_mul(13).wrapping_add(19),
+            row.wrapping_mul(17).wrapping_add(29),
+            255,
+        ];
+        for _ in 0..width {
+            rgba.extend_from_slice(&pixel);
+        }
+    }
+    (width, 17, rgba)
 }

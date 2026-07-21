@@ -7,7 +7,7 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use webp::{Metadata, encode_lossless_rgba, encode_lossless_rgba_with_metadata};
+use webp::{encode_lossless_rgba, encode_lossless_rgba_with_metadata, Metadata};
 
 #[test]
 fn literal_vp8l_output_round_trips_through_pinned_libwebp() {
@@ -96,7 +96,35 @@ fn opaque_cases() -> Vec<(u32, u32, Vec<u8>)> {
         ]);
     }
     cases.push((16, 16, correlated_rgb));
+    cases.push(non_palette_cache_case());
+    cases.push(non_palette_copy_case());
     cases
+}
+
+fn non_palette_cache_case() -> (u32, u32, Vec<u8>) {
+    let mut rgba = Vec::new();
+    for _ in 0..2 {
+        for value in 0_u8..18 {
+            rgba.extend_from_slice(&[value.wrapping_mul(13), 0, value.wrapping_mul(29), 255]);
+        }
+    }
+    (36, 1, rgba)
+}
+
+fn non_palette_copy_case() -> (u32, u32, Vec<u8>) {
+    let mut rgba = Vec::new();
+    for row in 0_u8..17 {
+        let pixel = [
+            row.wrapping_mul(11).wrapping_add(7),
+            row.wrapping_mul(13).wrapping_add(19),
+            row.wrapping_mul(17).wrapping_add(29),
+            255,
+        ];
+        for _ in 0..32 {
+            rgba.extend_from_slice(&pixel);
+        }
+    }
+    (32, 17, rgba)
 }
 
 fn alpha_cases() -> Vec<(u32, u32, Vec<u8>)> {

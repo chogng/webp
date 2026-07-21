@@ -59,6 +59,11 @@ before setting an encoder throughput or size-regression threshold. The first
 encoder baseline remains pending until those measurements and a comparable
 pinned-libwebp encode harness are recorded.
 
+The 2026-07-20 single-pass Rust baseline processed 41 inputs, 22,954,432 RGBA
+bytes, and produced 18,301,768 WebP bytes in 623.300 ms (checksum `18305130`).
+It is an informative M6 rate record only: a pinned-libwebp encoding comparison
+and reviewed regression threshold remain M9 quality-gate work.
+
 ## VP8L entropy-path optimization record
 
 The 2026-07-20 optimization pass retained the same 41-file corpus, five

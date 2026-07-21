@@ -25,7 +25,7 @@ metadata contract now applies to the VP8L-frame animation encoder.
   locked oracle. Rate comparisons are informative until a reviewed target is
   set; no heuristic is accepted without deterministic bounds and tests.
 
-**Status: in progress.** Deterministic frequency-ranked balanced Huffman
+**Status: complete.** Deterministic frequency-ranked balanced Huffman
 tables now cover all static VP8L entropy alphabets, including cache references.
 The encoder also selects a zero-to-four-bit cache only when it produces hits,
 writes color-indexing transforms for deterministic palettes of up to 16
@@ -36,6 +36,12 @@ bounded set of global color-transform coefficient triples and emits one only
 when its signed channel-residual score improves by at least 25%; nested-table
 cost otherwise keeps the color transform disabled. Per-block coefficient
 selection remains a later rate-tuning step.
+
+Each emitted coding-tool profile is validated through public Rust round trips
+and the locked `dwebp` oracle: color indexing, non-palette cache hits,
+non-palette left prediction with bounded distance-one LZ77, adaptive Huffman
+tables, and the global color transform. A release one-pass rate record is
+captured in the quality gates; cross-encoder thresholds remain M9 work.
 
 ## M7: static lossy VP8 encoding
 
