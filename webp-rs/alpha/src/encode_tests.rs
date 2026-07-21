@@ -133,6 +133,52 @@ fn best_filter_selects_the_smallest_lossless_payload() {
     )
     .unwrap();
     let header = parse_header(&payload, CompatibilityProfile::SpecStrict).unwrap();
+    let smallest_fixed = [
+        AlphaFilter::None,
+        AlphaFilter::Horizontal,
+        AlphaFilter::Vertical,
+        AlphaFilter::Gradient,
+    ]
+    .into_iter()
+    .map(|filter| {
+        encode(
+            &samples,
+            64,
+            64,
+            AlphaEncodeOptions {
+                compression: AlphaCompression::Lossless,
+                filter: filter.into(),
+                quality: 100,
+            },
+        )
+        .unwrap()
+        .len()
+    })
+    .min()
+    .unwrap();
     assert_eq!(header.compression, AlphaCompression::Lossless);
-    assert_eq!(header.filter, AlphaFilter::Horizontal);
+    assert_eq!(payload.len(), smallest_fixed);
+}
+
+#[test]
+fn lz77_tokenizer_finds_repeated_sequences() {
+    let mut tokens = Vec::new();
+    let mut match_heads = allocate_match_heads().unwrap();
+    walk_tokens(b"abcabcabcabcabc", &mut match_heads, |token| {
+        tokens.push(token);
+        Ok(())
+    })
+    .unwrap();
+    assert_eq!(
+        tokens,
+        [
+            EntropyToken::Literal(b'a'),
+            EntropyToken::Literal(b'b'),
+            EntropyToken::Literal(b'c'),
+            EntropyToken::Copy {
+                length: 12,
+                distance: 3,
+            },
+        ]
+    );
 }

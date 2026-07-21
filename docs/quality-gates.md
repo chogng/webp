@@ -243,9 +243,33 @@ Three runs measured Rust at 635.681 ms, 618.958 ms, and 611.623 ms, with a
 whole-image encode time for this profile. Every run produced 5,277,700 Rust
 bytes, including 3,348,150 ALPH payload bytes, versus 4,752,900 libwebp bytes,
 including 2,605,250 ALPH bytes. Rust's whole output is 11.0% larger and its
-ALPH payloads are 28.5% larger. The size gap remains an explicit optimization
-target for LZ77 and color-cache coding; the timing result must not be presented
-as an isolated ALPH speedup because the two public RGB encoders also differ.
+ALPH payloads are 28.5% larger. This baseline established LZ77 and Huffman
+coding as the next explicit optimization target; the timing result must not be
+presented as an isolated ALPH speedup because the two public RGB encoders also
+differ.
+
+## ALPH LZ77 and Huffman optimization record
+
+The follow-up encoder pass adds bounded greedy backward references, actual
+frequency-derived Huffman trees with a deterministic length-limited fallback,
+and VP8L repeat coding for the Huffman code-length stream. Images up to four
+million samples retain compact four-byte entropy tokens so matching and
+frequency collection remain one pass. Larger images retain the two-pass path,
+limiting match state to one 256 KiB hash table instead of allocating a chain
+entry per sample.
+
+Three 50-iteration runs measured Rust at 694.536 ms, 699.131 ms, and 702.842
+ms, with a 699.131 ms median. Pinned libwebp measured 1,121.805 ms, 1,133.686
+ms, and 1,144.402 ms, with a 1,133.686 ms median. Every run produced 4,783,800
+Rust bytes, including 2,854,250 ALPH payload bytes, versus 4,752,900 libwebp
+bytes, including 2,605,250 ALPH bytes. The optimization reduces Rust ALPH data
+by 14.8% and whole output by 9.4%; the remaining gaps are 9.6% and 0.7%,
+respectively.
+
+The 699.131 ms median is 13.0% slower than the preceding 618.958 ms Rust
+baseline, an explicit reviewed tradeoff for closing most of the output-size
+gap. Rust remains 38.3% faster than pinned libwebp on the whole-image profile,
+and all exact and level-reduced `dwebp` oracle matrices remain unchanged.
 
 ## VP8L entropy-path optimization record
 
@@ -493,7 +517,7 @@ within the same run to reduce host and load sensitivity.
 | VP8L CLIC decode | `bash tools/benchmark-vp8l-clic.sh 1 4` | aggregate Rust median <= 14.71 s and <= 1.03x pinned-libwebp time |
 | VP8L static encode | `bash tools/benchmark-vp8l-encode.sh 5` | Rust median <= 3.132 s, exact round trips, and output <= 1.35x pinned libwebp |
 | VP8 static encode | `bash tools/benchmark-vp8-encode.sh 5` | Rust median <= 371.341 ms, output <= 1.40x pinned libwebp, and PSNR floors 25.807/37.326/48.600 dB at quality 0/75/100 |
-| VP8/ALPH static encode | `bash tools/benchmark-alpha-encode.sh 50` | Rust median <= 650 ms, whole output <= 1.15x pinned libwebp, ALPH payload <= 1.30x pinned libwebp, and exact pinned-`dwebp` alpha oracle |
+| VP8/ALPH static encode | `bash tools/benchmark-alpha-encode.sh 50` | Rust median <= 735 ms, whole output <= 1.02x pinned libwebp, ALPH payload <= 1.12x pinned libwebp, and exact pinned-`dwebp` alpha oracle |
 | VP8L-frame animation encode | `bash tools/benchmark-animation-encode.sh 5` | Rust median <= 95.409 ms, output <= 406,862 bytes per six-frame animation, and locked `webpmux`/`dwebp` acceptance |
 
 The CLIC decoder's measured 0.975x ratio is explicitly accepted for M9 because

@@ -4,6 +4,7 @@
 mod alpha;
 mod encode;
 mod encode_filter;
+mod encode_huffman;
 mod level_reduction;
 
 pub use alpha::AlphaCompression;

@@ -19,9 +19,9 @@ encoding; performance work remains deliberately deferred.
 - `webp-alpha` owns complete `ALPH` payload encoding and decoding: raw and
   headerless-VP8L compression, fixed/fast/best spatial-filter selection,
   quality-driven level reduction, compressed-size comparison with raw
-  fallback, preprocessing/header fields, and bounded decode resources. Strict
-  container parsing checks alpha feature flags in static and animated
-  containers.
+  fallback, LZ77 and frequency-derived Huffman coding, preprocessing/header
+  fields, and bounded decode resources. Strict container parsing checks alpha
+  feature flags in static and animated containers.
 - Animated `ANIM`/`ANMF` containers validate frame geometry and resources;
   `decode_animation` returns full display-order RGBA canvas snapshots after
   blend and disposal.
