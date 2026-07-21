@@ -857,6 +857,23 @@ const fn unpack_rgba(pixel: u32) -> [u8; 4] {
     ]
 }
 
+fn extend_rgba_from_argb(output: &mut Vec<u8>, pixels: &[u32]) {
+    let mut blocks = pixels.chunks_exact(4);
+    for block in &mut blocks {
+        let first = unpack_rgba(block[0]);
+        let second = unpack_rgba(block[1]);
+        let third = unpack_rgba(block[2]);
+        let fourth = unpack_rgba(block[3]);
+        output.extend_from_slice(&[
+            first[0], first[1], first[2], first[3], second[0], second[1], second[2], second[3],
+            third[0], third[1], third[2], third[3], fourth[0], fourth[1], fourth[2], fourth[3],
+        ]);
+    }
+    for &pixel in blocks.remainder() {
+        output.extend_from_slice(&unpack_rgba(pixel));
+    }
+}
+
 /// Internal transform storage with explicit intermediate layout states.
 ///
 /// Entropy and color indexing naturally operate on VP8L's packed ARGB words,
@@ -914,9 +931,7 @@ impl TransformPixels {
                     "RGBA output allocation failed",
                 )
             })?;
-            for &pixel in pixels.iter() {
-                bytes.extend_from_slice(&unpack_rgba(pixel));
-            }
+            extend_rgba_from_argb(&mut bytes, pixels);
             *self = Self::Rgba(bytes);
         }
         match self {
@@ -1318,9 +1333,7 @@ fn inverse_predictor_argb_to_rgba(
     })?;
 
     for (y, residual_row) in pixels.chunks_exact(layout.width).enumerate() {
-        for &pixel in residual_row {
-            rgba.extend_from_slice(&unpack_rgba(pixel));
-        }
+        extend_rgba_from_argb(&mut rgba, residual_row);
         let row_start = y * layout.row_bytes;
         if y == 0 {
             let current = &mut rgba[..layout.row_bytes];

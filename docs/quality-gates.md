@@ -407,12 +407,12 @@ The 2026-07-21 run used libwebp commit
 `733c91e461c18cf1127c9ed0a80dccbcfed599d3`. Both implementations produced
 3,022,297,644 RGBA bytes and checksum `997056` per aggregate pass.
 
-Three full-corpus runs measured libwebp at 14.343 s median and Rust at 14.640 s
-median. Rust is therefore 1.021x the libwebp time, or 2.1% slower. The Rust
-decoder is 29.8% faster than its original 20.863 s median. A method split shows
-median pairs of 4.762 s versus 4.554 s for method 0 (Rust 4.4% faster), 4.858 s
-versus 5.164 s for method 3 (Rust 6.3% slower), and 4.825 s versus 5.061 s for
-method 6 (Rust 4.9% slower), with libwebp listed first in each pair.
+Three full-corpus runs measured libwebp at 14.428 s median and Rust at 14.225 s
+median. Rust is therefore 0.986x the libwebp time, or 1.4% faster. The Rust
+decoder is 31.8% faster than its original 20.863 s median. A method split shows
+median pairs of 4.773 s versus 4.406 s for method 0 (Rust 7.7% faster), 4.871 s
+versus 4.940 s for method 3 (Rust 1.4% slower), and 4.750 s versus 4.847 s for
+method 6 (Rust 2.0% slower), with libwebp listed first in each pair.
 
 The retained optimization keeps the output pixel vector outside the optional
 deferred color-cache branch and remaps sparse wire meta-Huffman ids to dense
@@ -421,10 +421,12 @@ per-meta-run binary search. Predictor residual conversion is also fused with
 row reconstruction, keeping each converted row cache-hot instead of writing
 and rereading a complete RGBA residual frame. The inverse color transform walks
 multiplier blocks directly, replacing two runtime divisions per pixel with one
-lookup per block. Test-instrumented phase measurements assign roughly 58--61%
-of decode time to entropy expansion, 27--33% to fused predictor reconstruction,
-and 3--4% to remaining final layout conversion, so entropy and predictor remain
-active optimization owners.
+lookup per block. ARGB layout conversion appends four RGBA pixels at a time,
+reducing vector extension and capacity checks in both the fused predictor and
+final conversion paths. Test-instrumented phase measurements assign roughly
+60--63% of decode time to entropy expansion, 26--32% to fused predictor
+reconstruction, and 2--3% to remaining final layout conversion, so entropy and
+predictor remain active optimization owners.
 
 M1 correctness and its original conformance-corpus performance gate are
 complete. The reviewed M9 thresholds below explicitly accept this measured
@@ -460,13 +462,13 @@ within the same run to reduce host and load sensitivity.
 | Public path | Reproduction | Reviewed threshold |
 | --- | --- | --- |
 | VP8L conformance decode | `bash tools/benchmark-vp8l.sh 5` | Rust median <= 0.735 s, checksum `96355`, and <= 1.40x pinned-libwebp time |
-| VP8L CLIC decode | `bash tools/benchmark-vp8l-clic.sh 1 4` | aggregate Rust median <= 15.37 s and <= 1.10x pinned-libwebp time |
+| VP8L CLIC decode | `bash tools/benchmark-vp8l-clic.sh 1 4` | aggregate Rust median <= 14.94 s and <= 1.05x pinned-libwebp time |
 | VP8L static encode | `bash tools/benchmark-vp8l-encode.sh 5` | Rust median <= 3.132 s, exact round trips, and output <= 1.35x pinned libwebp |
 | VP8 static encode | `bash tools/benchmark-vp8-encode.sh 5` | Rust median <= 371.341 ms, output <= 1.40x pinned libwebp, and PSNR floors 25.807/37.326/48.600 dB at quality 0/75/100 |
 | VP8L-frame animation encode | `bash tools/benchmark-animation-encode.sh 5` | Rust median <= 95.409 ms, output <= 406,862 bytes per six-frame animation, and locked `webpmux`/`dwebp` acceptance |
 
-The CLIC decoder's measured 1.021x gap is explicitly accepted for M9 because
-it is reproducible, stays inside the 1.10x threshold, and retains profiled
+The CLIC decoder's measured 0.986x ratio is explicitly accepted for M9 because
+it is reproducible, stays inside the 1.05x threshold, and retains profiled
 entropy-expansion and predictor-reconstruction owners. It remains a future
 optimization target, not an unprofiled milestone blocker. Output-size and PSNR
 thresholds are product guards, not bitstream freezes; a reviewed coding-tool
