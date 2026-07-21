@@ -7,8 +7,7 @@
 //! of this crate's first slice.
 
 #[cfg(test)]
-use webp_core::DecodeLimits;
-use webp_core::{DecodeError, DecodeErrorKind};
+use webp_core::{DecodeErrorKind, DecodeLimits};
 
 mod bitstream;
 mod coefficients;
@@ -22,7 +21,6 @@ mod reconstruction;
 mod transform;
 
 use coefficients::{COEFFICIENT_DEFAULTS, COEFFICIENT_UPDATE_PROBABILITIES};
-use intra::B_MODE_PROBABILITIES;
 #[cfg(test)]
 use partition::{KEY_FRAME_HEADER_LEN, KEY_FRAME_START_CODE};
 
@@ -32,6 +30,9 @@ pub use entropy::{
     ResidualContext, decode_coefficients, decode_intra_residuals,
 };
 pub use frame::{Vp8YuvImage, decode_intra_frame};
+pub use intra::{
+    ChromaMode, Intra4Mode, Intra16Mode, IntraMacroblock, LumaMode, parse_intra_mode_row,
+};
 pub use loop_filter::{
     LoopFilterStrength, derive_loop_filter_strengths, filter_normal_edge, filter_simple_edge,
 };
@@ -62,202 +63,6 @@ pub(crate) const CATEGORY_PROBABILITIES: [&[u8]; 4] = [
     &[180, 157, 141, 134, 130],
     &[254, 254, 243, 230, 196, 177, 153, 140, 133, 130, 129],
 ];
-
-/// One VP8 intra 4×4 prediction mode.
-///
-/// Numeric values match VP8's B-mode entropy contexts and therefore can be
-/// used directly to index the fixed B_PRED probability table.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[repr(u8)]
-pub enum Intra4Mode {
-    Dc = 0,
-    TrueMotion = 1,
-    Vertical = 2,
-    Horizontal = 3,
-    DiagonalDownRight = 4,
-    VerticalRight = 5,
-    DiagonalDownLeft = 6,
-    VerticalLeft = 7,
-    HorizontalDown = 8,
-    HorizontalUp = 9,
-}
-
-/// The luma prediction choice for one VP8 intra macroblock.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum LumaMode {
-    /// One prediction mode covers the full 16×16 luma macroblock.
-    Sixteen(Intra16Mode),
-    /// Each luma 4×4 block supplies its own prediction mode in raster order.
-    FourByFour([Intra4Mode; 16]),
-}
-
-/// One of VP8's four 16×16 luma prediction modes.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Intra16Mode {
-    Dc,
-    Vertical,
-    Horizontal,
-    TrueMotion,
-}
-
-impl Intra16Mode {
-    const fn context(self) -> Intra4Mode {
-        match self {
-            Self::Dc => Intra4Mode::Dc,
-            Self::Vertical => Intra4Mode::Vertical,
-            Self::Horizontal => Intra4Mode::Horizontal,
-            Self::TrueMotion => Intra4Mode::TrueMotion,
-        }
-    }
-}
-
-/// One of VP8's four chroma prediction modes.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ChromaMode {
-    Dc,
-    Vertical,
-    Horizontal,
-    TrueMotion,
-}
-
-/// Intra controls parsed for one VP8 macroblock.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct IntraMacroblock {
-    /// Segment selected by the first-partition segment map.
-    pub segment: u8,
-    /// `true` means this macroblock carries no residual coefficients.
-    pub skip: bool,
-    pub luma: LumaMode,
-    pub chroma: ChromaMode,
-}
-
-/// Parses a VP8 intra-mode row without allocating decoder-owned macroblock state.
-///
-/// `top_modes` stores four luma 4×4 contexts per macroblock from the preceding
-/// row; it is updated in place for the row just parsed. For the first row,
-/// initialise it to [`Intra4Mode::Dc`]. `blocks` receives one result per
-/// macroblock. Both slices must describe the same width (`top_modes.len() ==
-/// blocks.len() * 4`). The caller resets no left contexts: VP8 specifies DC
-/// contexts at the start of every macroblock row.
-pub fn parse_intra_mode_row(
-    bits: &mut BoolDecoder<'_>,
-    header: &FirstPartitionHeader,
-    top_modes: &mut [Intra4Mode],
-    blocks: &mut [IntraMacroblock],
-) -> Result<(), DecodeError> {
-    if top_modes.len() != blocks.len().saturating_mul(4) {
-        return Err(DecodeError::at(
-            DecodeErrorKind::InvalidParameter,
-            bits.bytes_consumed(),
-            "VP8 intra-mode top context length must equal four modes per macroblock",
-        ));
-    }
-
-    let mut left = [Intra4Mode::Dc; 4];
-    for (macroblock_index, block) in blocks.iter_mut().enumerate() {
-        let top = &mut top_modes[macroblock_index * 4..macroblock_index * 4 + 4];
-        let segment = if header.segments.update_map {
-            if !bits.read_bool(header.segments.probabilities[0])? {
-                u8::from(bits.read_bool(header.segments.probabilities[1])?)
-            } else {
-                2 + u8::from(bits.read_bool(header.segments.probabilities[2])?)
-            }
-        } else {
-            0
-        };
-        let skip = header.coefficients.use_skip_probability
-            && bits.read_bool(header.coefficients.skip_probability)?;
-        let luma = if bits.read_bool(145)? {
-            let mode = decode_luma16_mode(bits)?;
-            top.fill(mode.context());
-            left.fill(mode.context());
-            LumaMode::Sixteen(mode)
-        } else {
-            let mut modes = [Intra4Mode::Dc; 16];
-            for row in 0..4 {
-                let mut mode = left[row];
-                for column in 0..4 {
-                    mode = decode_intra4_mode(
-                        bits,
-                        B_MODE_PROBABILITIES[top[column] as usize][mode as usize],
-                    )?;
-                    top[column] = mode;
-                    modes[row * 4 + column] = mode;
-                }
-                left[row] = mode;
-            }
-            LumaMode::FourByFour(modes)
-        };
-        *block = IntraMacroblock {
-            segment,
-            skip,
-            luma,
-            chroma: decode_chroma_mode(bits)?,
-        };
-    }
-    Ok(())
-}
-
-fn decode_luma16_mode(bits: &mut BoolDecoder<'_>) -> Result<Intra16Mode, DecodeError> {
-    if bits.read_bool(156)? {
-        if bits.read_bool(128)? {
-            Ok(Intra16Mode::TrueMotion)
-        } else {
-            Ok(Intra16Mode::Horizontal)
-        }
-    } else if bits.read_bool(163)? {
-        Ok(Intra16Mode::Vertical)
-    } else {
-        Ok(Intra16Mode::Dc)
-    }
-}
-
-fn decode_intra4_mode(
-    bits: &mut BoolDecoder<'_>,
-    probabilities: [u8; 9],
-) -> Result<Intra4Mode, DecodeError> {
-    if !bits.read_bool(probabilities[0])? {
-        return Ok(Intra4Mode::Dc);
-    }
-    if !bits.read_bool(probabilities[1])? {
-        return Ok(Intra4Mode::TrueMotion);
-    }
-    if !bits.read_bool(probabilities[2])? {
-        return Ok(Intra4Mode::Vertical);
-    }
-    if !bits.read_bool(probabilities[3])? {
-        return if !bits.read_bool(probabilities[4])? {
-            Ok(Intra4Mode::Horizontal)
-        } else if !bits.read_bool(probabilities[5])? {
-            Ok(Intra4Mode::DiagonalDownRight)
-        } else {
-            Ok(Intra4Mode::VerticalRight)
-        };
-    }
-    if !bits.read_bool(probabilities[6])? {
-        return Ok(Intra4Mode::DiagonalDownLeft);
-    }
-    if !bits.read_bool(probabilities[7])? {
-        return Ok(Intra4Mode::VerticalLeft);
-    }
-    if !bits.read_bool(probabilities[8])? {
-        Ok(Intra4Mode::HorizontalDown)
-    } else {
-        Ok(Intra4Mode::HorizontalUp)
-    }
-}
-
-fn decode_chroma_mode(bits: &mut BoolDecoder<'_>) -> Result<ChromaMode, DecodeError> {
-    if !bits.read_bool(142)? {
-        Ok(ChromaMode::Dc)
-    } else if !bits.read_bool(114)? {
-        Ok(ChromaMode::Vertical)
-    } else if bits.read_bool(183)? {
-        Ok(ChromaMode::TrueMotion)
-    } else {
-        Ok(ChromaMode::Horizontal)
-    }
-}
 
 /// Dequantized frequency-domain coefficients for one VP8 macroblock.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -450,36 +255,6 @@ mod tests {
         context: usize,
     ) -> &[u8; 11] {
         probabilities.nodes(coefficient_type, position, context)
-    }
-
-    fn first_partition_header(
-        segments: SegmentHeader,
-        coefficients: CoefficientProbabilities,
-    ) -> FirstPartitionHeader {
-        FirstPartitionHeader {
-            colorspace_reserved: false,
-            clamp_type: false,
-            segments,
-            filter: FilterHeader {
-                simple: false,
-                level: 0,
-                sharpness: 0,
-                use_deltas: false,
-                ref_deltas: [0; 4],
-                mode_deltas: [0; 4],
-            },
-            token_partition_count: 1,
-            quantization: QuantizationHeader {
-                base_index: 0,
-                y1_dc_delta: 0,
-                y2_dc_delta: 0,
-                y2_ac_delta: 0,
-                uv_dc_delta: 0,
-                uv_ac_delta: 0,
-            },
-            refresh_entropy_probabilities: false,
-            coefficients,
-        }
     }
 
     fn write_coefficient_eob(
@@ -1337,122 +1112,6 @@ mod tests {
             )
             .unwrap_err()
             .kind(),
-            DecodeErrorKind::InvalidParameter
-        );
-    }
-
-    #[test]
-    fn intra_mode_row_parses_segments_skip_and_sixteen_by_sixteen_modes() {
-        let coefficients = CoefficientProbabilities {
-            use_skip_probability: true,
-            skip_probability: 128,
-            ..CoefficientProbabilities::default()
-        };
-        let header = first_partition_header(
-            SegmentHeader {
-                enabled: true,
-                update_map: true,
-                absolute_delta: true,
-                quantizer: [0; 4],
-                filter_strength: [0; 4],
-                probabilities: [128; 3],
-            },
-            coefficients,
-        );
-        let mut writer = TestBoolWriter::new();
-
-        writer.write_bool(false, 128); // segment branch 0/1
-        writer.write_bool(true, 128); // segment one
-        writer.write_bool(true, 128); // skip
-        writer.write_bool(true, 145); // 16x16 luma
-        writer.write_bool(false, 156);
-        writer.write_bool(true, 163); // vertical luma
-        writer.write_bool(true, 142);
-        writer.write_bool(false, 114); // vertical chroma
-
-        writer.write_bool(true, 128); // segment branch 2/3
-        writer.write_bool(false, 128); // segment two
-        writer.write_bool(false, 128); // not skipped
-        writer.write_bool(true, 145); // 16x16 luma
-        writer.write_bool(true, 156);
-        writer.write_bool(false, 128); // horizontal luma
-        writer.write_bool(true, 142);
-        writer.write_bool(true, 114);
-        writer.write_bool(true, 183); // true-motion chroma
-
-        let bytes = writer.finish();
-        let mut decoder = BoolDecoder::new(&bytes, &DecodeLimits::default()).unwrap();
-        let mut top = [Intra4Mode::Dc; 8];
-        let mut blocks = [IntraMacroblock {
-            segment: 0,
-            skip: false,
-            luma: LumaMode::Sixteen(Intra16Mode::Dc),
-            chroma: ChromaMode::Dc,
-        }; 2];
-        parse_intra_mode_row(&mut decoder, &header, &mut top, &mut blocks).unwrap();
-
-        assert_eq!(blocks[0].segment, 1);
-        assert!(blocks[0].skip);
-        assert_eq!(blocks[0].luma, LumaMode::Sixteen(Intra16Mode::Vertical));
-        assert_eq!(blocks[0].chroma, ChromaMode::Vertical);
-        assert_eq!(blocks[1].segment, 2);
-        assert!(!blocks[1].skip);
-        assert_eq!(blocks[1].luma, LumaMode::Sixteen(Intra16Mode::Horizontal));
-        assert_eq!(blocks[1].chroma, ChromaMode::TrueMotion);
-        assert_eq!(
-            top,
-            [
-                Intra4Mode::Vertical,
-                Intra4Mode::Vertical,
-                Intra4Mode::Vertical,
-                Intra4Mode::Vertical,
-                Intra4Mode::Horizontal,
-                Intra4Mode::Horizontal,
-                Intra4Mode::Horizontal,
-                Intra4Mode::Horizontal,
-            ]
-        );
-    }
-
-    #[test]
-    fn intra_mode_row_decodes_four_by_four_modes_and_validates_context_shape() {
-        let header = first_partition_header(
-            SegmentHeader {
-                enabled: false,
-                update_map: false,
-                absolute_delta: true,
-                quantizer: [0; 4],
-                filter_strength: [0; 4],
-                probabilities: [255; 3],
-            },
-            CoefficientProbabilities::default(),
-        );
-        let mut writer = TestBoolWriter::new();
-        writer.write_bool(false, 145); // 4x4 luma
-        for _ in 0..16 {
-            writer.write_bool(false, 231); // B_DC_PRED given DC top and left
-        }
-        writer.write_bool(false, 142); // DC chroma
-
-        let bytes = writer.finish();
-        let mut decoder = BoolDecoder::new(&bytes, &DecodeLimits::default()).unwrap();
-        let mut top = [Intra4Mode::Dc; 4];
-        let mut blocks = [IntraMacroblock {
-            segment: 0,
-            skip: false,
-            luma: LumaMode::Sixteen(Intra16Mode::Dc),
-            chroma: ChromaMode::Dc,
-        }];
-        parse_intra_mode_row(&mut decoder, &header, &mut top, &mut blocks).unwrap();
-        assert_eq!(blocks[0].luma, LumaMode::FourByFour([Intra4Mode::Dc; 16]));
-        assert_eq!(blocks[0].chroma, ChromaMode::Dc);
-        assert_eq!(top, [Intra4Mode::Dc; 4]);
-
-        let mut no_top = [];
-        assert_eq!(
-            parse_intra_mode_row(&mut decoder, &header, &mut no_top, &mut blocks)
-                .unwrap_err()
-                .kind(),
             DecodeErrorKind::InvalidParameter
         );
     }
