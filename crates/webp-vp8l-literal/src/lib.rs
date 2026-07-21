@@ -208,16 +208,8 @@ fn decode_no_transform_inner(
                 mode_pixels,
             } => {
                 #[cfg(test)]
-                let conversion_started = std::time::Instant::now();
-                let rgba = output.rgba_mut()?;
-                #[cfg(test)]
-                if let Some(timings) = timings.as_mut() {
-                    timings.rgba_conversion += conversion_started.elapsed();
-                }
-
-                #[cfg(test)]
                 let predictor_started = std::time::Instant::now();
-                inverse_predictor_rgba(rgba, *descriptor, mode_pixels)?;
+                output.inverse_predictor(*descriptor, mode_pixels)?;
                 #[cfg(test)]
                 if let Some(timings) = timings.as_mut() {
                     timings.predictor += predictor_started.elapsed();
@@ -933,6 +925,28 @@ impl TransformPixels {
         }
     }
 
+    fn inverse_predictor(
+        &mut self,
+        descriptor: BlockTransformDescriptor,
+        mode_pixels: &[u32],
+    ) -> Result<(), DecodeError> {
+        let converted = match self {
+            Self::Argb(pixels) => Some(inverse_predictor_argb_to_rgba(
+                pixels,
+                descriptor,
+                mode_pixels,
+            )?),
+            Self::Rgba(bytes) => {
+                inverse_predictor_rgba(bytes, descriptor, mode_pixels)?;
+                None
+            }
+        };
+        if let Some(bytes) = converted {
+            *self = Self::Rgba(bytes);
+        }
+        Ok(())
+    }
+
     fn into_rgba(mut self, expected_rgba_len: usize) -> Result<Vec<u8>, DecodeError> {
         self.rgba_mut()?;
         match self {
@@ -1182,18 +1196,19 @@ const fn color_delta(multiplier: i8, channel: i8) -> i32 {
     ((multiplier as i32) * (channel as i32)) >> 5
 }
 
-/// Reconstructs predictor residuals in the final RGBA byte layout.
-///
-/// This implementation keeps the four channels visible to LLVM as a four-byte lane
-/// group. In particular, the clamped add/subtract modes no longer unpack and
-/// repack a `u32` around every component. The descriptor and mode image stay
-/// in the existing packed representation, so the layout change is private to
-/// the main-image transform pipeline.
-fn inverse_predictor_rgba(
-    pixels: &mut [u8],
+/// Validated dimensions shared by both predictor storage paths.
+struct PredictorLayout {
+    width: usize,
+    height: usize,
+    row_bytes: usize,
+    mode_width: usize,
+    block_size: usize,
+}
+
+fn predictor_layout(
     descriptor: BlockTransformDescriptor,
     mode_pixels: &[u32],
-) -> Result<(), DecodeError> {
+) -> Result<PredictorLayout, DecodeError> {
     let width = usize::try_from(descriptor.image_width).map_err(|_| {
         DecodeError::new(
             DecodeErrorKind::LimitExceeded,
@@ -1215,21 +1230,6 @@ fn inverse_predictor_rgba(
             "VP8L predictor row byte size overflow",
         )
     })?;
-    let expected_bytes = row_bytes.checked_mul(height).ok_or_else(|| {
-        DecodeError::new(
-            DecodeErrorKind::LimitExceeded,
-            None,
-            "VP8L predictor image byte size overflow",
-        )
-    })?;
-    if pixels.len() != expected_bytes {
-        return Err(DecodeError::new(
-            DecodeErrorKind::InvalidBitstream,
-            None,
-            "VP8L predictor output length does not match image dimensions",
-        ));
-    }
-
     let mode_width = usize::try_from(descriptor.transform_width).map_err(|_| {
         DecodeError::new(
             DecodeErrorKind::LimitExceeded,
@@ -1259,7 +1259,6 @@ fn inverse_predictor_rgba(
             "VP8L predictor mode image has unexpected dimensions",
         ));
     }
-
     let block_size = usize::try_from(descriptor.block_size()).map_err(|_| {
         DecodeError::new(
             DecodeErrorKind::LimitExceeded,
@@ -1267,27 +1266,80 @@ fn inverse_predictor_rgba(
             "VP8L predictor block size does not fit usize",
         )
     })?;
+    Ok(PredictorLayout {
+        width,
+        height,
+        row_bytes,
+        mode_width,
+        block_size,
+    })
+}
 
-    // The first row has fixed black/left predictors independent of its mode
-    // subimage. RGBA's alpha byte is the only nonzero black component.
-    pixels[3] = pixels[3].wrapping_add(255);
-    for byte in 4..row_bytes {
-        pixels[byte] = pixels[byte].wrapping_add(pixels[byte - 4]);
+/// Converts packed residuals one row at a time and reconstructs each row while
+/// it is still cache-hot, avoiding a separate full-frame RGBA conversion pass.
+fn inverse_predictor_argb_to_rgba(
+    pixels: &[u32],
+    descriptor: BlockTransformDescriptor,
+    mode_pixels: &[u32],
+) -> Result<Vec<u8>, DecodeError> {
+    let layout = predictor_layout(descriptor, mode_pixels)?;
+    let expected_pixels = layout.width.checked_mul(layout.height).ok_or_else(|| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor image pixel count overflow",
+        )
+    })?;
+    if pixels.len() != expected_pixels {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L predictor output length does not match image dimensions",
+        ));
     }
+    let expected_bytes = layout
+        .row_bytes
+        .checked_mul(layout.height)
+        .ok_or_else(|| {
+            DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8L predictor image byte size overflow",
+            )
+        })?;
+    let mut rgba = Vec::new();
+    rgba.try_reserve_exact(expected_bytes).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::AllocationFailed,
+            None,
+            "RGBA output allocation failed",
+        )
+    })?;
 
-    for y in 1..height {
-        let row_start = y * row_bytes;
-        let (previous_rows, current_and_after) = pixels.split_at_mut(row_start);
-        let top = &previous_rows[row_start - row_bytes..row_start];
-        let current = &mut current_and_after[..row_bytes];
+    for (y, residual_row) in pixels.chunks_exact(layout.width).enumerate() {
+        for &pixel in residual_row {
+            rgba.extend_from_slice(&unpack_rgba(pixel));
+        }
+        let row_start = y * layout.row_bytes;
+        if y == 0 {
+            let current = &mut rgba[..layout.row_bytes];
+            current[3] = current[3].wrapping_add(255);
+            for byte in 4..layout.row_bytes {
+                current[byte] = current[byte].wrapping_add(current[byte - 4]);
+            }
+            continue;
+        }
+
+        let (previous_rows, current_row) = rgba.split_at_mut(row_start);
+        let top = &previous_rows[row_start - layout.row_bytes..row_start];
+        let current = &mut current_row[..layout.row_bytes];
         for channel in 0..4 {
             current[channel] = current[channel].wrapping_add(top[channel]);
         }
-
-        let mode_row = (y / block_size) * mode_width;
+        let mode_row = (y / layout.block_size) * layout.mode_width;
         let mut x = 1;
-        while x < width {
-            let block_x = x / block_size;
+        while x < layout.width {
+            let block_x = x / layout.block_size;
             let mode =
                 PredictorMode::try_from(((mode_pixels[mode_row + block_x] >> 8) & 0x0f) as u8)
                     .map_err(|_| {
@@ -1297,9 +1349,70 @@ fn inverse_predictor_rgba(
                             "VP8L predictor mode must be in 0..=13",
                         )
                     })?;
-            let x_end = (x & !(block_size - 1))
-                .saturating_add(block_size)
-                .min(width);
+            let x_end = (x & !(layout.block_size - 1))
+                .saturating_add(layout.block_size)
+                .min(layout.width);
+            apply_predictor_run_rgba(current, top, x, x_end, mode);
+            x = x_end;
+        }
+    }
+    Ok(rgba)
+}
+
+/// Reconstructs residuals that are already stored in final RGBA byte order.
+fn inverse_predictor_rgba(
+    pixels: &mut [u8],
+    descriptor: BlockTransformDescriptor,
+    mode_pixels: &[u32],
+) -> Result<(), DecodeError> {
+    let layout = predictor_layout(descriptor, mode_pixels)?;
+    let expected_bytes = layout.row_bytes.checked_mul(layout.height).ok_or_else(|| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L predictor image byte size overflow",
+        )
+    })?;
+    if pixels.len() != expected_bytes {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L predictor output length does not match image dimensions",
+        ));
+    }
+
+    // The first row has fixed black/left predictors independent of its mode
+    // subimage. RGBA's alpha byte is the only nonzero black component.
+    pixels[3] = pixels[3].wrapping_add(255);
+    for byte in 4..layout.row_bytes {
+        pixels[byte] = pixels[byte].wrapping_add(pixels[byte - 4]);
+    }
+
+    for y in 1..layout.height {
+        let row_start = y * layout.row_bytes;
+        let (previous_rows, current_and_after) = pixels.split_at_mut(row_start);
+        let top = &previous_rows[row_start - layout.row_bytes..row_start];
+        let current = &mut current_and_after[..layout.row_bytes];
+        for channel in 0..4 {
+            current[channel] = current[channel].wrapping_add(top[channel]);
+        }
+
+        let mode_row = (y / layout.block_size) * layout.mode_width;
+        let mut x = 1;
+        while x < layout.width {
+            let block_x = x / layout.block_size;
+            let mode =
+                PredictorMode::try_from(((mode_pixels[mode_row + block_x] >> 8) & 0x0f) as u8)
+                    .map_err(|_| {
+                        DecodeError::new(
+                            DecodeErrorKind::InvalidBitstream,
+                            None,
+                            "VP8L predictor mode must be in 0..=13",
+                        )
+                    })?;
+            let x_end = (x & !(layout.block_size - 1))
+                .saturating_add(layout.block_size)
+                .min(layout.width);
             apply_predictor_run_rgba(current, top, x, x_end, mode);
             x = x_end;
         }
@@ -3142,6 +3255,18 @@ mod tests {
                 .map(|pixel| pack_argb(pixel[0], pixel[1], pixel[2], pixel[3]))
                 .collect::<Vec<_>>();
             assert_eq!(actual_rgba, expected, "RGBA predictor mode {mode_value}");
+
+            let fused = inverse_predictor_argb_to_rgba(
+                &residuals,
+                descriptor,
+                &[u32::from(mode_value) << 8],
+            )
+            .unwrap();
+            let fused = fused
+                .chunks_exact(4)
+                .map(|pixel| pack_argb(pixel[0], pixel[1], pixel[2], pixel[3]))
+                .collect::<Vec<_>>();
+            assert_eq!(fused, expected, "fused predictor mode {mode_value}");
         }
     }
 
