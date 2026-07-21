@@ -33,6 +33,12 @@ pub fn derive_loop_filter_strengths(
     filter: &FilterHeader,
     segments: &SegmentHeader,
 ) -> [[LoopFilterStrength; 2]; 4] {
+    // VP8 enables the whole in-loop filter from the base header level. As in
+    // libwebp, a zero level disables filtering before segment or mode deltas
+    // are considered.
+    if filter.level == 0 {
+        return [[LoopFilterStrength::default(); 2]; 4];
+    }
     std::array::from_fn(|segment| {
         std::array::from_fn(|mode_class| {
             let mut level = if segments.enabled {

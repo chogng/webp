@@ -1904,6 +1904,30 @@ mod tests {
     }
 
     #[test]
+    fn zero_base_filter_level_disables_deltas_for_the_whole_frame() {
+        let filter = FilterHeader {
+            simple: false,
+            level: 0,
+            sharpness: 0,
+            use_deltas: true,
+            ref_deltas: [2, 0, -2, -2],
+            mode_deltas: [4, -2, 2, 4],
+        };
+        let segments = SegmentHeader {
+            enabled: true,
+            update_map: true,
+            absolute_delta: true,
+            quantizer: [0; 4],
+            filter_strength: [63; 4],
+            probabilities: [0; 3],
+        };
+        assert_eq!(
+            derive_loop_filter_strengths(&filter, &segments),
+            [[LoopFilterStrength::default(); 2]; 4]
+        );
+    }
+
+    #[test]
     fn scalar_loop_filters_match_vp8_two_four_and_six_tap_rules() {
         let mut simple = [100, 100, 100, 110, 110, 110];
         assert!(filter_simple_edge(&mut simple, 3, 1, 25));

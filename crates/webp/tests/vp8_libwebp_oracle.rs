@@ -10,7 +10,6 @@ use std::{
 use webp::{DecodeOptions, decode};
 
 #[test]
-#[ignore = "pending VP8 lossy pixel conformance"]
 fn lossy_vp8_sample_matches_libwebp_rgba() {
     let Some((input, dwebp)) = local_oracle() else {
         eprintln!("skip VP8 pixel oracle: set LIBWEBP_ORACLE_ROOT or install dwebp");
@@ -40,7 +39,6 @@ fn lossy_vp8_sample_matches_libwebp_rgba() {
 }
 
 #[test]
-#[ignore = "pending VP8 lossy pixel conformance"]
 fn lossy_vp8_sample_matches_libwebp_yuv() {
     let Some((input, dwebp)) = local_oracle() else {
         eprintln!("skip VP8 pixel oracle: set LIBWEBP_ORACLE_ROOT or install dwebp");
@@ -132,7 +130,7 @@ fn assert_plane_matches_libwebp(
         .zip(expected)
         .filter(|(actual, expected)| actual != expected)
         .count();
-    let Some((index, (actual, expected))) = actual
+    let Some((index, (actual_sample, expected_sample))) = actual
         .iter()
         .zip(expected)
         .enumerate()
@@ -140,10 +138,14 @@ fn assert_plane_matches_libwebp(
     else {
         return;
     };
+    let nearby_start = index.saturating_sub(4);
+    let nearby_end = (index + 5).min(actual.len()).min(expected.len());
     panic!(
-        "VP8 {name} differs from libwebp at ({}, {}): actual {actual}, expected {expected}; {mismatches} mismatched samples",
+        "VP8 {name} differs from libwebp at ({}, {}): actual {actual_sample}, expected {expected_sample}; {mismatches} mismatched samples; nearby actual {:?}, expected {:?}",
         index % width,
         index / width,
+        &actual[nearby_start..nearby_end],
+        &expected[nearby_start..nearby_end],
     );
 }
 

@@ -296,6 +296,11 @@ pub fn decode_intra_frame(
                     &mut left_context,
                 )?
             };
+            // libwebp's loop filter treats a macroblock with no decoded
+            // residuals like a skipped macroblock, even when the optional
+            // skip bit was not present. Its internal 4×4 edges must therefore
+            // remain unfiltered unless the macroblock is B_PRED.
+            let has_residuals = residuals.non_zero_y != 0 || residuals.non_zero_uv != 0;
             let matrix = matrices.get(usize::from(block.segment)).ok_or_else(|| {
                 DecodeError::at(
                     DecodeErrorKind::InvalidBitstream,
@@ -314,7 +319,10 @@ pub fn decode_intra_frame(
                 [usize::from(matches!(block.luma, LumaMode::FourByFour(_)))];
             row_filters[macroblock_x] = (
                 strength,
-                strength.filters_inner(matches!(block.luma, LumaMode::FourByFour(_)), block.skip),
+                strength.filters_inner(
+                    matches!(block.luma, LumaMode::FourByFour(_)),
+                    !has_residuals,
+                ),
             );
         }
         for (macroblock_x, &(strength, filters_inner)) in row_filters.iter().enumerate() {
