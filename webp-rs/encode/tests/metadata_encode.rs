@@ -1,11 +1,9 @@
-#![cfg(feature = "encode")]
-
-use webp::DecodeLimits;
-use webp::DecodeOptions;
-use webp::Metadata;
-use webp::decode;
-use webp::encode_lossless_rgba_with_metadata;
-use webp::read_metadata;
+use webp_decode::DecodeLimits;
+use webp_decode::DecodeOptions;
+use webp_decode::Metadata;
+use webp_decode::decode;
+use webp_decode::read_metadata;
+use webp_encode::encode_lossless_rgba_with_metadata;
 
 #[test]
 fn lossless_encoder_muxes_all_static_metadata_combinations() {

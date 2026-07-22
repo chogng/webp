@@ -1,4 +1,3 @@
-#![cfg(feature = "encode")]
 //! Pinned-libwebp oracle coverage for emitted `ALPH` payloads.
 
 use std::fs;
@@ -10,13 +9,13 @@ use std::sync::atomic::Ordering;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use webp::AlphaCompression;
-use webp::AlphaEncodeOptions;
-use webp::AlphaFilterSelection;
-use webp::DecodeOptions;
-use webp::LossyEncodeOptions;
-use webp::decode;
-use webp::encode_lossy_rgba_with_alpha_options;
+use webp_decode::DecodeOptions;
+use webp_decode::decode;
+use webp_encode::AlphaCompression;
+use webp_encode::AlphaEncodeOptions;
+use webp_encode::AlphaFilterSelection;
+use webp_encode::LossyEncodeOptions;
+use webp_encode::encode_lossy_rgba_with_alpha_options;
 
 const ALPHA_VECTORS: &[&str] = &[
     "alpha_color_cache.webp",

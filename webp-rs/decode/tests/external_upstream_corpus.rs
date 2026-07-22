@@ -7,9 +7,9 @@ use std::process::Command;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use webp::DecodeOptions;
-use webp::decode;
 use webp_container::VP8L;
+use webp_decode::DecodeOptions;
+use webp_decode::decode;
 
 const UPSTREAM_SMOKE_SELECTION: &str =
     include_str!("../../../tests/corpora/libwebp-test-data-smoke-v1.txt");

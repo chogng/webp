@@ -1,4 +1,3 @@
-#![cfg(feature = "encode")]
 //! Locked-libwebp validation for the first emitted VP8 key-frame slice.
 
 use std::fs;
@@ -7,10 +6,10 @@ use std::process::Command;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use webp::DecodeOptions;
-use webp::LossyEncodeOptions;
-use webp::decode;
-use webp::encode_lossy_rgba_with_options;
+use webp_decode::DecodeOptions;
+use webp_decode::decode;
+use webp_encode::LossyEncodeOptions;
+use webp_encode::encode_lossy_rgba_with_options;
 
 #[test]
 fn public_lossy_vp8_profile_matches_pinned_dwebp_pixels() {

@@ -1,4 +1,4 @@
-#![cfg(all(feature = "animation", feature = "encode"))]
+#![cfg(feature = "animation")]
 //! Optional animation-encoder container oracle tests against locked libwebp.
 
 use std::fs;
@@ -8,9 +8,9 @@ use std::process::Command;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use webp::AnimationEncodeFrame;
-use webp::AnimationEncodeOptions;
-use webp::encode_lossless_animation;
+use webp_encode::AnimationEncodeFrame;
+use webp_encode::AnimationEncodeOptions;
+use webp_encode::encode_lossless_animation;
 
 #[test]
 fn lossless_animation_output_is_accepted_by_pinned_webpmux_and_dwebp() {

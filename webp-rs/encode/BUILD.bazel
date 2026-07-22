@@ -1,7 +1,24 @@
 load("//:defs.bzl", "webp_rust_crate")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 webp_rust_crate(
     name = "encode",
     crate_name = "webp_encode",
     rustc_flags = ['--cfg=feature="animation"'],
+)
+
+rust_test(
+    name = "alpha_encoder_oracle_test",
+    crate_root = "tests/alpha_encoder_oracle.rs",
+    srcs = ["tests/alpha_encoder_oracle.rs"],
+    edition = "2024",
+    data = [
+        "//:external_corpus_data",
+        "//:external_oracle_data",
+    ],
+    deps = [
+        ":encode",
+        "//webp-rs/decode",
+    ],
+    tags = ["external-corpus", "manual"],
 )

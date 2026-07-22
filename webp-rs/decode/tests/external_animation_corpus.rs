@@ -2,10 +2,10 @@
 
 use std::path::PathBuf;
 
-use webp::DecodeLimits;
-use webp::DecodeOptions;
-use webp::decode_animation;
-use webp::read_info;
+use webp_decode::DecodeLimits;
+use webp_decode::DecodeOptions;
+use webp_decode::decode_animation;
+use webp_decode::read_info;
 
 fn corpus_root() -> Option<PathBuf> {
     let cargo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))

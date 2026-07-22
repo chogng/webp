@@ -49,7 +49,7 @@ tools/verify-upstream-smoke.sh
 Review and commit the updated pin and checksum lock only after the external
 corpus test passes.
 
-`webp-rs/webp/tests/external_upstream_corpus.rs` reads the versioned smoke
+`webp-rs/decode/tests/external_upstream_corpus.rs` reads the versioned smoke
 selection directly. It promotes only the VP8L vectors supported by the public
 decoder; additional vectors are added to direct API tests when their codec path
 is implemented.

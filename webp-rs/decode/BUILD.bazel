@@ -1,7 +1,37 @@
 load("//:defs.bzl", "webp_rust_crate")
+load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 webp_rust_crate(
     name = "decode",
     crate_name = "webp_decode",
+    rustc_flags = [
+        '--cfg=feature="decode"',
+        '--cfg=feature="animation"',
+    ],
+)
+
+rust_test(
+    name = "external_animation_corpus_test",
+    crate_root = "tests/external_animation_corpus.rs",
+    srcs = ["tests/external_animation_corpus.rs"],
+    edition = "2024",
+    data = ["//:external_corpus_data"],
+    deps = [":decode"],
     rustc_flags = ['--cfg=feature="animation"'],
+    tags = ["external-corpus", "manual"],
+)
+
+rust_test(
+    name = "external_upstream_corpus_test",
+    crate_root = "tests/external_upstream_corpus.rs",
+    srcs = ["tests/external_upstream_corpus.rs"],
+    edition = "2024",
+    data = ["//:external_corpus_data"],
+    deps = [
+        ":decode",
+        "//webp-rs/container",
+        "//webp-rs/demux",
+    ],
+    rustc_flags = ['--cfg=feature="decode"'],
+    tags = ["external-corpus", "manual"],
 )

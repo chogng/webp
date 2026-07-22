@@ -47,7 +47,7 @@ SHA-256 values of the 68 selected vectors.
 5. each file matches its recorded SHA-256.
 
 Scheduled `upstream-corpus` CI uses this pinned input and explicitly runs
-`//webp-rs/webp:external_upstream_corpus_test`. The test reads the corpus from
+`//webp-rs/decode:external_upstream_corpus_test`. The test reads the corpus from
 Bazel runfiles and fails if the corpus was not supplied.
 
 ## Manual updates

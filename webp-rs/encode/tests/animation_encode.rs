@@ -1,14 +1,14 @@
-#![cfg(all(feature = "animation", feature = "encode"))]
+#![cfg(feature = "animation")]
 
-use webp::AnimationEncodeFrame;
-use webp::AnimationEncodeOptions;
-use webp::DecodeLimits;
-use webp::DecodeOptions;
-use webp::Metadata;
-use webp::decode_animation;
-use webp::encode_lossless_animation;
-use webp::encode_lossless_animation_with_metadata;
-use webp::read_metadata;
+use webp_decode::DecodeLimits;
+use webp_decode::DecodeOptions;
+use webp_decode::Metadata;
+use webp_decode::decode_animation;
+use webp_decode::read_metadata;
+use webp_encode::AnimationEncodeFrame;
+use webp_encode::AnimationEncodeOptions;
+use webp_encode::encode_lossless_animation;
+use webp_encode::encode_lossless_animation_with_metadata;
 
 #[test]
 fn lossless_animation_encoder_preserves_rectangles_composition_and_wire_flags() {
@@ -117,7 +117,7 @@ fn lossless_animation_encoder_rejects_invalid_frame_geometry_and_timing() {
     };
     assert_eq!(
         encode_lossless_animation(1, 1, &[], AnimationEncodeOptions::default()).unwrap_err(),
-        webp::EncodeError::InvalidAnimation
+        webp_encode::EncodeError::InvalidAnimation
     );
     assert_eq!(
         encode_lossless_animation(
@@ -130,7 +130,7 @@ fn lossless_animation_encoder_rejects_invalid_frame_geometry_and_timing() {
             AnimationEncodeOptions::default(),
         )
         .unwrap_err(),
-        webp::EncodeError::InvalidAnimation
+        webp_encode::EncodeError::InvalidAnimation
     );
     assert_eq!(
         encode_lossless_animation(
@@ -143,7 +143,7 @@ fn lossless_animation_encoder_rejects_invalid_frame_geometry_and_timing() {
             AnimationEncodeOptions::default(),
         )
         .unwrap_err(),
-        webp::EncodeError::InvalidAnimation
+        webp_encode::EncodeError::InvalidAnimation
     );
 }
 

@@ -1,5 +1,4 @@
 load("//:defs.bzl", "webp_rust_crate")
-load("@rules_rs//rs:rust_test.bzl", "rust_test")
 
 webp_rust_crate(
     name = "webp",
@@ -13,43 +12,4 @@ webp_rust_crate(
     ],
     test_compile_data = ["//:test_data"],
     test_data = ["//:test_data"],
-)
-
-rust_test(
-    name = "external_animation_corpus_test",
-    crate_root = "tests/external_animation_corpus.rs",
-    srcs = ["tests/external_animation_corpus.rs"],
-    edition = "2024",
-    data = ["//:external_corpus_data"],
-    deps = [
-        ":webp",
-    ],
-    tags = ["external-corpus", "manual"],
-)
-
-rust_test(
-    name = "external_upstream_corpus_test",
-    crate_root = "tests/external_upstream_corpus.rs",
-    srcs = ["tests/external_upstream_corpus.rs"],
-    edition = "2024",
-    data = ["//:external_corpus_data"],
-    deps = [
-        ":webp",
-        "//webp-rs/container",
-        "//webp-rs/demux",
-    ],
-    tags = ["external-corpus", "manual"],
-)
-
-rust_test(
-    name = "alpha_encoder_oracle_test",
-    crate_root = "tests/alpha_encoder_oracle.rs",
-    srcs = ["tests/alpha_encoder_oracle.rs"],
-    edition = "2024",
-    data = [
-        "//:external_corpus_data",
-        "//:external_oracle_data",
-    ],
-    deps = [":webp"],
-    tags = ["external-corpus", "manual"],
 )

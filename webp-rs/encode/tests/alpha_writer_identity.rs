@@ -7,11 +7,16 @@ use std::process::Command;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 
-use webp::fuzzing::{BenchmarkWriterVariant, encode_alpha, set_benchmark_writer_variant};
-use webp::{
-    AlphaCompression, AlphaEncodeOptions, AlphaFilterSelection, DecodeOptions, LossyEncodeOptions,
-    decode, encode_lossy_rgba_with_alpha_options,
-};
+use webp_decode::DecodeOptions;
+use webp_decode::decode;
+use webp_encode::AlphaCompression;
+use webp_encode::AlphaEncodeOptions;
+use webp_encode::AlphaFilterSelection;
+use webp_encode::BenchmarkWriterVariant;
+use webp_encode::LossyEncodeOptions;
+use webp_encode::encode_alpha;
+use webp_encode::encode_lossy_rgba_with_alpha_options;
+use webp_encode::set_benchmark_writer_variant;
 
 const QUALITIES: [u8; 4] = [0, 70, 99, 100];
 const ALPHA_VECTORS: &[&str] = &[

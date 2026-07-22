@@ -8,8 +8,8 @@ use std::process::Command;
 use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
-use webp::DecodeOptions;
-use webp::decode;
+use webp_decode::DecodeOptions;
+use webp_decode::decode;
 
 #[test]
 fn lossy_vp8_sample_matches_libwebp_rgba() {
