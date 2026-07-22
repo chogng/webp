@@ -38,4 +38,5 @@ run_example animation_encode_bench 1
 run_example decode_bench 1 "$fixture"
 run_example encode_bench 1 "$fixture"
 run_example vp8_encode_bench 1 "$fixture"
-cargo build --release -p webp --example alpha_encode_bench --manifest-path "$manifest"
+cargo build --release -p webp --example alpha_encode_bench \
+  --features fuzzing --manifest-path "$manifest"
