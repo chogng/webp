@@ -67,7 +67,7 @@ boundary.
 | A14 | A13 packed token writer 产品化：从 latest main 手工迁移 persistent sink，把 syntax/token-output 依赖改成单向并让 `encode.rs` 回到模块行数目标内 | `codex/alpha-packed-token-writer-product@759417c6`；code `77842c1c`；evidence `ec05d41e` | intake `26e7ae82`；登记后精确产品/测量基线 `1c16ebe826ea57adaf2293bf44bdc36175401a8b` | [`6821` worktree](</Users/lance/.codex/worktrees/6821/webp>)；task `019f8962-85b6-7f11-97fa-8fa053c9687f` | 41×10×5 ALPH `816.001 -> 659.907 ms`（**-19.129%**），whole -2.388%、CPU -3.985%、RSS -3.665%、0/41 ALPH regressions；224/224 exact；报告 `759417c6:reports/alpha-packed-token-writer-product/README.md` | **已推广**；15-file 仅 -8.063%、real4 -3.825%，rlib +15.121%，限制明确保留 | code/evidence/audit 已 fast-forward 到 `main@759417c6`；本提交刷新顶部表、迭代日志、反优化和研究目标 |
 | A15 | compiled token codebook：把 I5 每 token 的 Huffman/prefix/extra 解释式组包改成每 entropy stream 一次编译的 literal/length packet codebook 与 O(1) distance prefix | `codex/alpha-compiled-token-codebook@5a840d36`；code `960c67bb`；measured tip `c21fd4e9`；evidence `b2cf1103` | 创建于 `14ef4ab05ff216057c718c5f8a2bafbf29f2c744`；架构迁移后最终完整重放到 `9ff743874ed50588b2a66c517cc07307fbdbb248` | [`a9e6` worktree](</Users/lance/.codex/worktrees/a9e6/webp>)；task `019f8998-567f-7531-b323-88de59d1a876` | 41×10×3 same-binary：prefix -0.684%、compiled +3.353%、combined **+30.743%**；setup-free 乐观 ceiling 5.879%，setup 7.153%，0 mismatch；报告 `5a840d36:reports/alpha-compiled-token-codebook/README.md` | **Phase-A reject / 不产品化、不合并实验代码**；固定 setup 导致 combined per-file p50 +323.567%，36/41 regressions | 顶部表不变；回填 latest-main 负结果、owner 上限、未运行门禁、无效数据与最终 provenance |
 | A16 | exact-sized cursor token sink：由 frequencies × Huffman widths + copy extras 预知精确 token bits，一次构造定长输出并用 cursor direct-store；隔离 `u128` 与 `u64` flush | `codex/alpha-exact-sized-token-sink@84ddaaa0`；measured code `d3794de4`；evidence/audit `d7d64166` / `4897f4f1` | 创建于 `12c6fbc9e0d15cc86a5dda8b5466e7c700563110`；多次主线前进后最终完整重放到 `65fc54e1d411cb673e24066dbb36c87765b1f0db` | [`bdf4` worktree](</Users/lance/.codex/worktrees/bdf4/webp>)；task `019f89d3-fb8d-7120-bdb8-21fc64d25e57` | 41×10×3 same-binary：exact-u128 +0.625%、exact-u64 +11.843%、combined **+9.854%**；combined 41/41 ALPH regressions，0 byte/hash mismatch；报告 `84ddaaa0:reports/alpha-exact-sized-token-sink/README.md` | **Phase-A reject / 不产品化、不合并实验代码**；current sink ceiling 仅 10.197%，combined owner +104.970%；预留字节 -70.406% 仅作内存诊断 | 顶部表不变；回填 latest-main 负结果、owner/内存边界、停止门禁、全部 invalidated runs 与 283 项 checksum |
-| A17 | scoped parallel dual-filter portfolio：`Fast` 的 `None` 与 estimated filter 各自完成 filter/LZ77/Huffman/token output，再按原顺序归并，保持严格 `<` tie-break 与 payload bytes | `codex/alpha-parallel-filter-portfolio`；HEAD 尚等于 base | 精确创建并完成 intake 于 `8c944b9258caa40c05985d9cd536de67ccdaa79c` | [`116d` worktree](</Users/lance/.codex/worktrees/116d/webp>)；task `019f8a1e-d1f1-7353-afad-7027ae3796e3` | **已登记 / Phase A 待放行**；先量 dual-candidate 覆盖率、per-candidate owner 与零调度 ideal ceiling；`<12.5%` 不写 screen candidate；计划报告 `reports/alpha-parallel-filter-portfolio/` | 待定；多核 wall-time 必须单独于单线程算法收益陈述 | 本提交固定 base、branch/worktree/task、pins、架构不变量与 screen 停止门槛；后续成功或失败均回填 raw/HEAD/决定 |
+| A17 | scoped parallel dual-filter portfolio：`Fast` 的 `None` 与 estimated filter 各自完成 filter/LZ77/Huffman/token output，再按原顺序归并，保持严格 `<` tie-break 与 payload bytes | `codex/alpha-parallel-filter-portfolio@c1918563`；measured `2266b844`；evidence `919065f8` | 创建于 `8c944b9258caa40c05985d9cd536de67ccdaa79c`；最新有效 main / merge-base `1cde1cc5c60e45a814fa2fb6de08958a3fb88d67` | [`116d` worktree](</Users/lance/.codex/worktrees/116d/webp>)；task `019f8a1e-d1f1-7353-afad-7027ae3796e3` | Phase-A ideal 12.513732%，固定阈值后 12.481350%；valid screen ALPH wall **-9.939898%**，但 p95/worst +8.414348/+15.637559%，10/41 >+2%；报告 `c1918563:reports/alpha-parallel-filter-portfolio/README.md` | **reject / 不产品化、不合并实验代码**；CPU +0.224988%、RSS median +0.075996% 与资源 gates 通过，但不能覆盖 wall/tail 失败 | byte/hash/candidate/tie 零 mismatch；formal/generalization/q-matrix/libwebp paired/full gates 按早停未跑；顶部表不变，保留 178 项 SHA 与全部 invalidated runs |
 
 ### A01 / A02 已完成结果明细
 
@@ -612,6 +612,35 @@ q-matrix 或 production。若通过，才运行 5-rotation、CPU/RSS、56-file q
 workspace/Clippy/fmt/Bazel 与 libwebp paired boundary。每次有效 headline 前重读 committed local
 main；main 前进则 rebase、重建并把旧数据标入 `raw/invalidated/` 后完整重跑。
 
+#### A17 结果（2026-07-22）
+
+A17 在 main 反复前进后按登记规则作废旧 census、partial batch 与一套完整 screen，逐次
+rebase、重建并重跑。最终有效 main 与 merge-base 均为
+`1cde1cc5c60e45a814fa2fb6de08958a3fb88d67`，measured code / screen evidence / final HEAD
+为 `2266b8446b1b37c2217eddcf6bd85bfb682ed507` /
+`919065f81d8ad6759106348a281d116808690aa4` /
+`c19185637ce552a4868c293ff85916951c4aaccf`。完整报告、178 项 SHA manifest、有效 raw 与
+invalidated 证据位于 `c1918563:reports/alpha-parallel-filter-portfolio/`；root 已从 worktree
+根目录独立复验 178/178 hashes、git ancestry、clean state 与有效 stderr 为空。
+
+五进程 Phase-A pooled ideal ceiling 为 **12.513732%**，仅高于实现许可线 0.0137 个百分点；
+固定 4,096-pixel 阈值后为 **12.481350%**。只有 10/41 文件、250/1,025 records 为双候选，
+`None` 赢 1,025/1,025，estimated 零胜、零 tie。Candidate 时间中 lossless/filter/payload
+分别占 96.453738% / 3.377872% / 0.161103%。
+
+有效三轮 41×10 same-binary screen 的 serial/parallel ALPH medians 为 756.376 / 681.193 ms，
+即 **-9.939898%**，未达到 `<=-10%`。更明确的 reject 来自 tail：逐文件 p50/p95/worst 为
+-6.000000 / **+8.414348** / **+15.637559%**，10/41 文件超过 +2%，三项全部失败。CPU
++0.224988%、RSS median +0.075996%（各轮最大 +0.979637%）、调度 0.523308% serial wall /
+4.491189% gross saving、single-case +0.685904% 且 0/930 spawn 均通过；两 profile output hash、
+ALPH bytes、candidate/winner/tie 零 mismatch。
+
+结论为 **reject / 不产品化 / 顶部表不变**。这是多核 wall/resource trade，不是单线程算法
+加速。Formal five-rotation、independent real/synthetic、56-file q-matrix、pinned-libwebp paired
+timing 与 complete project gates 按预声明早停未运行，也没有看数调 threshold 或 worker variant。
+Pinned libwebp `733c91e` 的 alpha filter trials 仍为串行；其 whole-ALPH/RGB 与 VP8L configs
+worker 仅作架构参考。Focused default 5/5、feature 9/9、feature Clippy `-D warnings`、fmt 通过。
+
 ### 总账更新规则
 
 1. 创建实验前先记录最新 `main` 完整 SHA；工作树就绪后再次验证 `main`、`HEAD` 和祖先关系。
@@ -950,6 +979,7 @@ primary headline measurements.
 | packet precomposition through ordinary `BitWriter` | A13 P control and A14 final-code P reproduction, same token packets/tables as packed | A13 formal **+4.731%**；A14 formal **+1.192%** ALPH-only | reject P twice; packet composition only matters when the persistent sink also removes segment state updates |
 | compiled post-I5 token codebook | A15 41×10×3 same-binary screen + five-rotation owner census on final `main@9ff74387` | prefix -0.684%；compiled literal/length +3.353%；combined **+30.743%**；setup-free optimistic ceiling only **5.879%**，setup 7.153%，0 mismatch | reject Phase A; do not merge experiment code or hide fixed setup behind corpus-tuned activation thresholds |
 | exact-sized cursor token sink | A16 five-rotation owner census + 41×10×3 same-binary screen on final `main@65fc54e1` | current sink ceiling only 10.197%；exact-u128 +0.625%、exact-u64 +11.843%、combined **+9.854%** ALPH；combined 41/41 regressions，0 mismatch | reject Phase A; reserved bytes fall 70.406% but peak RSS is unmeasured, so no memory Pareto and no experiment-code merge |
+| scoped parallel dual-filter portfolio | A17 five-process ceiling census + 41×10×3 same-binary screen on final `main@1cde1cc5` | ALPH **-9.939898%** misses the hard wall gate；p95/worst +8.414348/+15.637559%，10/41 >+2%；CPU/RSS/scheduling/identity pass | reject screen; sparse 10/41 eligibility and failed tails close internal filter-trial parallelism under the current contract; no experiment-code merge |
 
 ## Research basis and next architecture targets
 
@@ -1018,7 +1048,16 @@ The next accepted architecture should target at least one measurable 10% gap:
    sizing cuts reserved bytes by 70.406%, but without a peak-RSS result and
    with 41/41 combined ALPH regressions it is not a product Pareto. Further
    sink work needs a genuinely different representation or an independently
-   justified memory objective, not another per-word cursor variant.
+   justified memory objective, not another per-word cursor variant. A17 has
+   also closed **internal Fast-filter trial parallelism** under the current
+   product contract: it recovers 9.939898% ALPH wall on multiple cores, but
+   misses the 10% aggregate gate and regresses p95/worst by 8.414348%/15.637559%.
+   Only 10/41 files are eligible and `None` wins every measured trial, so a
+   different worker threshold or per-file activation rule would be corpus
+   tuning, not a new architecture. Future concurrency work must own a broader
+   independent boundary, such as already-established whole-ALPH/RGB overlap,
+   and must still pass CPU/RSS/tail reporting instead of being called a
+   single-thread codec speedup.
 2. **Real-image evidence:** add a pinned, licensed translucent PNG/WebP corpus
    with PSNR/SSIM or exact-alpha gates, alpha-cardinality buckets, p50/p95
    latency, and peak RSS. No architecture should be tuned only to conformance
