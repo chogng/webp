@@ -155,6 +155,12 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 
 E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08，最终作为 E33 线性迁入 main。P09/E34 又从创建时最新 `main@5362912a23a39175758796e07f45af3ee79143b1` 独立建树；通过 25% gate 后，没有直接把研究树合入，而是从届时最新 `main@130aa1f347ae1193463f35205b5bd98b4031bc7c` 新建 E35，重新理解并迁移最小产品实现。E35 最终作为 `97d6f1f4`/`00f02468`/`61aa5899` 线性进入 main。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
 
+### 进行中的 latest-main 编码优化
+
+| 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
+| --- | --- | --- | --- | --- |
+| P11 | packed token bits / low-overhead writer | `codex/vp8l-packed-token-writer`；`7eca2b83c2b9338ab4f15a58755e6e0acc970bf0` | [b8f0](</Users/lance/.codex/worktrees/b8f0/webp>)；task `019f8890-c433-7013-b862-00f8c5f4221a`；结果目录 `experiments/vp8l-packed-token-writer` | 已证明 HEAD/main/merge-base 精确一致并挂分支；Phase A 先证明合法最大 packet width、调用消除比例与 >=15% 端到端潜力，未过即负报告停止；过门后 screen >=12%、正式两档 >=15%、306/306 byte identity 与双 decoder exact |
+
 ## 每次优化的结果与结论
 
 ### E01：单线程架构扫描
@@ -455,6 +461,7 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 ### 第一优先：packed token bits 与低开销 writer
 
 - E34/E35 已完成 exact-cost single-write 实验、latest-main 产品收敛与线性集成；新的稳定编码基线是 Compact 10.199847 s、LowLatency 9.905461 s，不再使用 E33 的 14 秒双流路径做后续对照。
+- P11 已从创建时最新 `main@7eca2b83` 独立建树并挂到 `codex/vp8l-packed-token-writer`；工作树 [b8f0](</Users/lance/.codex/worktrees/b8f0/webp>)，task `019f8890-c433-7013-b862-00f8c5f4221a`。所有结果固定写入 `experiments/vp8l-packed-token-writer`，不在旧树中试改。
 - E34 的 phase trace 说明剩余最大单段是 candidate main token write（Compact 5.549 s、LowLatency 5.300 s），其次是 spatial cluster（2.870/2.837 s）和共享 validate/tokenize（1.628/1.635 s）。下一实验先只攻击最大段，避免把 writer、cluster 与 tokenization 三个假设混成一个无法归因的提交。
 - 核心假设是把一个 Literal 的 green/red/blue/alpha canonical wire code，或一个 Copy 的 green/length-extra/distance/distance-extra，按现有 LSB-first 顺序组装进一个有界 `u64` packet，再用一到两次追加完成，而不是对每个 code/extra 重复进入 `BitWriter::write_bits`。实现前必须证明所有合法 table/code/extra 组合的最大 bit 数和边界，不得依赖当前语料碰巧短码。
 - 优先做 private token packet sink；只有证明通用 64-bit append 的语义、0..64 width、非字节对齐、跨 32/64-bit 边界与 `as_bytes` 完全正确后，才扩大通用 `BitWriter` API。不得引入 unsafe、依赖、并发或任何 wire-byte 变化。
