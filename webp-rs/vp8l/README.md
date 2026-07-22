@@ -111,7 +111,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 
 ## 与本任务关联的工作树索引
 
-根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 35 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断或通过实验 gate 后另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
+根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 36 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断或通过实验 gate 后另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
 
 | ID | 实验 | 分支 / HEAD | 实验 base | 当前工作树与结果 | 决定 |
 | --- | --- | --- | --- | --- | --- |
@@ -150,16 +150,15 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 | E33 | coarse spatial stable profiles 产品迁移 | `codex/vp8l-coarse-spatial-product@a489d0b`；代码 `fb869383` | `52c6b8fc` | [report](../../experiments/vp8l-coarse-spatial-product/REPORT.md)；[raw/reproducer](../../experiments/vp8l-coarse-spatial-product)；[070b](</Users/lance/.codex/worktrees/070b/webp>)；task `019f87f5-d9a0-7281-a319-5d6e4a1fc510` | **已线性迁入 main**：代码 `9776da40`、证据 `00f2f587`、raw whitespace policy `e35a00db`；两档 gate、正确性与 pinned C 泛化均通过 |
 | E34 | exact-cost single-write 实验 | `codex/vp8l-exact-cost-single-write@a8570f47`；候选 `a89e0f73`；证据 `c0b6544e` | `5362912a` | [report](</Users/lance/.codex/worktrees/b99f/webp/experiments/vp8l-exact-cost-single-write/REPORT.md>)；[raw/reproducer](</Users/lance/.codex/worktrees/b99f/webp/experiments/vp8l-exact-cost-single-write>)；[b99f](</Users/lance/.codex/worktrees/b99f/webp>)；task `019f8825-e240-7f42-a04c-c1fa77b80476` | **通过实验 gate**：Compact/LowLatency -28.823%/-29.110%，306/306 byte identity，转 E35 latest-main 产品迁移 |
 | E35 | exact-cost single-write 产品迁移 | `codex/vp8l-exact-cost-product@4803b2d`；代码 `6ed10e55`；证据 `6369ddcd` | `130aa1f3` | [report](../../experiments/vp8l-exact-cost-product/REPORT.md)；[raw/reproducer](../../experiments/vp8l-exact-cost-product)；[6368](</Users/lance/.codex/worktrees/6368/webp>)；task `019f885a-c777-70c2-83c1-f622b78e3363` | **已线性迁入 main**：代码 `97d6f1f4`、证据 `00f02468`、whitespace policy `61aa5899`；两档 -28.389%/-28.966%，306/306 byte identity 与双 decoder exact |
+| E36 | packed token writer 实验 | `codex/vp8l-packed-token-writer@6000af0a`；候选 `dfc0cf6f`；证据 `1f8635c1` | `7eca2b83` | [report](</Users/lance/.codex/worktrees/b8f0/webp/experiments/vp8l-packed-token-writer/REPORT.md>)；[raw/reproducer](</Users/lance/.codex/worktrees/b8f0/webp/experiments/vp8l-packed-token-writer>)；[b8f0](</Users/lance/.codex/worktrees/b8f0/webp>)；task `019f8890-c433-7013-b862-00f8c5f4221a` | **通过实验 gate**：最终 binary 上 Compact/LowLatency -27.657%/-28.119%，306/306 byte identity 与双 decoder exact，转 latest-main 产品迁移 |
 
 ### latest-main 迁移链
 
-E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08，最终作为 E33 线性迁入 main。P09/E34 又从创建时最新 `main@5362912a23a39175758796e07f45af3ee79143b1` 独立建树；通过 25% gate 后，没有直接把研究树合入，而是从届时最新 `main@130aa1f347ae1193463f35205b5bd98b4031bc7c` 新建 E35，重新理解并迁移最小产品实现。E35 最终作为 `97d6f1f4`/`00f02468`/`61aa5899` 线性进入 main。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
+E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08，最终作为 E33 线性迁入 main。P09/E34 又从创建时最新 `main@5362912a23a39175758796e07f45af3ee79143b1` 独立建树；通过 25% gate 后，没有直接把研究树合入，而是从届时最新 `main@130aa1f347ae1193463f35205b5bd98b4031bc7c` 新建 E35，重新理解并迁移最小产品实现。E35 最终作为 `97d6f1f4`/`00f02468`/`61aa5899` 线性进入 main。P11/E36 则从创建时最新 `main@7eca2b83c2b9338ab4f15a58755e6e0acc970bf0` 独立建树；研究树已证明 packed token writer 的端到端收益和 wire identity，但不携带 census/phase instrumentation 直接进入 main，下一步仍按 latest-main 规则重建最小产品实现。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
 
 ### 进行中的 latest-main 编码优化
 
-| 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
-| --- | --- | --- | --- | --- |
-| P11 | packed token bits / low-overhead writer | `codex/vp8l-packed-token-writer`；`7eca2b83c2b9338ab4f15a58755e6e0acc970bf0` | [b8f0](</Users/lance/.codex/worktrees/b8f0/webp>)；task `019f8890-c433-7013-b862-00f8c5f4221a`；结果目录 `experiments/vp8l-packed-token-writer` | 已证明 HEAD/main/merge-base 精确一致并挂分支；Phase A 先证明合法最大 packet width、调用消除比例与 >=15% 端到端潜力，未过即负报告停止；过门后 screen >=12%、正式两档 >=15%、306/306 byte identity 与双 decoder exact |
+E36 已收口；下一棵产品迁移树必须在本次台账提交后，从届时最新的本地 `main` 新建并回填精确 base、branch、worktree 和 task。
 
 ## 每次优化的结果与结论
 
@@ -454,18 +453,30 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 - 产品代码生产模块为 179 行 `single_plan.rs` 与 242 行 `spatial_writer.rs`（另 89 行仅测试）；release rlib +25,856 B / +6.302%，release test binary +20,512 B / +1.404%。host stable workspace debug/release、all-targets、Clippy、fmt、rustdoc/doctest 与证据检查全部通过；当前工具链只安装 host target，因此没有改动全局工具链，跨目标沿用 E33 已通过的产品证据。
 - 分支 `codex/vp8l-exact-cost-product`：base `130aa1f3`，代码 `6ed10e55`，证据 `6369ddcd`，最终/卫生提交 `4803b2d`；工作树 [6368](</Users/lance/.codex/worktrees/6368/webp>)，task `019f885a-c777-70c2-83c1-f622b78e3363`，[完整报告](../../experiments/vp8l-exact-cost-product/REPORT.md)。对应 main 线性提交为代码 `97d6f1f4`、证据 `00f02468`、raw whitespace policy `61aa5899`。
 
+### E36：packed token writer 实验
+
+优化点：把每个 Literal 的 green/red/blue/alpha Huffman code，以及 Copy 的 length/extra/distance/extra，按现有 LSB-first wire 顺序预组装为单个 `TokenPacket`；再由私有 `BufferedPacketWriter` 用 64-bit accumulator 和 32-bit little-endian bulk flush 写出，避免每个字段重复进入 `BitWriter::write_bits`。
+
+- 合法极限已由代码与差分测试固定：Literal 最多 60 bit，Copy 最多 58 bit，Cache 最多 15 bit；当前 adaptive table 最长 9 bit，产品语料实际 packet 为 6–25 bit。实现只在中间组包使用 `u128`，最终 sink 保持 safe Rust，并以 `tokens * 8 + 1` 做可失败的预留和显式容量检查。
+- 每个 profile 的 102 图共有 244,018,874 个 token：242,507,972 literal、1,510,902 copy、cache=0。原路径调用 `write_bits` 732,056,622 次，新路径只追加 244,018,874 个 packet，调用数精确减少 66.667%。
+- Phase A 在 102 图三轮中将收益分离：Compact 的 original/packet-via-old-write/direct-byte-OR/packet+accumulator 为 5.244629/4.371400/4.634385/**2.405114 s**，最终机制改善 54.141%；LowLatency 为 4.875939/3.920810/4.157897/**2.169415 s**，改善 55.508%。这证明主要收益来自“组包 + accumulator”的合作，不是某一个表面 helper 或并发。
+- 最终候选 binary SHA-256 为 `260c297d4448a40e361fad5c62cbd6a9c0d00e36256943b2fcd69ac8b980fd73`。同 binary 41 图 screen：Compact 4.545191 -> 3.310370 s（-27.168%），LowLatency 4.420475 -> 3.193324 s（-27.761%），两档均 0/41 逐图回退。
+- 102 图五轮正式：Compact 10.769393 -> **7.790943 s**（独立中位 -27.657%，配对 -27.739%），LowLatency 10.515524 -> **7.558638 s**（独立 -28.119%，配对 -27.991%），两档均 0/102 逐图中位回退。LowLatency 候选第一轮 9.037979 s 是保留的 3×MAD outlier，其余轮为 7.532–7.609 s，未因异常轮删数据。
+- 正式资源中位的 process wall/CPU/RSS：Compact control 16.044915/15.993002 s/1,215.25 MiB，candidate 13.056734/13.011449 s/1,141.11 MiB；LowLatency control 15.726706/15.674722 s/1,216.39 MiB，candidate 12.819073/12.772517 s/1,152.73 MiB。release rlib 仍为 446,024 B（净增 0 B），test binary +35,184 B/+2.375% 主要来自研究 hooks。
+- Default/Compact/LowLatency 共 306/306 与 base 在长度、SHA 和全字节上一致；项目 decoder 306/306 完整 RGBA exact，pinned libwebp `733c91e` 也是 306/306 exact。workspace debug/release all-targets、Clippy `-D warnings`、fmt、rustdoc/doctest 全部通过；未修改工具链或安装新 target。
+- 分支 `codex/vp8l-packed-token-writer`：base `7eca2b83`，候选 `dfc0cf6f`，证据 `1f8635c1`，最终报告/HEAD `6000af0a`；工作树 [b8f0](</Users/lance/.codex/worktrees/b8f0/webp>)，task `019f8890-c433-7013-b862-00f8c5f4221a`，[完整报告](</Users/lance/.codex/worktrees/b8f0/webp/experiments/vp8l-packed-token-writer/REPORT.md>)。候选 amend 前旧 binary `7c2ba1f0…` 的数据只保留为 preliminary，顶层结论只使用上述最终 binary 重跑结果。
+
 ## 下一阶段：优先寻找更强且更通用的新架构
 
 标准 VP8L 的局部优化已经给出一致信号：Huffman、predictor、LZ77、PGO、单个 copy kernel 各自只有个位数收益或以明显 rate/latency 回退换取收益。后续优先级应从“继续打磨一个旧循环”转向能够同时改变表示、依赖图和输出流水线的架构方案。
 
-### 第一优先：packed token bits 与低开销 writer
+### 第一优先：packed token writer 产品迁移
 
-- E34/E35 已完成 exact-cost single-write 实验、latest-main 产品收敛与线性集成；新的稳定编码基线是 Compact 10.199847 s、LowLatency 9.905461 s，不再使用 E33 的 14 秒双流路径做后续对照。
-- P11 已从创建时最新 `main@7eca2b83` 独立建树并挂到 `codex/vp8l-packed-token-writer`；工作树 [b8f0](</Users/lance/.codex/worktrees/b8f0/webp>)，task `019f8890-c433-7013-b862-00f8c5f4221a`。所有结果固定写入 `experiments/vp8l-packed-token-writer`，不在旧树中试改。
-- E34 的 phase trace 说明剩余最大单段是 candidate main token write（Compact 5.549 s、LowLatency 5.300 s），其次是 spatial cluster（2.870/2.837 s）和共享 validate/tokenize（1.628/1.635 s）。下一实验先只攻击最大段，避免把 writer、cluster 与 tokenization 三个假设混成一个无法归因的提交。
-- 核心假设是把一个 Literal 的 green/red/blue/alpha canonical wire code，或一个 Copy 的 green/length-extra/distance/distance-extra，按现有 LSB-first 顺序组装进一个有界 `u64` packet，再用一到两次追加完成，而不是对每个 code/extra 重复进入 `BitWriter::write_bits`。实现前必须证明所有合法 table/code/extra 组合的最大 bit 数和边界，不得依赖当前语料碰巧短码。
-- 优先做 private token packet sink；只有证明通用 64-bit append 的语义、0..64 width、非字节对齐、跨 32/64-bit 边界与 `as_bytes` 完全正确后，才扩大通用 `BitWriter` API。不得引入 unsafe、依赖、并发或任何 wire-byte 变化。
-- Phase A 必须同时报告原/新 `write_bits` 调用次数、packet bit-width 分布和该段可回收上界；41 图同 binary screen 至少改善两档各 12%，102 图五轮晋级目标为两档各至少 15%，并保持 306/306 stream hash、两套 decoder exact、逐图无回退。若模型达不到门槛，保留负报告而不进入产品迁移。
+- E36 已在最终 binary 上证明两档 27.7%–28.1% 改善，且通过完整 wire 和双 decoder gate；它已不是待证明的微优化，而是待收敛的产品架构。
+- 下一任务必须从创建时最新本地 `main` 新建工作树，重新理解并迁移最小生产路径，不整体 cherry-pick E36 研究提交。产品代码只保留 packet 不变量、buffered sink、checked reserve/capacity 和必需边界测试，删除 census、phase layouts、benchmark-only hooks 和宽泛 dead-code 豁免。
+- 模块边界按独立责任划分：packet sink 拥有 accumulator、LSB-first wire packet 和容量错误语义，`spatial_writer` 只做 token/table orchestration；依赖保持单向，生产模块保持 500 行以下，新测试放在具名 sibling file。
+- 产品 gate 将使用同一最终 binary：41 图三轮 screen 后跑 102 图五轮，Compact/LowLatency 都必须至少改善 20%，目标绝对中位不高于 8.5 s，且逐图中位无回退。latest-main/product 与 product/E36 都必须 306/306 完整 byte identity，项目 decoder 和 pinned libwebp 都必须 306/306 完整 RGBA exact。
+- 只有同时通过 wall/CPU/RSS、release rlib/test binary、error semantics、workspace debug/release all-targets、Clippy、fmt 和 rustdoc/doctest 后才线性迁入 main；不得改变 cluster、tokenization、profile 选择、Default/API、wire syntax、依赖、unsafe 或线程模型。
 
 ### 第二优先：统一的 Fast Representation v2
 
