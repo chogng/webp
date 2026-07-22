@@ -1,4 +1,7 @@
 use super::*;
+use crate::FourCc;
+use crate::VP8X;
+use crate::parse;
 
 fn riff(chunks: &[(FourCc, &[u8], Option<u8>)]) -> Vec<u8> {
     let mut body = b"WEBP".to_vec();
@@ -35,6 +38,8 @@ fn frame_headers_and_nested_chunks_are_validated() {
     )
     .unwrap();
     let animation = parsed.animation().unwrap();
+    assert_eq!(animation.frame_count(), 1);
+    assert_eq!(animation.frame(1), None);
     assert_eq!(animation.background_bgra, [1, 2, 3, 4]);
     assert_eq!(animation.loop_count, 2);
     assert_eq!(

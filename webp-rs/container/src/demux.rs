@@ -4,19 +4,14 @@
 //! lengths and chunk framing, exposes unknown chunks unchanged, and decodes the
 //! small `VP8X` header without attempting to decode VP8 or VP8L payloads.
 
-use crate::ALPH;
-use crate::ANIM;
-use crate::ANMF;
-use crate::Animation;
-use crate::AnimationFrame;
 use crate::Chunk;
 use crate::CompatibilityProfile;
 use crate::ContainerError;
 use crate::ContainerErrorKind;
 use crate::ContainerLimits;
+use crate::DemuxOptions;
 use crate::EXIF;
 use crate::FourCc;
-use crate::FrameBitstream;
 use crate::ICCP;
 use crate::Metadata;
 use crate::VP8;
@@ -26,24 +21,67 @@ use crate::Vp8x;
 use crate::Vp8xFlags;
 use crate::XMP;
 use crate::arithmetic::checked_chunk_end;
-use crate::arithmetic::checked_rect_end;
 use crate::fourcc::is_known;
 
 const RIFF_HEADER_LEN: usize = 12;
 const CHUNK_HEADER_LEN: usize = 8;
 
-/// A parsed RIFF WebP file.  Payloads borrow from the supplied input.
+/// A complete zero-copy WebP container view.
+///
+/// `Demuxer` validates RIFF framing and the selected layout profile, but keeps
+/// VP8, VP8L, and ALPH payloads opaque. All returned byte slices borrow from
+/// the input passed to [`Demuxer::parse`].
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Container<'a> {
+pub struct Demuxer<'a> {
     chunks: Vec<Chunk<'a>>,
     vp8x: Option<Vp8x>,
-    animation: Option<Animation<'a>>,
+    image: Option<StillImage<'a>>,
+    animation: Option<crate::Animation<'a>>,
     /// Bytes outside the declared RIFF length.  This is only populated in the
     /// compatible profile; strict parsing rejects such input.
     trailing: &'a [u8],
 }
 
-impl<'a> Container<'a> {
+impl<'a> Demuxer<'a> {
+    /// Parses one complete WebP RIFF container using a reusable demux policy.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`ContainerError`] when RIFF framing, resource limits, or
+    /// the selected layout profile rejects the input.
+    pub fn parse(data: &'a [u8], options: &DemuxOptions) -> Result<Self, ContainerError> {
+        parse_with(data, options.profile, &options.limits)
+    }
+
+    /// Returns the number of retained top-level RIFF chunks.
+    #[must_use]
+    pub fn chunk_count(&self) -> usize {
+        self.chunks.len()
+    }
+
+    /// Returns one top-level RIFF chunk by index.
+    #[must_use]
+    pub fn chunk(&self, index: usize) -> Option<&Chunk<'a>> {
+        self.chunks.get(index)
+    }
+
+    /// Iterates every top-level chunk with the requested FourCC in wire order.
+    pub fn chunks_with(&self, fourcc: FourCc) -> impl Iterator<Item = &Chunk<'a>> {
+        self.chunks
+            .iter()
+            .filter(move |chunk| chunk.fourcc == fourcc)
+    }
+
+    /// Returns the validated opaque static-image payload, when present.
+    ///
+    /// Compatibility parsing can retain non-standard layouts. For those
+    /// inputs this returns the first top-level VP8 or VP8L chunk in wire order;
+    /// callers which need every raw occurrence can use [`Demuxer::chunks_with`].
+    #[must_use]
+    pub fn image(&self) -> Option<StillImage<'a>> {
+        self.image
+    }
+
     #[must_use]
     pub fn chunks(&self) -> &[Chunk<'a>] {
         &self.chunks
@@ -56,7 +94,7 @@ impl<'a> Container<'a> {
 
     /// Animation control data and validated frame descriptors, when present.
     #[must_use]
-    pub fn animation(&self) -> Option<&Animation<'a>> {
+    pub fn animation(&self) -> Option<&crate::Animation<'a>> {
         self.animation.as_ref()
     }
 
@@ -82,6 +120,39 @@ impl<'a> Container<'a> {
     }
 }
 
+/// Backward-compatible name for a parsed container.
+///
+/// New APIs should use [`Demuxer`].
+pub type Container<'a> = Demuxer<'a>;
+
+/// One opaque static image payload selected from the top-level chunk layout.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StillImage<'a> {
+    alpha: Option<&'a [u8]>,
+    bitstream: ImageBitstream<'a>,
+}
+
+impl<'a> StillImage<'a> {
+    /// Returns the raw top-level ALPH payload, when the container provides one.
+    #[must_use]
+    pub fn alpha(self) -> Option<&'a [u8]> {
+        self.alpha
+    }
+
+    /// Returns the opaque VP8 or VP8L payload.
+    #[must_use]
+    pub fn bitstream(self) -> ImageBitstream<'a> {
+        self.bitstream
+    }
+}
+
+/// Codec kind and opaque payload for a static WebP image.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImageBitstream<'a> {
+    Vp8(&'a [u8]),
+    Vp8l(&'a [u8]),
+}
+
 /// Parses a complete WebP RIFF container.
 ///
 /// `SpecStrict` rejects non-zero chunk padding, RIFF trailing bytes, malformed
@@ -93,12 +164,20 @@ impl<'a> Container<'a> {
 ///
 /// Returns an error for invalid magic, incomplete or overflowing RIFF/chunk
 /// boundaries, limit violations, and profile-specific layout violations.
-#[allow(clippy::too_many_lines)] // Keep the linear parser's boundary checks adjacent.
 pub fn parse<'a>(
     data: &'a [u8],
     profile: CompatibilityProfile,
     limits: &ContainerLimits,
-) -> Result<Container<'a>, ContainerError> {
+) -> Result<Demuxer<'a>, ContainerError> {
+    parse_with(data, profile, limits)
+}
+
+#[allow(clippy::too_many_lines)] // Keep the linear parser's boundary checks adjacent.
+fn parse_with<'a>(
+    data: &'a [u8],
+    profile: CompatibilityProfile,
+    limits: &ContainerLimits,
+) -> Result<Demuxer<'a>, ContainerError> {
     if data.len() > limits.max_input_bytes {
         return Err(error(
             ContainerErrorKind::LimitExceeded,
@@ -210,6 +289,20 @@ pub fn parse<'a>(
                 vp8x = Some(parsed);
             }
         }
+        if chunks.len() >= limits.max_chunks as usize {
+            return Err(error(
+                ContainerErrorKind::LimitExceeded,
+                offset,
+                "container exceeds max_chunks",
+            ));
+        }
+        chunks.try_reserve(1).map_err(|_| {
+            error(
+                ContainerErrorKind::AllocationFailed,
+                offset,
+                "chunk storage allocation failed",
+            )
+        })?;
         chunks.push(Chunk {
             fourcc,
             payload,
@@ -220,12 +313,14 @@ pub fn parse<'a>(
     }
 
     if profile == CompatibilityProfile::SpecStrict {
-        validate_strict_layout(&chunks, vp8x)?;
+        crate::layout::validate_strict_layout(&chunks, vp8x)?;
     }
-    let animation = parse_animation(&chunks, vp8x, profile, limits)?;
-    Ok(Container {
+    let image = still_image(&chunks);
+    let animation = crate::animation::parse_animation(&chunks, vp8x, profile, limits)?;
+    Ok(Demuxer {
         chunks,
         vp8x,
+        image,
         animation,
         trailing: &data[container_end..],
     })
@@ -286,316 +381,14 @@ fn parse_vp8x(
     })
 }
 
-fn validate_strict_layout(chunks: &[Chunk<'_>], vp8x: Option<Vp8x>) -> Result<(), ContainerError> {
-    let mut lossy_count = 0u32;
-    let mut lossless_count = 0u32;
-    let mut alph_count = 0u32;
-    let mut iccp_count = 0u32;
-    let mut exif_count = 0u32;
-    let mut xmp_count = 0u32;
-    let mut anim_count = 0u32;
-    let mut anmf_count = 0u32;
-    for chunk in chunks {
-        match chunk.fourcc {
-            VP8 => lossy_count += 1,
-            VP8L => lossless_count += 1,
-            ALPH => alph_count += 1,
-            ICCP => iccp_count += 1,
-            EXIF => exif_count += 1,
-            XMP => xmp_count += 1,
-            ANIM => anim_count += 1,
-            ANMF => anmf_count += 1,
-            _ => {}
-        }
-    }
-    if lossy_count > 1
-        || lossless_count > 1
-        || alph_count > 1
-        || iccp_count > 1
-        || exif_count > 1
-        || xmp_count > 1
-        || anim_count > 1
-    {
-        return Err(error(
-            ContainerErrorKind::InvalidContainer,
-            RIFF_HEADER_LEN,
-            "duplicate singleton chunk",
-        ));
-    }
-    if lossy_count > 0 && lossless_count > 0 {
-        return Err(error(
-            ContainerErrorKind::InvalidContainer,
-            RIFF_HEADER_LEN,
-            "both VP8 and VP8L chunks present",
-        ));
-    }
-    if anmf_count > 0 && (lossy_count > 0 || lossless_count > 0 || alph_count > 0) {
-        return Err(error(
-            ContainerErrorKind::InvalidContainer,
-            RIFF_HEADER_LEN,
-            "animated and still-image chunks cannot be mixed",
-        ));
-    }
-    if let Some(header) = vp8x {
-        let first = chunks.first().expect("VP8X has a source chunk");
-        if first.fourcc != VP8X {
-            return Err(error(
-                ContainerErrorKind::InvalidContainer,
-                first.offset,
-                "VP8X must be the first chunk",
-            ));
-        }
-        let flags = header.flags;
-        if flags.iccp() != (iccp_count == 1)
-            || flags.exif() != (exif_count == 1)
-            || flags.xmp() != (xmp_count == 1)
-            || flags.animation() != (anim_count == 1 && anmf_count != 0)
-            // A VP8L payload can carry alpha itself; the container parser does
-            // not inspect that bitstream.  Only an `ALPH` chunk is enough to
-            // require the VP8X alpha feature bit at this layer.
-            || (alph_count == 1 && !flags.alpha())
-        {
-            return Err(error(
-                ContainerErrorKind::InvalidContainer,
-                first.offset,
-                "VP8X flags do not match present chunks",
-            ));
-        }
-    } else if iccp_count != 0
-        || exif_count != 0
-        || xmp_count != 0
-        || alph_count != 0
-        || anim_count != 0
-        || anmf_count != 0
-    {
-        return Err(error(
-            ContainerErrorKind::InvalidContainer,
-            RIFF_HEADER_LEN,
-            "extended chunks require VP8X",
-        ));
-    }
-    Ok(())
-}
-
-fn parse_animation<'a>(
-    chunks: &[Chunk<'a>],
-    vp8x: Option<Vp8x>,
-    profile: CompatibilityProfile,
-    limits: &ContainerLimits,
-) -> Result<Option<Animation<'a>>, ContainerError> {
-    let Some(vp8x) = vp8x else {
-        return Ok(None);
-    };
-    if !vp8x.flags.animation() {
-        return Ok(None);
-    }
-    let anim = chunks
-        .iter()
-        .find(|chunk| chunk.fourcc == ANIM)
-        .ok_or_else(|| {
-            error(
-                ContainerErrorKind::InvalidContainer,
-                RIFF_HEADER_LEN,
-                "missing ANIM chunk",
-            )
-        })?;
-    if anim.payload.len() != 6 {
-        return Err(error(
-            ContainerErrorKind::InvalidContainer,
-            anim.offset + CHUNK_HEADER_LEN,
-            "ANIM payload must be exactly 6 bytes",
-        ));
-    }
-    let background_bgra: [u8; 4] = anim.payload[..4].try_into().expect("fixed ANIM color");
-    let loop_count = u16::from_le_bytes([anim.payload[4], anim.payload[5]]);
-    let mut total_pixels = 0_u64;
-    let mut frames = Vec::new();
-    for chunk in chunks.iter().filter(|chunk| chunk.fourcc == ANMF) {
-        if frames.len() >= limits.max_frames as usize {
-            return Err(error(
-                ContainerErrorKind::LimitExceeded,
-                chunk.offset,
-                "animation exceeds max_frames",
-            ));
-        }
-        let frame = parse_anmf(chunk, vp8x, profile, limits)?;
-        total_pixels = total_pixels
-            .checked_add(u64::from(frame.width) * u64::from(frame.height))
-            .ok_or_else(|| {
-                error(
-                    ContainerErrorKind::LimitExceeded,
-                    chunk.offset,
-                    "animation pixel count overflow",
-                )
-            })?;
-        if total_pixels > limits.max_total_frame_pixels {
-            return Err(error(
-                ContainerErrorKind::LimitExceeded,
-                chunk.offset,
-                "animation pixels exceed max_total_frame_pixels",
-            ));
-        }
-        frames.push(frame);
-    }
-    if frames.is_empty() {
-        return Err(error(
-            ContainerErrorKind::InvalidContainer,
-            anim.offset,
-            "animated WebP has no ANMF frames",
-        ));
-    }
-    if profile == CompatibilityProfile::SpecStrict
-        && frames.iter().any(|frame| frame.alpha.is_some())
-        && !vp8x.flags.alpha()
-    {
-        return Err(error(
-            ContainerErrorKind::InvalidContainer,
-            anim.offset,
-            "VP8X alpha flag is missing for an ANMF ALPH chunk",
-        ));
-    }
-    Ok(Some(Animation {
-        background_bgra,
-        loop_count,
-        frames,
-    }))
-}
-
-fn parse_anmf<'a>(
-    chunk: &Chunk<'a>,
-    vp8x: Vp8x,
-    profile: CompatibilityProfile,
-    _limits: &ContainerLimits,
-) -> Result<AnimationFrame<'a>, ContainerError> {
-    const ANMF_HEADER_LEN: usize = 16;
-    if chunk.payload.len() < ANMF_HEADER_LEN {
-        return Err(error(
-            ContainerErrorKind::UnexpectedEof,
-            chunk.offset + CHUNK_HEADER_LEN + chunk.payload.len(),
-            "truncated ANMF header",
-        ));
-    }
-    let x = read_u24(&chunk.payload[..3])
-        .checked_mul(2)
-        .ok_or_else(|| {
-            error(
-                ContainerErrorKind::InvalidContainer,
-                chunk.offset + CHUNK_HEADER_LEN,
-                "ANMF x overflow",
-            )
-        })?;
-    let y = read_u24(&chunk.payload[3..6])
-        .checked_mul(2)
-        .ok_or_else(|| {
-            error(
-                ContainerErrorKind::InvalidContainer,
-                chunk.offset + CHUNK_HEADER_LEN + 3,
-                "ANMF y overflow",
-            )
-        })?;
-    let width = read_u24(&chunk.payload[6..9]) + 1;
-    let height = read_u24(&chunk.payload[9..12]) + 1;
-    checked_rect_end(x, width, vp8x.canvas_width).map_err(|_| {
-        error(
-            ContainerErrorKind::InvalidContainer,
-            chunk.offset + CHUNK_HEADER_LEN,
-            "ANMF frame exceeds canvas width",
-        )
+fn still_image<'a>(chunks: &[Chunk<'a>]) -> Option<StillImage<'a>> {
+    let bitstream = chunks.iter().find_map(|chunk| match chunk.fourcc {
+        VP8 => Some(ImageBitstream::Vp8(chunk.payload)),
+        VP8L => Some(ImageBitstream::Vp8l(chunk.payload)),
+        _ => None,
     })?;
-    checked_rect_end(y, height, vp8x.canvas_height).map_err(|_| {
-        error(
-            ContainerErrorKind::InvalidContainer,
-            chunk.offset + CHUNK_HEADER_LEN + 3,
-            "ANMF frame exceeds canvas height",
-        )
-    })?;
-    let duration_ms = read_u24(&chunk.payload[12..15]);
-    let flags = chunk.payload[15];
-    if profile == CompatibilityProfile::SpecStrict && flags & !0b11 != 0 {
-        return Err(error(
-            ContainerErrorKind::InvalidContainer,
-            chunk.offset + CHUNK_HEADER_LEN + 15,
-            "ANMF reserved bits are non-zero",
-        ));
-    }
-
-    let nested = &chunk.payload[ANMF_HEADER_LEN..];
-    let mut offset = 0_usize;
-    let mut alpha = None;
-    let mut bitstream = None;
-    while offset < nested.len() {
-        if nested.len() - offset < CHUNK_HEADER_LEN {
-            return Err(error(
-                ContainerErrorKind::UnexpectedEof,
-                chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN + offset,
-                "truncated ANMF subchunk header",
-            ));
-        }
-        let fourcc = read_fourcc(&nested[offset..offset + 4])?;
-        let size = read_u32(&nested[offset + 4..offset + 8])?;
-        let next = checked_chunk_end(offset, size, nested.len())?;
-        let padding_len = (size & 1) as usize;
-        let payload_end = next - padding_len;
-        if profile == CompatibilityProfile::SpecStrict
-            && padding_len == 1
-            && nested[payload_end] != 0
-        {
-            return Err(error(
-                ContainerErrorKind::InvalidContainer,
-                chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN + payload_end,
-                "non-zero ANMF subchunk padding",
-            ));
-        }
-        let payload = &nested[offset + CHUNK_HEADER_LEN..payload_end];
-        match fourcc {
-            ALPH => {
-                if alpha.replace(payload).is_some() || bitstream.is_some() {
-                    return Err(error(
-                        ContainerErrorKind::InvalidContainer,
-                        chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN + offset,
-                        "ANMF ALPH must appear once before the bitstream",
-                    ));
-                }
-            }
-            VP8 => {
-                if bitstream.replace(FrameBitstream::Vp8(payload)).is_some() {
-                    return Err(error(
-                        ContainerErrorKind::InvalidContainer,
-                        chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN + offset,
-                        "ANMF contains multiple image bitstreams",
-                    ));
-                }
-            }
-            VP8L if alpha.is_some()
-                || bitstream.replace(FrameBitstream::Vp8l(payload)).is_some() =>
-            {
-                return Err(error(
-                    ContainerErrorKind::InvalidContainer,
-                    chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN + offset,
-                    "ANMF ALPH cannot accompany VP8L or duplicate a bitstream",
-                ));
-            }
-            VP8L => {}
-            _ => {}
-        }
-        offset = next;
-    }
-    let bitstream = bitstream.ok_or_else(|| {
-        error(
-            ContainerErrorKind::InvalidContainer,
-            chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN,
-            "ANMF frame has no VP8 or VP8L bitstream",
-        )
-    })?;
-    Ok(AnimationFrame {
-        x,
-        y,
-        width,
-        height,
-        duration_ms,
-        dispose_to_background: flags & 1 != 0,
-        blend: flags & 2 == 0,
-        alpha,
+    Some(StillImage {
+        alpha: first_payload(chunks, crate::ALPH),
         bitstream,
     })
 }
@@ -635,7 +428,3 @@ fn error(kind: ContainerErrorKind, offset: usize, context: &'static str) -> Cont
 #[cfg(test)]
 #[path = "demux_tests.rs"]
 mod container_tests;
-
-#[cfg(test)]
-#[path = "animation_tests.rs"]
-mod animation_tests;

@@ -31,6 +31,7 @@ fn map_limits(limits: &DecodeLimits) -> webp_container::ContainerLimits {
         max_frames: limits.max_frames,
         max_total_frame_pixels: limits.max_total_frame_pixels,
         max_metadata_bytes: limits.max_metadata_bytes,
+        max_chunks: webp_container::ContainerLimits::default().max_chunks,
     }
 }
 

@@ -11,6 +11,16 @@ pub enum CompatibilityProfile {
     LibwebpCompatible,
 }
 
+/// Options controlling one zero-copy demux operation.
+///
+/// The profile determines which legacy layout quirks are accepted. Limits are
+/// owned by the caller so the same policy can be reused for multiple inputs.
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct DemuxOptions {
+    pub profile: CompatibilityProfile,
+    pub limits: ContainerLimits,
+}
+
 /// Resource bounds applied while parsing RIFF layout and animation metadata.
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ContainerLimits {
@@ -21,6 +31,8 @@ pub struct ContainerLimits {
     pub max_frames: u32,
     pub max_total_frame_pixels: u64,
     pub max_metadata_bytes: usize,
+    /// Maximum number of top-level RIFF chunks retained by a demux result.
+    pub max_chunks: u32,
 }
 
 impl Default for ContainerLimits {
@@ -33,6 +45,7 @@ impl Default for ContainerLimits {
             max_frames: 16_384,
             max_total_frame_pixels: 1_073_741_824,
             max_metadata_bytes: 64 * 1024 * 1024,
+            max_chunks: 65_536,
         }
     }
 }

@@ -1,4 +1,6 @@
 use super::*;
+use crate::ANIM;
+use crate::ANMF;
 
 fn limits() -> ContainerLimits {
     ContainerLimits::default()
@@ -148,4 +150,19 @@ fn reserved_vp8x_bits_are_a_profile_decision() {
     let bytes = riff(&[(VP8X, &vp8x, None), (VP8, &[1, 2], None)]);
     assert!(parse(&bytes, CompatibilityProfile::SpecStrict, &limits()).is_err());
     assert!(parse(&bytes, CompatibilityProfile::LibwebpCompatible, &limits()).is_ok());
+}
+
+#[test]
+fn chunk_limit_is_checked_before_chunk_storage_grows() {
+    let bytes = riff(&[(VP8, &[1, 2], None)]);
+    let limits = ContainerLimits {
+        max_chunks: 0,
+        ..limits()
+    };
+    assert_eq!(
+        parse(&bytes, CompatibilityProfile::SpecStrict, &limits)
+            .unwrap_err()
+            .kind(),
+        ContainerErrorKind::LimitExceeded
+    );
 }
