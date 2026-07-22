@@ -164,7 +164,8 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 
 | 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
 | --- | --- | --- | --- | --- |
-| — | 当前无进行中的 VP8L 编码实验 | — | P15 已收口并归档；下一工作树须从包含 E40 证据的最新 main 创建 | — |
+| P16 | capacity-growing exact-cost split/refine clustering | `codex/vp8l-capacity-growing-clustering`；`ec7fbaf69f423bfd7251a121d2e629cfa776cb79` | [5d9b](</Users/lance/.codex/worktrees/5d9b/webp>)；task `019f89e8-4f41-7b12-b14d-4da149d07b3a`；结果目录 `experiments/vp8l-capacity-growing-clustering` | 创建时 worktree HEAD/local main/merge-base 已精确相等；先以 support-safe combined-histogram cost 做 deterministic split，完整 RIFF cost 单调验收；Phase A 必须修复 E40 三个 LowLatency 长尾才可进 screen |
+| P17 | multi-resolution exact-cost spatial portfolio | `codex/vp8l-multires-spatial-portfolio`；`ec7fbaf69f423bfd7251a121d2e629cfa776cb79` | [dfbc](</Users/lance/.codex/worktrees/dfbc/webp>)；task `019f89e8-dcd1-7a43-ba7b-a8406d10740e`；结果目录 `experiments/vp8l-multires-spatial-portfolio` | 创建时 worktree HEAD/local main/merge-base 已精确相等；LowLatency 精确比较 128/256 两个完整计划，只写较小者；Phase A 同样要求双档 aggregate 不劣于 E40 且所有图不超过 E37 +2% |
 
 ## 每次优化的结果与结论
 
