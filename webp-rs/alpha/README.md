@@ -711,7 +711,7 @@ The next accepted architecture should target at least one measurable 10% gap:
    mechanism, A08 found only -0.082% from optimal length-limited Huffman, and
    A09 found only -0.032% from palette ordering. A10 then proved a 13.814%
    structured multi-edge parsing ceiling, but its depth-64/K=20 discovery is
-   4,832x too slow. A11 is now testing a **single-best-match traceback /
+   4,832x too slow. A11 tested a **single-best-match traceback /
    compact rolling frontier**. A11 retained -13.279% structured and removed
    98.823% of A10 discovery, yet four traceback/table evaluations still made
    ALPH-only 48.33x slower. Parser-density work is therefore closed under the
