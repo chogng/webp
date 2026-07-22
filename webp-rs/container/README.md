@@ -1,8 +1,10 @@
 # `webp-container`
 
-This crate owns strict RIFF/WebP container parsing, generic chunk muxing, and
-unchanged-file editing. Codec payload parsing belongs to the codec layer, not
-to this crate.
+This crate owns only the WebP RIFF vocabulary shared by `webp-demux` and
+`webp-mux`: FourCC values, VP8X fields, metadata models, and common container
+error categories. Parsing belongs to `webp-demux`; construction and lossless
+editing belong to `webp-mux`. Codec payloads remain opaque at all three
+container boundaries.
 
 ## Architecture performance baseline
 

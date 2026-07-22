@@ -1,5 +1,9 @@
 # Rust 最终架构与迁移契约
 
+> **已由 sibling-crates 架构取代（2026-07-22）。** 本文保留为上一轮“两 production
+> crates”迁移的历史契约，不再描述当前目标。当前 workspace 边界见
+> [`workspace-crate-architecture.md`](workspace-crate-architecture.md)。
+
 状态：**最终目标，供后续迁移任务直接执行**
 适用范围：`webp-rs` 下的生产 Rust 代码、单元测试、集成测试、示例、fuzz target 与 Bazel/Cargo 构建入口。
 不在本次迁移范围：codec 行为、压缩策略、现有公共 API 语义、性能算法、语料内容

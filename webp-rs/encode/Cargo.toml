@@ -1,0 +1,22 @@
+[package]
+name = "webp-encode"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Safe WebP pixel encoding"
+
+[lints]
+workspace = true
+
+[features]
+default = ["animation"]
+animation = ["webp-decode/animation"]
+alpha-benchmark-internals = ["webp-decode/alpha-benchmark-internals"]
+
+[dependencies]
+webp-decode = { path = "../decode", default-features = false, features = ["encode"] }
+webp-container = { path = "../container" }
+webp-demux = { path = "../demux" }
+webp-mux = { path = "../mux" }

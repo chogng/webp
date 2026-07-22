@@ -61,13 +61,20 @@ static SCRATCH_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[test]
 fn reference_and_packed_writers_are_identical_on_full_matrix() {
-    let corpus_41 = PathBuf::from(
-        std::env::var_os("WEBP_ALPHA_IDENTITY_CORPUS_41").expect("41-file corpus path"),
-    );
-    let corpus_15 = PathBuf::from(
-        std::env::var_os("WEBP_ALPHA_IDENTITY_CORPUS_15").expect("15-file corpus path"),
-    );
-    let dwebp = PathBuf::from(std::env::var_os("DWEBP").expect("pinned dwebp path"));
+    let (Some(corpus_41), Some(corpus_15), Some(dwebp)) = (
+        std::env::var_os("WEBP_ALPHA_IDENTITY_CORPUS_41"),
+        std::env::var_os("WEBP_ALPHA_IDENTITY_CORPUS_15"),
+        std::env::var_os("DWEBP"),
+    ) else {
+        eprintln!(
+            "skipping ALPH writer identity: set WEBP_ALPHA_IDENTITY_CORPUS_41, \
+             WEBP_ALPHA_IDENTITY_CORPUS_15, and DWEBP"
+        );
+        return;
+    };
+    let corpus_41 = PathBuf::from(corpus_41);
+    let corpus_15 = PathBuf::from(corpus_15);
+    let dwebp = PathBuf::from(dwebp);
     let mut inputs = ALPHA_VECTORS
         .iter()
         .map(|name| corpus_41.join(name))

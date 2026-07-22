@@ -13,7 +13,8 @@ pub const XMP: FourCc = *b"XMP ";
 pub const ANIM: FourCc = *b"ANIM";
 pub const ANMF: FourCc = *b"ANMF";
 
-pub(crate) fn is_known(fourcc: FourCc) -> bool {
+#[doc(hidden)]
+pub fn is_known(fourcc: FourCc) -> bool {
     matches!(
         fourcc,
         VP8 | VP8L | VP8X | ALPH | ICCP | EXIF | XMP | ANIM | ANMF

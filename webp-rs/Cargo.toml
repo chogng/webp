@@ -1,6 +1,13 @@
 [workspace]
 members = [
     "container",
+    "decode",
+    "demux",
+    "dsp",
+    "encode",
+    "mux",
+    "sharpyuv",
+    "utils",
     "webp",
     "xtask",
 ]

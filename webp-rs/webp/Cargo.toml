@@ -13,17 +13,21 @@ workspace = true
 [features]
 default = ["decode", "encode", "animation"]
 # Static image decode, inspection, and incremental decode APIs.
-decode = []
-# Static image encode APIs. Encoder orchestration reuses bounded decode-side
-# wire primitives, so this feature includes `decode`.
-encode = ["decode"]
-# Animated decode APIs. Animated encode APIs require both this and `encode`.
-animation = ["decode"]
-fuzzing = ["decode", "encode", "animation"]
-alpha-benchmark-internals = ["fuzzing"]
+decode = ["dep:webp-decode", "webp-decode/decode"]
+# Static image encode APIs.
+encode = ["dep:webp-encode"]
+# Animated APIs for whichever directions are enabled.
+animation = ["decode", "webp-decode/animation", "webp-encode?/animation"]
+fuzzing = ["decode", "encode", "animation", "webp-decode/fuzzing"]
+alpha-benchmark-internals = ["fuzzing", "webp-encode/alpha-benchmark-internals"]
 
 [dependencies]
+webp-decode = { path = "../decode", default-features = false, optional = true }
+webp-encode = { path = "../encode", default-features = false, optional = true }
+
+[dev-dependencies]
 webp-container = { path = "../container" }
+webp-demux = { path = "../demux" }
 
 [[example]]
 name = "alpha_encode_bench"

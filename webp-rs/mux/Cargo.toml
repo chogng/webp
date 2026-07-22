@@ -1,0 +1,16 @@
+[package]
+name = "webp-mux"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Safe WebP RIFF muxing and lossless container editing"
+
+[lints]
+workspace = true
+
+[dependencies]
+webp-container = { path = "../container" }
+webp-demux = { path = "../demux" }
+webp-utils = { path = "../utils" }

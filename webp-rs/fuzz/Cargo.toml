@@ -11,6 +11,8 @@ cargo-fuzz = true
 libfuzzer-sys = "0.4"
 webp = { path = "../webp", features = ["fuzzing"] }
 webp-container = { path = "../container" }
+webp-demux = { path = "../demux" }
+webp-mux = { path = "../mux" }
 
 [[bin]]
 name = "container_raw"

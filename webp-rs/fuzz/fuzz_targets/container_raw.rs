@@ -2,8 +2,8 @@
 #![forbid(unsafe_code)]
 
 use libfuzzer_sys::fuzz_target;
-use webp_container::CompatibilityProfile;
-use webp_container::ContainerLimits;
+use webp_demux::CompatibilityProfile;
+use webp_demux::ContainerLimits;
 
 fuzz_target!(|bytes: &[u8]| {
     let limits = ContainerLimits {
@@ -14,5 +14,5 @@ fuzz_target!(|bytes: &[u8]| {
         max_metadata_bytes: 1 << 20,
         ..ContainerLimits::default()
     };
-    let _ = webp_container::parse(bytes, CompatibilityProfile::SpecStrict, &limits);
+    let _ = webp_demux::parse(bytes, CompatibilityProfile::SpecStrict, &limits);
 });

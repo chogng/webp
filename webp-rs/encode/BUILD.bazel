@@ -1,0 +1,7 @@
+load("//:defs.bzl", "webp_rust_crate")
+
+webp_rust_crate(
+    name = "encode",
+    crate_name = "webp_encode",
+    rustc_flags = ['--cfg=feature="animation"'],
+)

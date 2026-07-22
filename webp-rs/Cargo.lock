@@ -149,10 +149,64 @@ name = "webp"
 version = "0.1.0"
 dependencies = [
  "webp-container",
+ "webp-decode",
+ "webp-demux",
+ "webp-encode",
 ]
 
 [[package]]
 name = "webp-container"
+version = "0.1.0"
+
+[[package]]
+name = "webp-decode"
+version = "0.1.0"
+dependencies = [
+ "webp-container",
+ "webp-demux",
+ "webp-dsp",
+ "webp-mux",
+ "webp-sharpyuv",
+ "webp-utils",
+]
+
+[[package]]
+name = "webp-demux"
+version = "0.1.0"
+dependencies = [
+ "webp-container",
+ "webp-utils",
+]
+
+[[package]]
+name = "webp-dsp"
+version = "0.1.0"
+
+[[package]]
+name = "webp-encode"
+version = "0.1.0"
+dependencies = [
+ "webp-container",
+ "webp-decode",
+ "webp-demux",
+ "webp-mux",
+]
+
+[[package]]
+name = "webp-mux"
+version = "0.1.0"
+dependencies = [
+ "webp-container",
+ "webp-demux",
+ "webp-utils",
+]
+
+[[package]]
+name = "webp-sharpyuv"
+version = "0.1.0"
+
+[[package]]
+name = "webp-utils"
 version = "0.1.0"
 
 [[package]]

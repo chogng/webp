@@ -36,6 +36,7 @@ rust_test(
     deps = [
         ":webp",
         "//webp-rs/container",
+        "//webp-rs/demux",
     ],
     tags = ["external-corpus", "manual"],
 )

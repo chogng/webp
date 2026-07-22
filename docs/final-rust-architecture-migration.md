@@ -1,5 +1,8 @@
 # Final Rust architecture migration ledger
 
+> Historical ledger: the two-crate architecture recorded here was superseded
+> on 2026-07-22 by [`workspace-crate-architecture.md`](workspace-crate-architecture.md).
+
 This ledger records the review boundary and reproducible gates for the migration
 defined by [`final-rust-architecture.md`](final-rust-architecture.md). The
 migration moves existing code and ownership only; it does not change codec

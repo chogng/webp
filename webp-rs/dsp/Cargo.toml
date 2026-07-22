@@ -1,0 +1,11 @@
+[package]
+name = "webp-dsp"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Pure scalar and accelerated WebP pixel kernels"
+
+[lints]
+workspace = true

@@ -1,0 +1,6 @@
+load("//:defs.bzl", "webp_rust_crate")
+
+webp_rust_crate(
+    name = "sharpyuv",
+    crate_name = "webp_sharpyuv",
+)

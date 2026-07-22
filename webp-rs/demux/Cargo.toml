@@ -1,0 +1,15 @@
+[package]
+name = "webp-demux"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Safe zero-copy WebP RIFF demuxing"
+
+[lints]
+workspace = true
+
+[dependencies]
+webp-container = { path = "../container" }
+webp-utils = { path = "../utils" }

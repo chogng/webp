@@ -1,0 +1,28 @@
+[package]
+name = "webp-decode"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Safe WebP pixel decoding and shared codec foundations"
+
+[lints]
+workspace = true
+
+[features]
+default = ["decode", "animation"]
+decode = []
+# Temporary internal bridge while writer owners move into webp-encode.
+encode = ["decode"]
+animation = ["decode"]
+fuzzing = ["decode", "encode", "animation"]
+alpha-benchmark-internals = ["fuzzing"]
+
+[dependencies]
+webp-container = { path = "../container" }
+webp-demux = { path = "../demux" }
+webp-dsp = { path = "../dsp" }
+webp-mux = { path = "../mux" }
+webp-sharpyuv = { path = "../sharpyuv" }
+webp-utils = { path = "../utils" }

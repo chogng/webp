@@ -28,7 +28,8 @@ pub struct ContainerError {
 }
 
 impl ContainerError {
-    pub(crate) const fn new(kind: ContainerErrorKind, context: &'static str) -> Self {
+    #[doc(hidden)]
+    pub const fn new(kind: ContainerErrorKind, context: &'static str) -> Self {
         Self {
             kind,
             offset: None,
@@ -36,7 +37,8 @@ impl ContainerError {
         }
     }
 
-    pub(crate) const fn at(kind: ContainerErrorKind, offset: usize, context: &'static str) -> Self {
+    #[doc(hidden)]
+    pub const fn at(kind: ContainerErrorKind, offset: usize, context: &'static str) -> Self {
         Self {
             kind,
             offset: Some(offset),

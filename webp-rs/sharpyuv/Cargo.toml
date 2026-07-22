@@ -1,0 +1,11 @@
+[package]
+name = "webp-sharpyuv"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Reconstruction-aware RGB to YUV420 conversion for WebP"
+
+[lints]
+workspace = true

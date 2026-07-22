@@ -2,10 +2,10 @@
 #![forbid(unsafe_code)]
 
 use libfuzzer_sys::fuzz_target;
-use webp_container::CompatibilityProfile;
-use webp_container::ContainerLimits;
-use webp_container::DemuxOptions;
-use webp_container::Editor;
+use webp_demux::CompatibilityProfile;
+use webp_demux::ContainerLimits;
+use webp_demux::DemuxOptions;
+use webp_mux::Editor;
 
 fuzz_target!(|bytes: &[u8]| {
     let options = DemuxOptions {
@@ -32,7 +32,7 @@ fuzz_target!(|bytes: &[u8]| {
             }
         }
         if let Ok(output) = editor.finish() {
-            let _ = webp_container::Demuxer::parse(&output, &DemuxOptions::default());
+            let _ = webp_demux::Demuxer::parse(&output, &DemuxOptions::default());
         }
     }
 });
