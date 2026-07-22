@@ -89,7 +89,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 
 ## 与本任务关联的工作树索引
 
-根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务创建并完成的 22 个独立 VP8L/FDEC 实验任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份实验计数。
+根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 30 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
 
 | ID | 实验 | 分支 / HEAD | 实验 base | 当前工作树与结果 | 决定 |
 | --- | --- | --- | --- | --- | --- |
@@ -115,18 +115,23 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 | E20 | 空间 meta-Huffman feasibility | `codex/vp8l-spatial-entropy-groups@422abb6` | **误建于 `5e54dd3`；当时 local main 为 `0e2ebb4`** | [summary](</Users/lance/.codex/worktrees/77fa/webp/experiments/vp8l-spatial-entropy-groups/phase-a-full-102.md>)；[raw TSV](</Users/lance/.codex/worktrees/77fa/webp/experiments/vp8l-spatial-entropy-groups/phase-a-full-102.tsv>)；[77fa](</Users/lance/.codex/worktrees/77fa/webp>)；task `019f8784-b5cf-7733-8f85-ce02e800240a` | 仅条件性证据；基线无效，不进入产品 B |
 | E21 | safe-SIMD predictor register microkernel | `codex/vp8l-safe-simd-predictor@935f7d0`；证据 `cb05785` | `0e2ebb4` | [report](</Users/lance/.codex/worktrees/b25c/webp/docs/vp8l-safe-simd-predictor-experiment.md>)；[raw rounds](</Users/lance/.codex/worktrees/b25c/webp/docs/vp8l-safe-simd-predictor-rounds.csv>)；[b25c](</Users/lance/.codex/worktrees/b25c/webp>)；task `019f8788-9e1f-71d0-b7ef-f7d6db22d16e` | 回滚；41 图 aggregate 仅快 2.335% |
 | E22 | mode 7/13 空间块 recurrence | `codex/vp8l-recurrence-block-scan@2a1fbf1`；证据 `b070002` | `0e2ebb4` | [report](</Users/lance/.codex/worktrees/4049/webp/docs/vp8l-recurrence-block-scan-report.md>)；[raw cost](</Users/lance/.codex/worktrees/4049/webp/docs/vp8l-recurrence-block-scan-cost.csv>)；[4049](</Users/lance/.codex/worktrees/4049/webp>)；task `019f878d-41cf-7141-afcc-5c3044218ded` | 模型 gate 拒绝；无性能路径/依赖 |
+| E23 | 空间 meta-Huffman 产品 v2 | `codex/vp8l-spatial-entropy-product-v2@00354df` | `ea346ff` | [report](</Users/lance/.codex/worktrees/bf0b/webp/experiments/vp8l-spatial-entropy-product-v2/REPORT.md>)；[raw/formal](</Users/lance/.codex/worktrees/bf0b/webp/experiments/vp8l-spatial-entropy-product-v2>)；[bf0b](</Users/lance/.codex/worktrees/bf0b/webp>)；task `019f879d-a62a-7d13-8ee7-b668e2831055` | 回滚；体积 -12.016%，解码慢 11.423% |
+| E24 | WorkBudget 最坏界预授权 | `codex/vp8l-preauthorized-work-budget@3b8b6d7`；候选 `64fcc13`；回滚 `7389e51` | `ea346ff` | [report](</Users/lance/.codex/worktrees/b934/webp/docs/vp8l-preauthorized-work-budget-report.md>)；[raw](</Users/lance/.codex/worktrees/b934/webp/docs/vp8l-preauthorized-work-budget/raw>)；[b934](</Users/lance/.codex/worktrees/b934/webp>)；task `019f87a3-87a1-7712-b99b-df1e5ea6aad4` | 回滚；41 图仅快 1.740%，m6 慢 0.065% |
+| E25 | Huffman group layout / fixed root | `codex/vp8l-huffman-layout-specialization@495b0f4` | `ea346ff` | [report](</Users/lance/.codex/worktrees/842d/webp/docs/experiments/vp8l-huffman-layout-specialization/report.md>)；[raw/ASM](</Users/lance/.codex/worktrees/842d/webp/docs/experiments/vp8l-huffman-layout-specialization>)；[842d](</Users/lance/.codex/worktrees/842d/webp>)；task `019f87a5-3f17-7a41-b19c-5a0ac0229af0` | 回滚；A/B/C 分别慢 5.16%/47.48%/47.84% |
+| E26 | 每块局部 cross-color transform | `codex/vp8l-local-color-transform@ceff122` | `ea346ff` | [report](</Users/lance/.codex/worktrees/5d5c/webp/reports/vp8l-local-color-transform/README.md>)；[raw](</Users/lance/.codex/worktrees/5d5c/webp/reports/vp8l-local-color-transform>)；[5d5c](</Users/lance/.codex/worktrees/5d5c/webp>)；task `019f87a8-2922-7792-90a8-d0154c94d16f` | 阶段 A 拒绝；所有 local 档均比有效 no-transform 基线更大 |
+| E27 | 纯标量 predictor outlining | `codex/vp8l-scalar-predictor-outlining@a59feed` | `ea346ff` | [report](</Users/lance/.codex/worktrees/5e03/webp/docs/vp8l-scalar-predictor-outlining-experiment.md>)；[raw](</Users/lance/.codex/worktrees/5e03/webp/docs/vp8l-scalar-predictor-outlining-rounds.csv>)；[5e03](</Users/lance/.codex/worktrees/5e03/webp>)；task `019f87aa-9ca2-7eb1-9fc6-274c7d1820a6` | 回滚；端到端仅快 0.326% |
+| E28 | 64-bit 两像素 literal bundle | `codex/vp8l-two-literal-bundle@f2ca4ed`；候选 `18a10f1`；runner `e3c0b14`；回滚 `567bbc8` | `6627800` | [report](</Users/lance/.codex/worktrees/b657/webp/reports/vp8l-two-literal-bundle/REPORT.md>)；[raw](</Users/lance/.codex/worktrees/b657/webp/reports/vp8l-two-literal-bundle/raw>)；[b657](</Users/lance/.codex/worktrees/b657/webp>)；task `019f87b9-aaaa-7041-8216-7a14e31eeb3e` | 回滚；41 图快 3.576%，低于 5% |
+| E29 | color-transform wire 根因验证 | `codex/vp8l-color-transform-validity-fix@9fa7f5c` | `6627800` | [0d48](</Users/lance/.codex/worktrees/0d48/webp>)；task `019f87b4-6454-7a83-abb5-a5e948469dc2`；诊断任务多次 system-error，完整证据由 E30 重建 | 最小修复确认；不直接作为产品 HEAD |
+| E30 | color-transform latest-main 产品迁移 | `codex/vp8l-color-transform-fix-product@e8066a3`；代码 `fb17a98` | `11f6f66` | [report](../../experiments/vp8l-color-transform-fix-product/REPORT.md)；[raw](../../experiments/vp8l-color-transform-fix-product)；[689c](</Users/lance/.codex/worktrees/689c/webp>)；task `019f87c8-58a0-7692-8e92-597b782957b0` | **已快进 main**；失败 101/102 -> 0/102，306/306 防回归通过 |
 
 ### 进行中的 latest-main 实验
 
-以下任务全部从创建时最新的本地 `main@ea346ff50fbc03f821eecfe8cce905419c75d070` 建树；远端 `origin/main@5e54dd3` 是旧祖先，不得用于替换本地基线。完成后再分配正式 E 编号并更新最终 HEAD、报告和 promotion 决定。
+以下任务从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；随后 E30 已把主线推进到 `e8066a3048fcbe30bff73f54143fec7daca1bd70`。实验基线仍然有效，但任何通过 gate 的产品迁移必须再从届时最新 main 建新树。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
 
 | 暂存 ID | 假设 | 分支 | 工作树 / task | 当前 gate |
 | --- | --- | --- | --- | --- |
-| P01 | `<=64` 空间 meta-Huffman 产品实现 | `codex/vp8l-spatial-entropy-product-v2` | [bf0b](</Users/lance/.codex/worktrees/bf0b/webp>)；task `019f879d-a62a-7d13-8ee7-b668e2831055` | 最新-main 102 图模型：`fast_no_cache` 680,790,322 -> 598,985,852 B，减约 12.02%；进入真实码流 B |
-| P02 | WorkBudget 最坏界预授权 | `codex/vp8l-preauthorized-work-budget` | [b934](</Users/lance/.codex/worktrees/b934/webp>)；task `019f87a3-87a1-7712-b99b-df1e5ea6aad4` | 真实最高 4.130397 units/pixel；验证 `5 * remaining_pixels + 4` 保守界与热循环结算 |
-| P03 | Huffman group layout 特化 / 定长 root | `codex/vp8l-huffman-layout-specialization` | [842d](</Users/lance/.codex/worktrees/842d/webp>)；task `019f87a5-3f17-7a41-b19c-5a0ac0229af0` | `P10/P10/P10/S` 覆盖 m0/m3/m6 literal 99.937%/95.528%/96.912%；进入实现筛查 |
-| P04 | 每块局部 cross-color transform | `codex/vp8l-local-color-transform` | [5d5c](</Users/lance/.codex/worktrees/5d5c/webp>)；task `019f87a8-2922-7792-90a8-d0154c94d16f` | 阶段 A：精确计入 transform image 与 main entropy 的局部搜索 |
-| P05 | 纯标量 predictor hot/cold outlining | `codex/vp8l-scalar-predictor-outlining` | [5e03](</Users/lance/.codex/worktrees/5e03/webp>)；task `019f87aa-9ca2-7eb1-9fc6-274c7d1820a6` | 先验真实 phase 信号约快 20.4%–27.8%；独立重跑端到端 gate |
+| P06 | 流量感知可变宽 pair transducer | `codex/vp8l-adaptive-pair-transducer` | [a784](</Users/lance/.codex/worktrees/a784/webp>)；task `019f87c2-b758-7012-9e5b-1b4ace778b2d` | 64 KiB 模型将 m3/m6 全 literal 覆盖从约 43.1%/47.2% 提高到 78.0%/82.3%；真实 hot-loop A/B 中 |
+| P07 | 64/128/256px coarse spatial entropy | `codex/vp8l-coarse-spatial-entropy` | [6d6b](</Users/lance/.codex/worktrees/6d6b/webp>)；task `019f87ca-6fbe-7d53-b10d-a265031b50aa` | 128px/64 groups 模型 680,790,322 -> 618,020,836 B（-9.220%）；生成真实标准流中 |
 
 ## 每次优化的结果与结论
 
@@ -307,6 +312,70 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 - 真实 CLIC residual 的 K=4/8/16 块末收敛率：mode 7 为 72.541%/95.021%/99.215%，mode 13 为 30.253%/63.263%/93.947%；mode 12 仅 3.302%/4.487%/7.293%。
 - K=16 的平均 repair 为 mode 7 约 3.69 pixels、mode 13 约 7.42 pixels，但完整四块组覆盖与尾部损失明显。
 - 计入非零 load、构造、scratch store、repair、validation、branch 和 tail 后，aggregate 只预计快 3.067%；K=8 预计慢 0.946%。只有把必需成本全部设为零的诊断上界才到 5.368%，因此在实现前拒绝。
+
+### E23：空间 meta-Huffman 产品 v2
+
+优化点：在正确的 latest-main 基线上独立实现四像素 meta-prefix map、最多 64 个聚类 group、标准嵌套 group image 和真实 VP8L writer，并对同一 `fast_no_cache` profile 做 size/latency 双门禁。
+
+- 102 图真实文件从 680,790,322 降至 598,985,852 bytes，同 profile 减 12.016%；项目与 pinned libwebp 对 204 条 A/B 流全部逐字节一致。
+- 五轮正式 decode 中位从 4.023 增至 4.482 s，慢 11.423%；配对轮次中位慢 10.263%，超过 5%/8% 两条门禁。
+- 根因不是 group 数，而是四像素 map 仍产生 62,977,090 个横向 run boundary。活动实现已回滚；128px 粗块的下一假设转入 P07。
+
+### E24：WorkBudget 最坏界预授权
+
+优化点：用 `5 * remaining_pixels + 4` 的可证明保守界一次预授权热循环，减少约 4.8 亿次逐 symbol `consume` 检查；嵌套图仍独立受限。
+
+- 41 图 aggregate 8,169.231 -> 8,027.065 ms，仅快 1.740%；m0/m3/m6 为快 3.72%/快 0.85%/慢 0.065%。
+- 每个 cutoff、truncation 与 306/306 完整流 exact 均通过，但未达到 5% screen gate，未运行正式五轮。
+- 候选 `64fcc13` 已由 `7389e51` 显式回滚，`3b8b6d7` 只保存报告和 raw。
+
+### E25：Huffman group layout 与 fixed root
+
+优化点：在 group 构建时识别 `P10/P10/P10/S`，把 enum/layout 分派外提到 run，并测试定长 1024-entry root 对 bounds check 和 secondary path 的影响。
+
+- 主签名覆盖 m0/m3/m6 literal 的 99.937%/95.528%/96.912%，所以覆盖 gate 充分。
+- 清理 instrumentation 后的 41 图结果仍为：只外提布局慢 5.16%，fixed root 慢 47.48%，组合慢 47.84%。
+- 汇编证明分支确实被外提/消除，但构表时间增加 7.85%，fixed-root 版本 RSS spot 增 2.00%；生产路径全部回滚。
+
+### E26：每块局部 cross-color transform
+
+优化点：比较 16/32/64/128px block 的局部 multiplier 搜索，精确计入 transform image、main entropy 和空间系数变化；阶段 A 不依赖非法 current-auto 流做 promotion。
+
+- 有效 no-transform CLIC 基线为 619,331,782 bytes；b4/b5/b6/b7 分别膨胀 10.584%/9.715%/8.491%/7.650%。
+- 逐图 oracle 在四档中选优仍膨胀 7.456%，102 图没有一张获得净收益；440 个 test-only local 流仅用于项目 decoder exact。
+- 另行确认当时 current-auto 的 101/102 流非法，因此相对它的数字只保留为 conditional；正确性根因由 E29/E30 修复。
+
+### E27：纯标量 predictor outlining
+
+优化点：独立复测“把 recurrent modes 移出大 dispatcher”的代码布局信号，比较全部 recurrent outlining、仅 cold modes 和 match ordering，不引入 SIMD 或新依赖。
+
+- 最佳 predictor phase 仅快 3.855%/2.441%/2.082%，未复现旧混合实验中的 20%–28% 信号。
+- 正式 aggregate 只快 0.326%；m0/m3/m6 反而慢 0.578%/0.277%/1.025%。候选增加 396 B text，RSS 单样本增加 196,608 B。
+- 306/306 exact 与独立 14-mode reference 通过；性能代码回滚，只保留更强的 test-only differential 覆盖。
+
+### E28：64-bit 两像素 literal bundle
+
+优化点：从同一个 63-bit snapshot 投机解出连续两个完整 literal pixel 的 8 个 symbol，成功时只推进一次 cursor、合并 WorkBudget 结算并一次追加两个 ARGB。
+
+- Census 显示成功 bundle 覆盖 86.862% entropy pixels、98.89% literal pixels；10 个小流和 127,848 个逐 bit-prefix/truncation case 完全一致。
+- 41 图 m0/m3/m6 分别快 0.638%/3.940%/6.067%，aggregate 只快 3.576%；独立 VP8L payload phase spot 快 4.150%。
+- 候选二进制只增加 96 B，但仍低于 5% gate；`18a10f1` 已由 `567bbc8` 回滚，没有运行被 gate 禁止的全量五轮。
+
+### E29：color-transform wire 根因验证
+
+优化点：审计 public lossless encoder 的 transform descriptor，确认 `COLOR_TRANSFORM_BLOCK_BITS=7` 表示实际 exponent，而三位 wire 字段必须写 `7 - 2 = 5`。
+
+- 修复前 102 张 public encoder 流有 101 张同时被项目 decoder 与 pinned dwebp 拒绝；首个失败是 `clic-validation-000`。
+- 原 wire 写 `111`，decoder 再加 2 后误解为 exponent 9/512px；writer 实际按 exponent 7/128px 写 coefficient image，首图 parser 预期 12 个 coefficient pixels、writer 实写 192 个，随后 nested bit boundary 错位。
+- 诊断任务提交最小修复 `9fa7f5c55be869ca852badf7effd9f598bf1f5c6`，但多次后台 system-error；没有把这棵树直接当产品分支。
+
+### E30：color-transform latest-main 产品迁移
+
+优化点：从当时最新 `main@11f6f669` 重放 E29 的四文件最小 diff，重新生成 before/after 证据，并把正确性修复作为独立产品提交迁移。
+
+- Before 为项目/dwebp 各 101/102 失败；after 两套 decoder 均 102/102 exact。101 个 transform 流 hash 改变，唯一 no-transform 流不变。
+- 每项和总输出长度都不变，总计 661,692,326 bytes；127/128/129、511/512/513、负系数、透明和 no-transform 边界全部通过。
+- 标准 m0/m3/m6 防回归为 306/306 exact；workspace debug/release、fmt、Clippy `-D warnings` 和 diff-check 通过。`fb17a98` 与证据 `e8066a3` 已快进合入 main。
 
 ## 下一阶段：优先寻找更强且更通用的新架构
 
