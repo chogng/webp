@@ -89,7 +89,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 
 ## 与本任务关联的工作树索引
 
-根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务创建并完成的 17 个独立 VP8L/FDEC 实验任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份实验计数。
+根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务创建并完成的 22 个独立 VP8L/FDEC 实验任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份实验计数。
 
 | ID | 实验 | 分支 / HEAD | 实验 base | 当前工作树与结果 | 决定 |
 | --- | --- | --- | --- | --- | --- |
@@ -110,6 +110,23 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 | E15 | FDEC codec/transform bake-off | `codex/fdec-codec-bakeoff@4c6d7b0` | `232a32c` | [report](</Users/lance/.codex/worktrees/b58e/webp/docs/fdec-codec-bakeoff.md>)；[b58e](</Users/lance/.codex/worktrees/b58e/webp>)；task `019f86f4-fa7d-7d20-bea2-e63def908702` | **promotion commit** |
 | E16 | FDEC 最新-main 迁移与热路径融合 | `codex/fdec-hot-path-migration@ba4b530` | `5e54dd3` | [report](</Users/lance/.codex/worktrees/a386/webp/docs/fdec-hot-path-migration.md>)；[a386](</Users/lance/.codex/worktrees/a386/webp>)；task `019f871c-f1bd-74c3-bdd2-70e784208713` | **3 commits，保留** |
 | E17 | FDEC 229 图泛化与生态验证 | `codex/fdec-generalization-validation@db14bc4` | `5e54dd3` | [report](</Users/lance/.codex/worktrees/cb21/webp/docs/fdec-generalization-report.md>)；[raw CSV](</Users/lance/.codex/worktrees/cb21/webp/docs/fdec-generalization-results.csv>)；[cb21](</Users/lance/.codex/worktrees/cb21/webp>)；task `019f871c-f1b8-71f1-a337-cc4e3e371bd2` | **evidence commit** |
+| E18 | mode-11 Select 小块投机 | `codex/vp8l-select-speculative-simd@b1245ce`；证据 `9cb5d3a` | `0e2ebb4` | [report](</Users/lance/.codex/worktrees/f501/webp/docs/vp8l-select-speculative-simd-report.md>)；[raw CSV](</Users/lance/.codex/worktrees/f501/webp/docs/vp8l-select-speculative-statistics.csv>)；[f501](</Users/lance/.codex/worktrees/f501/webp>)；task `019f877e-b169-7eb1-922e-6a3799419140` | 模型 gate 拒绝；无生产代码/依赖 |
+| E19 | 单线程行流式 transform 融合 | `codex/vp8l-row-stream-fusion@dde1f39`；候选 `6fd5a9a`；证据 `dd36c40` | `e72ed3b` | [report](</Users/lance/.codex/worktrees/ee22/webp/docs/vp8l-row-stream-fusion-report.md>)；[raw](</Users/lance/.codex/worktrees/ee22/webp/docs/vp8l-row-stream-fusion/raw>)；[ee22](</Users/lance/.codex/worktrees/ee22/webp>)；task `019f877c-8d2c-7000-b447-f7ac59d56171` | 回滚；aggregate 慢 0.54% |
+| E20 | 空间 meta-Huffman feasibility | `codex/vp8l-spatial-entropy-groups@422abb6` | **误建于 `5e54dd3`；当时 local main 为 `0e2ebb4`** | [summary](</Users/lance/.codex/worktrees/77fa/webp/experiments/vp8l-spatial-entropy-groups/phase-a-full-102.md>)；[raw TSV](</Users/lance/.codex/worktrees/77fa/webp/experiments/vp8l-spatial-entropy-groups/phase-a-full-102.tsv>)；[77fa](</Users/lance/.codex/worktrees/77fa/webp>)；task `019f8784-b5cf-7733-8f85-ce02e800240a` | 仅条件性证据；基线无效，不进入产品 B |
+| E21 | safe-SIMD predictor register microkernel | `codex/vp8l-safe-simd-predictor@935f7d0`；证据 `cb05785` | `0e2ebb4` | [report](</Users/lance/.codex/worktrees/b25c/webp/docs/vp8l-safe-simd-predictor-experiment.md>)；[raw rounds](</Users/lance/.codex/worktrees/b25c/webp/docs/vp8l-safe-simd-predictor-rounds.csv>)；[b25c](</Users/lance/.codex/worktrees/b25c/webp>)；task `019f8788-9e1f-71d0-b7ef-f7d6db22d16e` | 回滚；41 图 aggregate 仅快 2.335% |
+| E22 | mode 7/13 空间块 recurrence | `codex/vp8l-recurrence-block-scan@2a1fbf1`；证据 `b070002` | `0e2ebb4` | [report](</Users/lance/.codex/worktrees/4049/webp/docs/vp8l-recurrence-block-scan-report.md>)；[raw cost](</Users/lance/.codex/worktrees/4049/webp/docs/vp8l-recurrence-block-scan-cost.csv>)；[4049](</Users/lance/.codex/worktrees/4049/webp>)；task `019f878d-41cf-7141-afcc-5c3044218ded` | 模型 gate 拒绝；无性能路径/依赖 |
+
+### 进行中的 latest-main 实验
+
+以下任务全部从创建时最新的本地 `main@ea346ff50fbc03f821eecfe8cce905419c75d070` 建树；远端 `origin/main@5e54dd3` 是旧祖先，不得用于替换本地基线。完成后再分配正式 E 编号并更新最终 HEAD、报告和 promotion 决定。
+
+| 暂存 ID | 假设 | 分支 | 工作树 / task | 当前 gate |
+| --- | --- | --- | --- | --- |
+| P01 | `<=64` 空间 meta-Huffman 产品实现 | `codex/vp8l-spatial-entropy-product-v2` | [bf0b](</Users/lance/.codex/worktrees/bf0b/webp>)；task `019f879d-a62a-7d13-8ee7-b668e2831055` | 最新-main 102 图模型：`fast_no_cache` 680,790,322 -> 598,985,852 B，减约 12.02%；进入真实码流 B |
+| P02 | WorkBudget 最坏界预授权 | `codex/vp8l-preauthorized-work-budget` | [b934](</Users/lance/.codex/worktrees/b934/webp>)；task `019f87a3-87a1-7712-b99b-df1e5ea6aad4` | 真实最高 4.130397 units/pixel；验证 `5 * remaining_pixels + 4` 保守界与热循环结算 |
+| P03 | Huffman group layout 特化 / 定长 root | `codex/vp8l-huffman-layout-specialization` | [842d](</Users/lance/.codex/worktrees/842d/webp>)；task `019f87a5-3f17-7a41-b19c-5a0ac0229af0` | `P10/P10/P10/S` 覆盖 m0/m3/m6 literal 99.937%/95.528%/96.912%；进入实现筛查 |
+| P04 | 每块局部 cross-color transform | `codex/vp8l-local-color-transform` | [5d5c](</Users/lance/.codex/worktrees/5d5c/webp>)；task `019f87a8-2922-7792-90a8-d0154c94d16f` | 阶段 A：精确计入 transform image 与 main entropy 的局部搜索 |
+| P05 | 纯标量 predictor hot/cold outlining | `codex/vp8l-scalar-predictor-outlining` | [5e03](</Users/lance/.codex/worktrees/5e03/webp>)；task `019f87aa-9ca2-7eb1-9fc6-274c7d1820a6` | 先验真实 phase 信号约快 20.4%–27.8%；独立重跑端到端 gate |
 
 ## 每次优化的结果与结论
 
@@ -250,6 +267,46 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 - promoted RGB 对 28 张 alpha 图加速覆盖为 0；RGBA screen 候选快，但体积增加 121.3%/134.5%，需要新协议。
 - 完整附加的内存/存储 break-even 约为 Zstd 136.9 MB/s、LZ4 162.3 MB/s；低带宽输入会输给标准 m6。
 - `webpmux` metadata 修改保留 FDEC，`dwebp -> cwebp` 重编码移除它；显示兼容不等于加速层可持续。
+
+### E18：mode-11 Select 小块投机
+
+优化点：在完整 102 图、306 个固定流的真实 residual 上统计 mode-11 的 top/left 决策、run 和 2/4/8/16-pixel tile 命中，再用偏乐观的 safe-SIMD 成本上界决定是否值得实现。
+
+- top/left 占 55.729%/44.271%，但选择 run 中位仅 2/1 pixels；tile4 all-top 和首选延续的完整命中率仅 18.099%/28.822%。
+- 即使给予理想 4-lane 算术、免费 dispatch/mask/失配定位和最小 fallback，最佳 aggregate 也只预计快 4.010%；按 E08 时间权重为 3.813%。
+- 未实现 decoder kernel、未添加依赖，也没有 formal wall/RSS A/B；生产内存、binary 和依赖成本均为零。
+
+### E19：单线程行流式 transform 融合
+
+优化点：entropy 每完成一行就立即执行 color、predictor、subtract-green 与 RGBA 输出，同时保留标准 LZ77 所需的完整 residual history；修正 predictor top 必须使用 subtract-green 之前的中间状态，并对不支持的 transform 顺序显式 fallback。
+
+- 306/306 完整 RGBA 逐字节一致；5 轮正式 A/B 中 m0 快 4.79%，m3 慢 4.68%，m6 慢 0.50%，aggregate 14,238.881 -> 14,315.435 ms，慢 0.54%。
+- 候选相对同轮 pinned libwebp aggregate 仍快 1.75%，但丢失当前 Rust 的部分优势；峰值 RSS 946,733,056 B，包括 823,204,804 B 预载输入。
+- 主流 CLIC transform shape 已 306/306 命中仍无 aggregate 收益，color indexing 泛化还需 packed-row expansion；候选在 `6fd5a9a` 可复现，最终活动 crate 已回滚。
+
+### E20：空间 meta-Huffman feasibility（错误基线）
+
+优化点：用当前真实 tokenization 精确计入每组五张表、payload extra bits、标准嵌套 group-map 的 header/data，比较独立 tile 与最多 64 组的确定性 clustering。
+
+- 102 图 auto 的 `<=64` 组结果为 661,692,326 -> 606,218,418 B，仅减 8.384%；`fast_no_cache` 为 680,790,322 -> 601,911,782 B，减 11.586%；`no_pred` 相对自身仅减 8.405%。
+- 绝对最小的 no_pred clustered 相对 current auto 减 10.578%，但其中一部分来自关闭 predictor，不能全部归因于空间分组。每图相对 auto 的 p00/p50/p100 为 -3.016%/10.118%/24.988%，产品实现必须保留逐图 size fallback。
+- 该树误从旧 `origin/main@5e54dd3` 建分支，而创建时本地最新 main 是 `0e2ebb4`；因此只保留条件性 feasibility，不实施阶段 B、不进入顶部表。P01 已从正确的最新 main 独立重跑。
+
+### E21：safe-SIMD predictor register microkernel
+
+优化点：用 `wide 0.7.33` 在安全 Rust 中为 modes 7/11/12/13 构建四像素寄存器 kernel，不落地整行 scratch；同时加入相同函数边界的纯标量对照以分离 SIMD 与代码布局收益。
+
+- 41 图锁内 aggregate 6,592.373 -> 6,438.441 ms，只快 2.335%；predictor phase 的 m0/m3/m6 分别快 2.64%/12.79%/8.77%，均未达到要求。
+- mode 7/13 的独立 replay 有真实局部收益，但 mode 11 仍弱；更重要的是 outlined scalar phase 为 593.302/454.790/419.164 ms，明显快于 SIMD 的 799.514/517.579/480.415 ms。
+- 这把后续方向从 SIMD 改为 P05 的纯标量 hot/cold outlining。`wide`、feature dispatch 和 runtime kernel 已全部移除；保留 306 流真实 residual benchmark、报告与 raw 数据。
+
+### E22：mode 7/13 空间块 recurrence
+
+优化点：把同一长 mode run 内四个不同空间块作为 SIMD lanes，以各块上一行 top-left 为错误初值先行推进；真实 left 可用后从块首标量 repair，状态首次相等后由确定性 recurrence 接受候选后缀。
+
+- 真实 CLIC residual 的 K=4/8/16 块末收敛率：mode 7 为 72.541%/95.021%/99.215%，mode 13 为 30.253%/63.263%/93.947%；mode 12 仅 3.302%/4.487%/7.293%。
+- K=16 的平均 repair 为 mode 7 约 3.69 pixels、mode 13 约 7.42 pixels，但完整四块组覆盖与尾部损失明显。
+- 计入非零 load、构造、scratch store、repair、validation、branch 和 tail 后，aggregate 只预计快 3.067%；K=8 预计慢 0.946%。只有把必需成本全部设为零的诊断上界才到 5.368%，因此在实现前拒绝。
 
 ## 下一阶段：优先寻找更强且更通用的新架构
 
