@@ -456,10 +456,14 @@ impl BitWriter {
                 })?;
             self.data.resize(bytes, 0);
         }
-        for input_bit in 0..count {
-            if ((value >> input_bit) & 1) != 0 {
-                let position = self.bit_len + input_bit;
-                self.data[position / 8] |= 1 << (position % 8);
+        if count != 0 {
+            let byte_offset = self.bit_len / 8;
+            let bit_offset = self.bit_len % 8;
+            let mask = (1_u64 << count) - 1;
+            let pending = (u64::from(value) & mask) << bit_offset;
+            let pending_bytes = (bit_offset + count).div_ceil(8);
+            for index in 0..pending_bytes {
+                self.data[byte_offset + index] |= (pending >> (index * 8)) as u8;
             }
         }
         self.bit_len = new_len;
