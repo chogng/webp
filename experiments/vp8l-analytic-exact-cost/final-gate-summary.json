@@ -1,0 +1,19 @@
+{
+  "task": "P23 independent VP8L analytic exact-cost / selected-only materialization experiment",
+  "root_task": "019f8321-035e-7211-8f53-987e18891c8c",
+  "branch": "codex/vp8l-analytic-exact-cost",
+  "base": "76c9aa39e35534b847f2cb980cb0037c4e6be785",
+  "worktree": "/Users/lance/.codex/worktrees/fc25/webp",
+  "measurement_head": "65d56bb84d197e3cb02b96fc99d73aeb396acc60",
+  "phase_r_binary_sha256": "215d5bc969c1be7bb5caa24e2ae378cd4fb73cb4c3f82b16c529371642e7c125",
+  "p18_binary_sha256": "2e5f7b11b959de3cb25a251649ee7ffa87528b0346d92fdfbb03547da5f5e570",
+  "phase_r_mechanism_identity_census": "pass",
+  "recovery_screen": "fail",
+  "failed_gate": "LowLatency B improved 0.8180953184923148%, below required 5.0%, with 3/41 per-image median regressions instead of 0/41",
+  "product_phase_a": "not run: prohibited by recovery stop rule",
+  "product_screen": "not run: prohibited by recovery stop rule",
+  "formal_102x5": "not run: prohibited by recovery stop rule",
+  "final_product_gates": "not run: prohibited by recovery stop rule",
+  "release_route": "retained A",
+  "decision": "reject"
+}

@@ -1,0 +1,37 @@
+{
+  "task": "P23 independent VP8L analytic exact-cost / selected-only materialization experiment",
+  "root_task": "019f8321-035e-7211-8f53-987e18891c8c",
+  "branch": "codex/vp8l-analytic-exact-cost",
+  "base": "76c9aa39e35534b847f2cb980cb0037c4e6be785",
+  "head": "77ce4947d01fb49029d7264d546d77c2690358f9",
+  "worktree": "/Users/lance/.codex/worktrees/fc25/webp",
+  "a_binary_sha256": "3fb7dedded7d5f19fed1f57e61852ed85552b5bab9e1de1c6c752acd944a46be",
+  "p18_binary_sha256": "2e5f7b11b959de3cb25a251649ee7ffa87528b0346d92fdfbb03547da5f5e570",
+  "corpus_manifest_sha256": "9feb09f469753c43864011aa6f00cfc5ee1bd48da5aac8f9b16d105890e14f86",
+  "screen_manifest_sha256": "474587feabe3178268b2eab6f7a166501d8ecc3d637a76bd412f4233dfa7b913",
+  "profiles": {
+    "compact": {
+      "images": 102,
+      "aggregate_bytes": 599398064,
+      "p18_size_and_stream_hash_identity": "102/102",
+      "aggregate_stream_checksum": "0ad271f1634fbdfd",
+      "raw_sha256": {
+        "a": "693590ba87b604815bc20cc44d07d5cc655c2bae07f796a49efde972a52f3f77",
+        "p18": "cfe034adab12a60da44475567591d5ff24f170d57cde3fd685380580e3a00c66"
+      }
+    },
+    "low-latency": {
+      "images": 102,
+      "aggregate_bytes": 601400998,
+      "p18_size_and_stream_hash_identity": "102/102",
+      "aggregate_stream_checksum": "cb88130c798bbe3d",
+      "raw_sha256": {
+        "a": "381e97f7ef2056ac6f62aa2eab5faab9506b20d0ffcbcae25e8ac4a969a1bfed",
+        "p18": "130c5e73cd09f4ae92d8f730d99af48a9a2d966120090f94cba3c42d94118162"
+      }
+    }
+  },
+  "p18_size_and_stream_hash_identity": "204/204",
+  "stderr_bytes": 0,
+  "gate": true
+}

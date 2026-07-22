@@ -1,0 +1,132 @@
+{
+  "task": "P23 independent VP8L analytic exact-cost / selected-only materialization experiment",
+  "root_task": "019f8321-035e-7211-8f53-987e18891c8c",
+  "branch": "codex/vp8l-analytic-exact-cost",
+  "base": "76c9aa39e35534b847f2cb980cb0037c4e6be785",
+  "measurement_head": "65d56bb84d197e3cb02b96fc99d73aeb396acc60",
+  "worktree": "/Users/lance/.codex/worktrees/fc25/webp",
+  "binary_sha256": "215d5bc969c1be7bb5caa24e2ae378cd4fb73cb4c3f82b16c529371642e7c125",
+  "manifest_sha256": "474587feabe3178268b2eab6f7a166501d8ecc3d637a76bd412f4233dfa7b913",
+  "round_order": "one warmup then F/R/F",
+  "retained_all_samples": true,
+  "valid_rerun_permitted": false,
+  "a_b_output_identity": "82/82",
+  "profiles": {
+    "compact": {
+      "a_aggregate_ns": [
+        2500603458,
+        2491419209,
+        2482786000
+      ],
+      "b_aggregate_ns": [
+        2480672167,
+        2490026542,
+        2475931916
+      ],
+      "a_median_ns": 2491419209,
+      "b_median_ns": 2480672167,
+      "independent_delta_pct": -0.4313622517309571,
+      "independent_improvement_pct": 0.4313622517309571,
+      "per_image_median_regressions": 11,
+      "regressions": [
+        {
+          "id": "clic-validation-000",
+          "delta_pct": 0.31690241240564654
+        },
+        {
+          "id": "clic-validation-002",
+          "delta_pct": 0.1551164674019754
+        },
+        {
+          "id": "clic-validation-003",
+          "delta_pct": 0.5672912572165922
+        },
+        {
+          "id": "clic-validation-009",
+          "delta_pct": 0.890029747624988
+        },
+        {
+          "id": "clic-validation-017",
+          "delta_pct": 0.4944276755772437
+        },
+        {
+          "id": "clic-validation-028",
+          "delta_pct": 0.1091057969508043
+        },
+        {
+          "id": "clic-validation-034",
+          "delta_pct": 1.0554756872710995
+        },
+        {
+          "id": "clic-validation-035",
+          "delta_pct": 0.35687363027719243
+        },
+        {
+          "id": "clic-validation-037",
+          "delta_pct": 0.3226714960431029
+        },
+        {
+          "id": "clic-validation-039",
+          "delta_pct": 1.0005552949994945
+        },
+        {
+          "id": "clic-validation-040",
+          "delta_pct": 1.8800913159937427
+        }
+      ],
+      "gate": true
+    },
+    "low-latency": {
+      "a_aggregate_ns": [
+        2561057542,
+        2554653416,
+        2550112334
+      ],
+      "b_aggregate_ns": [
+        2624614042,
+        2533753916,
+        2472134292
+      ],
+      "a_median_ns": 2554653416,
+      "b_median_ns": 2533753916,
+      "independent_delta_pct": -0.8180953184923148,
+      "independent_improvement_pct": 0.8180953184923148,
+      "per_image_median_regressions": 3,
+      "regressions": [
+        {
+          "id": "clic-validation-024",
+          "delta_pct": 1.301130070704527
+        },
+        {
+          "id": "clic-validation-025",
+          "delta_pct": 0.9315159022702808
+        },
+        {
+          "id": "clic-validation-026",
+          "delta_pct": 0.016810287536008706
+        }
+      ],
+      "gate": false
+    }
+  },
+  "stderr_bytes": 0,
+  "raw_sha256": {
+    "05-r1-compact-a.tsv": "79ff599b05ed3ef70a38e97f816b8054984d19ad4d9b788e41674934ffdc696d",
+    "06-r1-compact-b.tsv": "186def016e2762d05092ebc4cdd49a7a7135f9a83cf49cae00fd3ea85f7d5abc",
+    "07-r1-low-latency-a.tsv": "ae6f5879396adc72640048225e571fa189aad2ac70d0fd24f8dad06f05701dfa",
+    "08-r1-low-latency-b.tsv": "b44d930c66408daa2b5f8970c3a13dd8778e2e3afe2fa7f9414985c06b61df32",
+    "09-r2-low-latency-b.tsv": "3d18982b85e98f9b397e740d4abfe37a0f3937fed59e7bd7faa487481ee2faea",
+    "10-r2-low-latency-a.tsv": "ae873c3e92ab6c4ccc99d3427c0912b05ec73bd2606ae9c44558663dadd65698",
+    "11-r2-compact-b.tsv": "bff7fcddf7262e29d783c994ba6488bf6ac538e737c02162f779fc1e29be470e",
+    "12-r2-compact-a.tsv": "11cdab6998861cedc6616061cd53d072a17d6bb891bcc30ae56a54e3adaa2aa0",
+    "13-r3-compact-a.tsv": "0d69eb0790d6af2fb001b73d75071b109f342d3a8e72399e6e6ebf408d3ec549",
+    "14-r3-compact-b.tsv": "a2797078b6616fd75580e99495367419a81abfb2702a3d166324de41278b32fe",
+    "15-r3-low-latency-a.tsv": "d750063ea6622cbc687d7ca5dad6cf4d03ed1a66c7bbc5785e840f8171a8c30f",
+    "16-r3-low-latency-b.tsv": "44e8d57cfa178c5b1b2b12058d9ea6b7110ac61876e71921ac2af9e261d265b4",
+    "01-warmup-compact-a.tsv": "0489e02e1039177acbe24194a447572b03f467ed717f15590d3a087d699485fe",
+    "02-warmup-compact-b.tsv": "9f57e9661fb00b525d159ba13814a80771b7a20cc7b03b18e833cd70fa4c62ff",
+    "03-warmup-low-latency-a.tsv": "8e55ce2dd7adb024dd96cf3045ff659a887d5c9c814a298e51d5ff964c39996a",
+    "04-warmup-low-latency-b.tsv": "ea1ad31fb19b73ba8543124e0c2739c7c9f099392e9c796b49a53dbc49abf607"
+  },
+  "gate": false
+}

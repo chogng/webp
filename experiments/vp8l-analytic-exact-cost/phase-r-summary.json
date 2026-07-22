@@ -1,0 +1,222 @@
+{
+  "task": "P23 independent VP8L analytic exact-cost / selected-only materialization experiment",
+  "root_task": "019f8321-035e-7211-8f53-987e18891c8c",
+  "branch": "codex/vp8l-analytic-exact-cost",
+  "base": "76c9aa39e35534b847f2cb980cb0037c4e6be785",
+  "measurement_head": "65d56bb84d197e3cb02b96fc99d73aeb396acc60",
+  "worktree": "/Users/lance/.codex/worktrees/fc25/webp",
+  "binary_sha256": "215d5bc969c1be7bb5caa24e2ae378cd4fb73cb4c3f82b16c529371642e7c125",
+  "p18_binary_sha256": "2e5f7b11b959de3cb25a251649ee7ffa87528b0346d92fdfbb03547da5f5e570",
+  "manifest_sha256": "9feb09f469753c43864011aa6f00cfc5ee1bd48da5aac8f9b16d105890e14f86",
+  "identity": {
+    "a_b": "204/204",
+    "public_a": "204/204",
+    "p18": "204/204",
+    "eb_selector": "204/204",
+    "final_selector": "204/204",
+    "strict_fallback": "204/204"
+  },
+  "profiles": {
+    "compact": {
+      "aggregate_bytes": 599398064,
+      "candidate_metric_exact": "306/306",
+      "spatial_planner_writer_exact": "306/306",
+      "growth": "0/0",
+      "selected_distribution": {
+        "R": 101,
+        "B": 1
+      },
+      "stages": {
+        "E": {
+          "candidates": 102,
+          "metric_exact": 102,
+          "adaptive_table_builds_per_variant": 12120,
+          "nested_map_tokenizations_per_variant": 102,
+          "a_candidate_bitwriter_bits": 11380035,
+          "a_candidate_bitwriter_bytes": 1422551,
+          "a_candidate_bitwriter_allocations": 102,
+          "a_retained_table_entries": 2322,
+          "analytic_checked_bit_operations": 5588136,
+          "final_materializations": 0,
+          "maximum_a_candidate_heap_bytes": 672740,
+          "maximum_b_candidate_heap_bytes": 233600
+        },
+        "B": {
+          "candidates": 102,
+          "metric_exact": 102,
+          "adaptive_table_builds_per_variant": 11150,
+          "nested_map_tokenizations_per_variant": 102,
+          "a_candidate_bitwriter_bits": 10472262,
+          "a_candidate_bitwriter_bytes": 1309077,
+          "a_candidate_bitwriter_allocations": 102,
+          "a_retained_table_entries": 2128,
+          "analytic_checked_bit_operations": 5140966,
+          "final_materializations": 0,
+          "maximum_a_candidate_heap_bytes": 590468,
+          "maximum_b_candidate_heap_bytes": 207056
+        },
+        "R": {
+          "candidates": 102,
+          "metric_exact": 102,
+          "adaptive_table_builds_per_variant": 11845,
+          "nested_map_tokenizations_per_variant": 102,
+          "a_candidate_bitwriter_bits": 11125654,
+          "a_candidate_bitwriter_bytes": 1390751,
+          "a_candidate_bitwriter_allocations": 102,
+          "a_retained_table_entries": 2267,
+          "analytic_checked_bit_operations": 5461361,
+          "final_materializations": 0,
+          "maximum_a_candidate_heap_bytes": 672740,
+          "maximum_b_candidate_heap_bytes": 233600
+        },
+        "Growth": {
+          "candidates": 0,
+          "metric_exact": 0,
+          "adaptive_table_builds_per_variant": 0,
+          "nested_map_tokenizations_per_variant": 0,
+          "a_candidate_bitwriter_bits": 0,
+          "a_candidate_bitwriter_bytes": 0,
+          "a_candidate_bitwriter_allocations": 0,
+          "a_retained_table_entries": 0,
+          "analytic_checked_bit_operations": 0,
+          "final_materializations": 0,
+          "maximum_a_candidate_heap_bytes": 0,
+          "maximum_b_candidate_heap_bytes": 0
+        },
+        "FinalMaterialization": {
+          "candidates": 0,
+          "metric_exact": 102,
+          "adaptive_table_builds_per_variant": 0,
+          "nested_map_tokenizations_per_variant": 0,
+          "a_candidate_bitwriter_bits": 0,
+          "a_candidate_bitwriter_bytes": 0,
+          "a_candidate_bitwriter_allocations": 0,
+          "a_retained_table_entries": 0,
+          "analytic_checked_bit_operations": 0,
+          "final_materializations": 102,
+          "maximum_a_candidate_heap_bytes": 0,
+          "maximum_b_candidate_heap_bytes": 0
+        }
+      },
+      "census": {
+        "a_candidate_bitwriter_allocations": 306,
+        "b_candidate_bitwriter_allocations": 0,
+        "a_retained_table_entries": 6717,
+        "b_retained_table_entries": 0,
+        "maximum_live_estimated_heap_bytes": {
+          "a_conservative": 1935948,
+          "b_conservative": 674256,
+          "allocator_overhead_included": false
+        }
+      }
+    },
+    "low-latency": {
+      "aggregate_bytes": 601400998,
+      "candidate_metric_exact": "642/642",
+      "spatial_planner_writer_exact": "408/408",
+      "growth": "336/336",
+      "selected_distribution": {
+        "Split": 79,
+        "E": 1,
+        "B": 2,
+        "R": 20
+      },
+      "stages": {
+        "E": {
+          "candidates": 102,
+          "metric_exact": 102,
+          "adaptive_table_builds_per_variant": 6665,
+          "nested_map_tokenizations_per_variant": 102,
+          "a_candidate_bitwriter_bits": 6240515,
+          "a_candidate_bitwriter_bytes": 780112,
+          "a_candidate_bitwriter_allocations": 102,
+          "a_retained_table_entries": 1231,
+          "analytic_checked_bit_operations": 3073381,
+          "final_materializations": 0,
+          "maximum_a_candidate_heap_bytes": 220044,
+          "maximum_b_candidate_heap_bytes": 84920
+        },
+        "B": {
+          "candidates": 102,
+          "metric_exact": 102,
+          "adaptive_table_builds_per_variant": 6445,
+          "nested_map_tokenizations_per_variant": 102,
+          "a_candidate_bitwriter_bits": 6034921,
+          "a_candidate_bitwriter_bytes": 754413,
+          "a_candidate_bitwriter_allocations": 102,
+          "a_retained_table_entries": 1187,
+          "analytic_checked_bit_operations": 2971961,
+          "final_materializations": 0,
+          "maximum_a_candidate_heap_bytes": 220044,
+          "maximum_b_candidate_heap_bytes": 84920
+        },
+        "R": {
+          "candidates": 102,
+          "metric_exact": 102,
+          "adaptive_table_builds_per_variant": 6820,
+          "nested_map_tokenizations_per_variant": 102,
+          "a_candidate_bitwriter_bits": 6385660,
+          "a_candidate_bitwriter_bytes": 798249,
+          "a_candidate_bitwriter_allocations": 102,
+          "a_retained_table_entries": 1262,
+          "analytic_checked_bit_operations": 3144836,
+          "final_materializations": 0,
+          "maximum_a_candidate_heap_bytes": 220044,
+          "maximum_b_candidate_heap_bytes": 84920
+        },
+        "Growth": {
+          "candidates": 336,
+          "metric_exact": 336,
+          "adaptive_table_builds_per_variant": 23975,
+          "nested_map_tokenizations_per_variant": 336,
+          "a_candidate_bitwriter_bits": 22442512,
+          "a_candidate_bitwriter_bytes": 2805461,
+          "a_candidate_bitwriter_allocations": 336,
+          "a_retained_table_entries": 4459,
+          "analytic_checked_bit_operations": 11055163,
+          "final_materializations": 0,
+          "maximum_a_candidate_heap_bytes": 220044,
+          "maximum_b_candidate_heap_bytes": 84920
+        },
+        "FinalMaterialization": {
+          "candidates": 0,
+          "metric_exact": 102,
+          "adaptive_table_builds_per_variant": 0,
+          "nested_map_tokenizations_per_variant": 0,
+          "a_candidate_bitwriter_bits": 0,
+          "a_candidate_bitwriter_bytes": 0,
+          "a_candidate_bitwriter_allocations": 0,
+          "a_retained_table_entries": 0,
+          "analytic_checked_bit_operations": 0,
+          "final_materializations": 102,
+          "maximum_a_candidate_heap_bytes": 0,
+          "maximum_b_candidate_heap_bytes": 0
+        }
+      },
+      "census": {
+        "a_candidate_bitwriter_allocations": 642,
+        "b_candidate_bitwriter_allocations": 0,
+        "a_retained_table_entries": 8139,
+        "b_retained_table_entries": 0,
+        "maximum_live_estimated_heap_bytes": {
+          "a_conservative": 660132,
+          "b_conservative": 254760,
+          "allocator_overhead_included": false
+        }
+      }
+    }
+  },
+  "stderr_bytes": 0,
+  "raw_sha256": {
+    "candidate_audit": "106fcba9f6327506a3b8d0a2ad51a0fa116db6068344f61fc014248a0f63dba6",
+    "a_compact": "2fe58020652e01a061002c34298a07fbfb2b69c11391a987d272e0ed0bfc4634",
+    "a_low_latency": "5bfeea6be80ee645688ae6acdc384c32f1f56ee299d297fe02393d3e53dc01de",
+    "b_compact": "be91e0121bc061d44dd759c28a1e316d1593d753c5596663cb060c5f387debaa",
+    "b_low_latency": "98930f953bc366dd2f2bf6228cc24b2bc791b17c4d4417c9b9c55783368c2e4a",
+    "public_compact": "0f0a289178c84cff4a1ca53f2f8e47339b63d08e77f492414ec51aac37240b1b",
+    "public_low_latency": "2f6cf38977dd126984e2498aa3f7b74d3d6276195652361c35687b9d23464999",
+    "p18_compact": "02b6d0e16469242fcfed91fe4a5e2c3449578b2fe0e6c80684fc60b78fc9d418",
+    "p18_low_latency": "9bf28d6209a451da9e1f61b663ee2ddb9073c95568f9419289e1af9b3a2b8b99"
+  },
+  "gate": true
+}
