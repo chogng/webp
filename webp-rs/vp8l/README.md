@@ -89,7 +89,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 
 ## 与本任务关联的工作树索引
 
-根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 30 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
+根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 32 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
 
 | ID | 实验 | 分支 / HEAD | 实验 base | 当前工作树与结果 | 决定 |
 | --- | --- | --- | --- | --- | --- |
@@ -123,15 +123,16 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 | E28 | 64-bit 两像素 literal bundle | `codex/vp8l-two-literal-bundle@f2ca4ed`；候选 `18a10f1`；runner `e3c0b14`；回滚 `567bbc8` | `6627800` | [report](</Users/lance/.codex/worktrees/b657/webp/reports/vp8l-two-literal-bundle/REPORT.md>)；[raw](</Users/lance/.codex/worktrees/b657/webp/reports/vp8l-two-literal-bundle/raw>)；[b657](</Users/lance/.codex/worktrees/b657/webp>)；task `019f87b9-aaaa-7041-8216-7a14e31eeb3e` | 回滚；41 图快 3.576%，低于 5% |
 | E29 | color-transform wire 根因验证 | `codex/vp8l-color-transform-validity-fix@9fa7f5c` | `6627800` | [0d48](</Users/lance/.codex/worktrees/0d48/webp>)；task `019f87b4-6454-7a83-abb5-a5e948469dc2`；诊断任务多次 system-error，完整证据由 E30 重建 | 最小修复确认；不直接作为产品 HEAD |
 | E30 | color-transform latest-main 产品迁移 | `codex/vp8l-color-transform-fix-product@e8066a3`；代码 `fb17a98` | `11f6f66` | [report](../../experiments/vp8l-color-transform-fix-product/REPORT.md)；[raw](../../experiments/vp8l-color-transform-fix-product)；[689c](</Users/lance/.codex/worktrees/689c/webp>)；task `019f87c8-58a0-7692-8e92-597b782957b0` | **已快进 main**；失败 101/102 -> 0/102，306/306 防回归通过 |
+| E31 | 流量感知可变宽 pair transducer | `codex/vp8l-adaptive-pair-transducer@95dfa3d`；候选 `26b9c21`；证据 `4f8f34d` | `11f6f66` | [report](</Users/lance/.codex/worktrees/a784/webp/docs/vp8l-adaptive-pair-transducer-experiment.md>)；[raw](</Users/lance/.codex/worktrees/a784/webp/docs/raw>)；[patch](</Users/lance/.codex/worktrees/a784/webp/docs/patches/0001-perf-vp8l-prototype-adaptive-pair-transducers.patch>)；[a784](</Users/lance/.codex/worktrees/a784/webp>)；task `019f87c2-b758-7012-9e5b-1b4ace778b2d` | 回滚；A-only 仅快 1.075%，A+B 全部变慢 |
+| E32 | coarse spatial meta-Huffman Pareto | `codex/vp8l-coarse-spatial-entropy@0240db2`；候选 `72409d7` | `11f6f66` | [report](</Users/lance/.codex/worktrees/6d6b/webp/experiments/vp8l-coarse-spatial-entropy/REPORT.md>)；[raw/reproducer](</Users/lance/.codex/worktrees/6d6b/webp/experiments/vp8l-coarse-spatial-entropy>)；[6d6b](</Users/lance/.codex/worktrees/6d6b/webp>)；task `019f87ca-6fbe-7d53-b10d-a265031b50aa` | **通过实验 gate**；128/64 体积 -9.229%、解码 +1.939%，转 P08 产品迁移 |
 
-### 进行中的 latest-main 实验
+### 进行中的 latest-main 产品迁移
 
-以下任务从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；随后 E30 已把主线推进到 `e8066a3048fcbe30bff73f54143fec7daca1bd70`。实验基线仍然有效，但任何通过 gate 的产品迁移必须再从届时最新 main 建新树。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
+E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
 
 | 暂存 ID | 假设 | 分支 | 工作树 / task | 当前 gate |
 | --- | --- | --- | --- | --- |
-| P06 | 流量感知可变宽 pair transducer | `codex/vp8l-adaptive-pair-transducer` | [a784](</Users/lance/.codex/worktrees/a784/webp>)；task `019f87c2-b758-7012-9e5b-1b4ace778b2d` | 64 KiB 模型将 m3/m6 全 literal 覆盖从约 43.1%/47.2% 提高到 78.0%/82.3%；真实 hot-loop A/B 中 |
-| P07 | 64/128/256px coarse spatial entropy | `codex/vp8l-coarse-spatial-entropy` | [6d6b](</Users/lance/.codex/worktrees/6d6b/webp>)；task `019f87ca-6fbe-7d53-b10d-a265031b50aa` | 128px/64 groups 模型 680,790,322 -> 618,020,836 B（-9.220%）；生成真实标准流中 |
+| P08 | coarse spatial stable profiles | `codex/vp8l-coarse-spatial-product` | [070b](</Users/lance/.codex/worktrees/070b/webp>)；task `019f87f5-d9a0-7281-a319-5d6e4a1fc510` | 从最新 main 迁移 128/64 compact 与 256/16 low-latency 档；保持默认 API/输出不变，独立复验中 |
 
 ## 每次优化的结果与结论
 
@@ -377,11 +378,36 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 - 每项和总输出长度都不变，总计 661,692,326 bytes；127/128/129、511/512/513、负系数、透明和 no-transform 边界全部通过。
 - 标准 m0/m3/m6 防回归为 306/306 exact；workspace debug/release、fmt、Clippy `-D warnings` 和 diff-check 通过。`fb17a98` 与证据 `e8066a3` 已快进合入 main。
 
+### E31：流量感知可变宽 pair transducer
+
+优化点：不再给每组固定分配 10-bit A+B 表，而是按真实 group traffic 在 none、A-only、B-only、A/B 7/8/9/10-bit 中做 64/128/256 KiB 有界选择；完全相同的 Huffman layout 经逐表相等验证后共享紧凑 transducer。
+
+- Stage-1 模型准确重放 E09：m3/m6 的 A/all-literal 覆盖由约 43.1%/47.2% 提升到 64 KiB 下的 78.049%/82.346%，any/all-literal 达 97.845%/98.891%，因此实现门槛成立。
+- 真实 41 图 screen 否定模型到运行时的转化：A-only 64 KiB 仅快 1.075%；B-only 慢 19.851%；A+B 64/128/256 KiB 分别慢 1.811%/0.849%/1.467%。64 KiB 的 m0/m3/m6 为快 3.365%、慢 3.525%、慢 1.471%。
+- 候选增加 55,360 B release binary；combined 64 KiB 对 306 条固定流输出 3,022,297,644 RGBA bytes，完整 checksum 与 control 一致。短尾、miss、nonliteral、work-budget 与 malformed/meta-group 测试均通过。
+- 由于所有组合档为负且唯一正向档远低于 5%，按预定 gate 不运行正式五轮。候选 `26b9c21`、证据 `4f8f34d` 均保留，`95dfa3d` 已显式回滚生产代码；负报告、raw、runner 和 patch 可独立复现。
+
+### E32：coarse spatial meta-Huffman Pareto
+
+优化点：把 E23 的四像素 meta-prefix block 扩大到 64/128/256px，并在 16/32/48/64 个 group frontier 中联合控制局部熵收益和 decoder group-run 成本；生成普通标准 VP8L，并在 candidate 不严格更小时回退同 profile single RIFF。
+
+- 正式保留两个不互相支配的点：128px/64 groups 为 617,958,802 B，相对 fast-no-cache single 的 680,790,322 B 减 9.229%，五轮 decode 中位 4.030125 -> 4.108264 s（慢 1.939%，配对中位 1.184%）；256px/16 groups 为 625,321,072 B（减 8.148%），decode 4.091907 s（慢 1.533%，配对中位 0.558%）。
+- single 加十个过模型 gate 的 coarse layout 共 1,122 条标准流；项目 decoder 与 pinned `WebPDecodeRGBA` 都是 1,122/1,122 完整 RGBA exact。模型与真实 RIFF bytes、prefix/cache/table/map/main/extra bit 分区全部 0 mismatch。
+- 128/64 与 256/16 的结构 row-run 上界分别为 1,997,970 与 1,007,545，相对旧四像素的 62,977,090 减 31.52x/62.51x。该数字只是 `height * ceil(width/block)` 的结构上界；copy 可跨 `run_end`，因此 row/group/token switch 均未冒充精确 decoder dispatch，产品影响由锁内实测证明。
+- 当前编码会共享一次 tokenization，但仍完整序列化 single 和 candidate 后比较；正式中位因此分别慢 131.713%/125.862%。这不影响本轮 size/decode gate，却是产品化后的首要编码瓶颈：下一独立实验将验证精确 bit-cost 先决策、只写胜出流。
+- 候选 `72409d7` 与证据/最终 `0240db2` 已提交，默认 encoder 的 `__text` 与 base 逐字节一致。P08 已从更新后的 `main@52c6b8fc` 新建产品迁移树，不直接把旧实验树合入 main。
+
 ## 下一阶段：优先寻找更强且更通用的新架构
 
 标准 VP8L 的局部优化已经给出一致信号：Huffman、predictor、LZ77、PGO、单个 copy kernel 各自只有个位数收益或以明显 rate/latency 回退换取收益。后续优先级应从“继续打磨一个旧循环”转向能够同时改变表示、依赖图和输出流水线的架构方案。
 
-### 第一优先：统一的 Fast Representation v2
+### 第一优先：coarse spatial 产品化与单流写出
+
+- P08 从创建时最新 `main@52c6b8fc` 迁移 E32，而不是复用旧 worktree：默认 `encode_lossless_rgba` 和 metadata/animation 输出保持逐字节不变，128/64 compact 与 256/16 low-latency 只能由显式稳定 options 选择。
+- 产品树必须重新生成标准流并运行项目/pinned libwebp exact、同二进制正式 A/B、public default 与 m6 的绝对差距、跨目标构建和 API 文档审计；只有这些完成后才能进入顶部纪录表或 main。
+- 产品迁移稳定后另开 latest-main 实验，把 Huffman 表和 token code length 汇总为精确 bit-cost plan，在不写 losing RIFF 的前提下保留逐图 size fallback；目标是维持 8%–9% 体积收益，并把约 2.3x 编码成本压回接近单流。
+
+### 第二优先：统一的 Fast Representation v2
 
 下一版不应只是给 v1 增加更多 enum，而应拥有明确的数据所有权和可扩展 framing：
 
@@ -392,7 +418,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 - 标准 VP8L fallback 继续完整保留；私有表示失效必须回退，不能改变公开 decoder 的默认容错。
 - v1 的 CRC 只证明私有 payload 自洽，不能证明它与 fallback 像素相同。对外部不可信文件，必须采用可信 ingest 时双解码校验并缓存认证结果，或建立可验证的签名/manifest 信任模型；仅在同一不可信文件里增加另一个 hash 不能解决恶意双表示问题。
 
-### 第二优先：可部署的自动选择器
+### 第三优先：可部署的自动选择器
 
 泛化实验中的 oracle selector 不能进入产品。下一步应只用编码时可得特征预测：
 
@@ -401,7 +427,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 - 先在 train 拟合，在固定 disjoint test 决策；最终结果不能通过实际解码候选来“预测”自己。
 - 网络/冷盘、内存缓存和本地预载包必须是不同 product policy。LZ4 不应因内存成绩好而自动进入网络分发档。
 
-### 第三优先：统一最新-main 证据
+### 第四优先：统一 latest-main FDEC 证据
 
 当前最重要的缺口不是再解释旧数据，而是创建一棵新的、挂分支的 latest-main 工作树，将 E16 的最终融合实现与 E17 的 229 图 harness 合并后重跑：
 
