@@ -66,7 +66,7 @@ boundary.
 | A13 | byte-identical packed ALPH entropy-token writer：把 literal/copy 的 Huffman + extra 段预组为 bounded packet，以 persistent safe accumulator 批量 flush | `codex/alpha-packed-token-writer@ac1d30d6`；Phase A `dfd1eff6`；candidate `302904b0`；evidence `2552cdda` | 创建于 `180eafd4`；登记后正式基线 `e655ab9a79c018176992d200f3cd79a3cc6c73a8` | [`8d9d` worktree](</Users/lance/.codex/worktrees/8d9d/webp>)；task `019f8919-78ee-70b2-8be9-9e9deb9e7e80` | 41×10×5 ALPH `895.748 -> 743.931 ms`（**-16.949%**），whole -3.644%、CPU -4.257%、RSS median -3.450%；224/224 q-matrix byte/project/`dwebp` exact；报告 `ac1d30d6:reports/alpha-packed-token-writer/README.md` | **研究通过 / 建议推广**；但 15-file 仅 -7.078%，且 review 发现模块双向依赖与 `encode.rs` 532 行；由 A14 latest-main 产品化重放 | 暂不进入顶部表；保留 136 项 checksum、P +4.731% 反优化、泛化/小文件限制与全部 invalidated runs |
 | A14 | A13 packed token writer 产品化：从 latest main 手工迁移 persistent sink，把 syntax/token-output 依赖改成单向并让 `encode.rs` 回到模块行数目标内 | `codex/alpha-packed-token-writer-product@759417c6`；code `77842c1c`；evidence `ec05d41e` | intake `26e7ae82`；登记后精确产品/测量基线 `1c16ebe826ea57adaf2293bf44bdc36175401a8b` | [`6821` worktree](</Users/lance/.codex/worktrees/6821/webp>)；task `019f8962-85b6-7f11-97fa-8fa053c9687f` | 41×10×5 ALPH `816.001 -> 659.907 ms`（**-19.129%**），whole -2.388%、CPU -3.985%、RSS -3.665%、0/41 ALPH regressions；224/224 exact；报告 `759417c6:reports/alpha-packed-token-writer-product/README.md` | **已推广**；15-file 仅 -8.063%、real4 -3.825%，rlib +15.121%，限制明确保留 | code/evidence/audit 已 fast-forward 到 `main@759417c6`；本提交刷新顶部表、迭代日志、反优化和研究目标 |
 | A15 | compiled token codebook：把 I5 每 token 的 Huffman/prefix/extra 解释式组包改成每 entropy stream 一次编译的 literal/length packet codebook 与 O(1) distance prefix | `codex/alpha-compiled-token-codebook@5a840d36`；code `960c67bb`；measured tip `c21fd4e9`；evidence `b2cf1103` | 创建于 `14ef4ab05ff216057c718c5f8a2bafbf29f2c744`；架构迁移后最终完整重放到 `9ff743874ed50588b2a66c517cc07307fbdbb248` | [`a9e6` worktree](</Users/lance/.codex/worktrees/a9e6/webp>)；task `019f8998-567f-7531-b323-88de59d1a876` | 41×10×3 same-binary：prefix -0.684%、compiled +3.353%、combined **+30.743%**；setup-free 乐观 ceiling 5.879%，setup 7.153%，0 mismatch；报告 `5a840d36:reports/alpha-compiled-token-codebook/README.md` | **Phase-A reject / 不产品化、不合并实验代码**；固定 setup 导致 combined per-file p50 +323.567%，36/41 regressions | 顶部表不变；回填 latest-main 负结果、owner 上限、未运行门禁、无效数据与最终 provenance |
-| A16 | exact-sized cursor token sink：由 frequencies × Huffman widths + copy extras 预知精确 token bits，一次构造定长输出并用 cursor direct-store；隔离 `u128` 与 `u64` flush | `codex/alpha-exact-sized-token-sink@12c6fbc9`（creation intake；待登记后重放） | 精确创建于 `12c6fbc9e0d15cc86a5dda8b5466e7c700563110`；有效测量必须先重放到本次登记 commit | [`bdf4` worktree](</Users/lance/.codex/worktrees/bdf4/webp>)；task `019f89d3-fb8d-7120-bdb8-21fc64d25e57` | **已登记 / Phase A 待测**；A15 的 sink append 17.528% 仅作假设，必须在 A16 latest-main 上重新归因；报告目标 `reports/alpha-exact-sized-token-sink/README.md` | **pending**；独立 owner ceiling 或 41×10×3 combined <10% 即 reject，不做 production polish | 本次提交登记精确 creation base、定长 sizing/cursor 不变量、same-binary controls 与早停规则；结果无论正负都回填 |
+| A16 | exact-sized cursor token sink：由 frequencies × Huffman widths + copy extras 预知精确 token bits，一次构造定长输出并用 cursor direct-store；隔离 `u128` 与 `u64` flush | `codex/alpha-exact-sized-token-sink@84ddaaa0`；measured code `d3794de4`；evidence/audit `d7d64166` / `4897f4f1` | 创建于 `12c6fbc9e0d15cc86a5dda8b5466e7c700563110`；多次主线前进后最终完整重放到 `65fc54e1d411cb673e24066dbb36c87765b1f0db` | [`bdf4` worktree](</Users/lance/.codex/worktrees/bdf4/webp>)；task `019f89d3-fb8d-7120-bdb8-21fc64d25e57` | 41×10×3 same-binary：exact-u128 +0.625%、exact-u64 +11.843%、combined **+9.854%**；combined 41/41 ALPH regressions，0 byte/hash mismatch；报告 `84ddaaa0:reports/alpha-exact-sized-token-sink/README.md` | **Phase-A reject / 不产品化、不合并实验代码**；current sink ceiling 仅 10.197%，combined owner +104.970%；预留字节 -70.406% 仅作内存诊断 | 顶部表不变；回填 latest-main 负结果、owner/内存边界、停止门禁、全部 invalidated runs 与 283 项 checksum |
 
 ### A01 / A02 已完成结果明细
 
@@ -533,30 +533,49 @@ feature Clippy、stable fmt 和 diff check 已通过。41×10×5 formal、real4/
 完整数据、`cef04c68` pre-final-architecture 数据和一次实际跑 0 case 的未配置 feature
 integration invocation 均留在报告的 `raw/invalidated/`，不进入结论。
 
-### A16 exact-sized cursor token sink 登记
+### A16 exact-sized cursor token sink 最终结果
 
-A16 从本地 `main@12c6fbc9e0d15cc86a5dda8b5466e7c700563110` 创建；root 独立读取到
-worktree HEAD、local main 和 merge-base 三者精确相等，工作树初始干净。唯一分支为
-`codex/alpha-exact-sized-token-sink`，独立任务 `019f89d3-fb8d-7120-bdb8-21fc64d25e57`
-位于 `/Users/lance/.codex/worktrees/bdf4/webp`。本节提交后，任何有效 screen 或结论都
-必须先重放到包含登记的 actual latest main；creation-base 数据只能是 intake/diagnostic。
+A16 从本地 `main@12c6fbc9e0d15cc86a5dda8b5466e7c700563110` 精确创建，登记基线为
+`92216c0272898b4e71d131ca0f984dd778a817d2`。实验期间 main 经 container、VP8L ledger、
+demux、mux/editor 与 decoder-only 多次前进；每次旧 binary、census、screen 和 gates 都
+完整移入 `raw/invalidated/`。最终代码在
+`main@65fc54e1d411cb673e24066dbb36c87765b1f0db` 上重放，唯一冲突只涉及
+`alpha/mod.rs` 的 decoder-only feature gate；main gate 与 A16 encode-only 私有模块均
+保留。最终 measured code / evidence / audit / HEAD 为 `d3794de4` / `d7d64166` /
+`4897f4f1` / `84ddaaa0`，merge-base 精确等于 final main，分支和 worktree 干净。
 
-新边界与 A15 codebook 不同：frequency pass 已拥有每个 green/distance symbol 的精确
-次数，只需同时保留 copy extra-bit 总数；Huffman tables 建好后即可通过
-`frequency × actual code width + extras` 推出精确 token bit count，不增加一次 token
-traversal。候选 sink 用 `prefix.bit_len + token_bits` 做一次 checked exact-size buffer
-构造，随后在已定长 slice 中以 cursor 写 little-endian 低 32-bit words，finish 必须证明
-cursor 与 tail 精确落到目标长度。Allocation/zero-fill/sizing/setup 都在 timed encode 内，
-不得用文件大小或语料阈值隐藏小流退化。
+候选不增加第二次 token walk：frequency pass 只在 exact/census 变体累计 checked copy
+extra bits，最终 Huffman tables 建好后计算 `sum(frequency × actual width) + extras`。
+Exact sink 把 sizing、精确分配、zero-fill、prefix copy、cursor setup 和 finish proof 都放在
+timed encode 内。四个 same-binary controls 是 current packed、exact-u128、exact-u64 和
+exact-u64 + four-word staging 的 combined；没有 file-size/corpus activation threshold。
 
-Phase A 至少保留 current packed、exact-sized cursor + current `u128`、exact-sized cursor
-+ `u64` split/flush、combined 四个 same-binary controls，并重新测 sizing、allocation、
-packet generation、sink append/direct-store 与 finish owner。A15 的 12.995 ms / 17.528%
-只用于提出假设，不是 A16 证据。Pinned libwebp `733c91e` 的 `VP8LBitWriter` 使用
-accumulator + cursor/direct word store，是机制参考而非可转借的 Rust benchmark 或模块
-边界。若可信独立 sink ceiling 低于 10%，立即 reject；否则 combined 仍须在
-41×10×3 rotated screen 达到 ALPH-only >=10% 且零 byte/hash mismatch 才进入 formal、
-gen15、224-case、RSS/artifact/libwebp 与完整门禁。
+五轮 owner census 覆盖每轮 71 个 entropy streams、4,356,631 tokens。Current packed
+denominator 为 74.793 ms；完整 current sink boundary 只有 7.627 ms（**10.197%**），刚比
+Phase-A permission gate 高 0.197 个百分点。现实候选已经反优化：exact-u128 boundary
+8.120 ms（+6.466%），exact-u64 16.789 ms（+120.145%），combined 15.632 ms
+（+104.970%）。这证明 A15 的 17.528% sink-append 诊断不能转借为 A16 可回收时间。
+
+| A16 variant | ALPH-only median | Change | ALPH p50 / p95 / worst | Regressions | Whole change |
+|---|---:|---:|---:|---:|---:|
+| current packed | 741.948 ms | reference | reference | reference | reference |
+| exact-u128 | 746.588 ms | **+0.625%** | +4.254 / +13.287 / +14.851% | 34/41 | +0.794% diagnostic |
+| exact-u64 | 829.817 ms | **+11.843%** | +5.432 / +17.708 / +20.408% | 36/41 | +2.277% diagnostic |
+| combined | 815.057 ms | **+9.854%** | +5.263 / +12.397 / +16.327% | **41/41** | +0.979% diagnostic |
+
+12 个有效 fresh-process slots 均输出每 suite 4,118,622 ALPH bytes（5.161501 bpp）和
+6,618,910 complete WebP bytes（8.294888 bpp）；ALPH/WebP bytes、checksum、hash 零
+mismatch，所有有效 stderr 为空。原 12-slot batch 被会话截断后仍在后台运行，第一次
+retry 与其重叠；两套均完整作废，最终三轮只使用互不重叠数据。
+
+唯一正信号是 allocation 诊断：71 streams 的 current reserved capacity
+14,194,137 B 降到 exact output 4,200,623 B（-70.406%），单 stream 最大
+7,864,399 -> 3,979,859 B（-49.394%）。它不是 peak RSS，不能形成 memory Pareto；正式
+CPU/RSS 因 screen reject 未运行。Workspace tests、feature tests（283 passed / 4 ignored）、
+focused 39/39、default/feature Clippy `-D warnings`、fmt 和 release build 通过。
+41×10×5、gen15、224-case byte/project/`dwebp`、CPU/RSS、artifact/codegen、libwebp
+whole boundary、Bazel 与 fuzz 均按早停规则明确未运行，不借用 A14/A15。Root 独立复验
+283/283 SHA-256、两份 analyzer 与最终 git ancestry；实验代码不合并，顶部表不变。
 
 ### 总账更新规则
 
@@ -895,6 +914,7 @@ primary headline measurements.
 | byte-identical greedy LZ hot loop | A12 five-rotation production-trace replay with safe word-LCP / rolling skipped-hash ablation | parse hard bound 31.174%，but L/H/LH realistic ALPH ceilings only 2.854% / 2.113% / **4.878%**；355/355 token exact | reject Phase A; no production candidate or microbenchmark-only promotion claim |
 | packet precomposition through ordinary `BitWriter` | A13 P control and A14 final-code P reproduction, same token packets/tables as packed | A13 formal **+4.731%**；A14 formal **+1.192%** ALPH-only | reject P twice; packet composition only matters when the persistent sink also removes segment state updates |
 | compiled post-I5 token codebook | A15 41×10×3 same-binary screen + five-rotation owner census on final `main@9ff74387` | prefix -0.684%；compiled literal/length +3.353%；combined **+30.743%**；setup-free optimistic ceiling only **5.879%**，setup 7.153%，0 mismatch | reject Phase A; do not merge experiment code or hide fixed setup behind corpus-tuned activation thresholds |
+| exact-sized cursor token sink | A16 five-rotation owner census + 41×10×3 same-binary screen on final `main@65fc54e1` | current sink ceiling only 10.197%；exact-u128 +0.625%、exact-u64 +11.843%、combined **+9.854%** ALPH；combined 41/41 regressions，0 mismatch | reject Phase A; reserved bytes fall 70.406% but peak RSS is unmeasured, so no memory Pareto and no experiment-code merge |
 
 ## Research basis and next architecture targets
 
@@ -957,12 +977,13 @@ The next accepted architecture should target at least one measurable 10% gap:
    same-binary screen, while their setup-free optimistic ceiling is only
    5.879% and fixed setup is 7.153%. Further post-I5 packet-codebook variants
    are out of scope unless a new owner census first proves a distinct >=10%
-   boundary. A16 therefore does not compile token packets: it tests whether an
-   exact-size plan can replace every per-word `Vec` extend/length update with
-   direct cursor stores, and separately isolates `u128` from `u64` flushing.
-   Its prior 17.528% sink share is only an intake hypothesis; A16 must remeasure
-   the owner on its registered latest main and stop if the credible boundary
-   cannot produce a 10% aggregate win.
+   boundary. A16 has now also closed the exact-sized cursor sink direction:
+   the remeasured current boundary is only 10.197% of ALPH, exact-u128 still
+   regresses 0.625%, and u64/staged forms regress 9.854%–11.843%. Exact output
+   sizing cuts reserved bytes by 70.406%, but without a peak-RSS result and
+   with 41/41 combined ALPH regressions it is not a product Pareto. Further
+   sink work needs a genuinely different representation or an independently
+   justified memory objective, not another per-word cursor variant.
 2. **Real-image evidence:** add a pinned, licensed translucent PNG/WebP corpus
    with PSNR/SSIM or exact-alpha gates, alpha-cardinality buckets, p50/p95
    latency, and peak RSS. No architecture should be tuned only to conformance
