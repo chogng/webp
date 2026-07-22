@@ -1,7 +1,7 @@
 # Rust 最终架构与迁移契约
 
-状态：**最终目标，供后续迁移任务直接执行**  
-适用范围：`webp-rs` 下的生产 Rust 代码、单元测试、集成测试、示例、fuzz target 与 Bazel/Cargo 构建入口。  
+状态：**最终目标，供后续迁移任务直接执行**
+适用范围：`webp-rs` 下的生产 Rust 代码、单元测试、集成测试、示例、fuzz target 与 Bazel/Cargo 构建入口。
 不在本次迁移范围：codec 行为、压缩策略、现有公共 API 语义、性能算法、语料内容
 以及新产品能力的主动修改。迁移只搬运现有 container 读取/写入行为并确立所有权，
 不在同一批变更中补齐 demux、mux、decoder-only 或 SharpYUV。四项能力在结构迁移
