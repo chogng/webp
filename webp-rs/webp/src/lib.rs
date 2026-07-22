@@ -32,7 +32,6 @@ mod incremental;
 mod inspection;
 mod limits;
 mod static_image;
-mod static_image_writer;
 #[allow(dead_code, unused_imports)] // Private owner keeps reference/test entry points.
 mod vp8;
 mod vp8l;
@@ -86,10 +85,10 @@ pub fn decode_animation(data: &[u8], options: &DecodeOptions) -> Result<Animatio
 
 pub use animated_image::encode_lossless_animation;
 pub use animated_image::encode_lossless_animation_with_metadata;
-pub use static_image_writer::encode_lossless_rgba;
-pub use static_image_writer::encode_lossless_rgba_with_metadata;
-pub use static_image_writer::encode_lossless_rgba_with_metadata_and_options;
-pub use static_image_writer::encode_lossless_rgba_with_options;
-pub use static_image_writer::encode_lossy_rgba;
-pub use static_image_writer::encode_lossy_rgba_with_alpha_options;
-pub use static_image_writer::encode_lossy_rgba_with_options;
+pub use static_image::encode_lossless_rgba;
+pub use static_image::encode_lossless_rgba_with_metadata;
+pub use static_image::encode_lossless_rgba_with_metadata_and_options;
+pub use static_image::encode_lossless_rgba_with_options;
+pub use static_image::encode_lossy_rgba;
+pub use static_image::encode_lossy_rgba_with_alpha_options;
+pub use static_image::encode_lossy_rgba_with_options;

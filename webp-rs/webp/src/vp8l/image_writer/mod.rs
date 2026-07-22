@@ -85,8 +85,10 @@ pub(crate) mod spatial_writer;
 #[cfg(test)]
 #[path = "coarse_spatial_tests.rs"]
 mod coarse_spatial_tests;
+// The product reproducer lives with static-image orchestration but is attached
+// here so its control writer can inspect image-writer invariants.
 #[cfg(test)]
-#[path = "product_benchmark_tests.rs"]
+#[path = "../../static_image/product_benchmark_tests.rs"]
 mod product_benchmark_tests;
 
 pub(crate) fn encode_vp8l_payload(

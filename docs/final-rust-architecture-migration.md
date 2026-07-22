@@ -60,3 +60,58 @@ read through a temporary local link to the main checkout's ignored
 The VP8L CLIC method splits were 4,378.967 ms (method 0), 4,850.206 ms
 (method 3), and 4,783.370 ms (method 6). All baseline performance results are
 inside the reviewed thresholds in `quality-gates.md`.
+
+## Staged implementation
+
+| Stage | Commit | Result |
+| --- | --- | --- |
+| Contract | `25511118` | Reviewed and committed the final architecture contract inherited with the task. |
+| Stage 1 container ownership | `815758f8` | Moved existing RIFF, metadata, VP8/VP8L, and animation serialization into `webp-container`. |
+| Stage 1 VP8L writer ownership | `cbfe0522` | Moved the complete existing lossless image writer behind the VP8L owner. |
+| Stage 2 VP8L reader ownership | `314a5081` | Consolidated the lossless reader and former VP8L micro-crates without changing the public decode path. |
+| Stages 3–5 | `7ebdd5c3` | Consolidated private codec owners into `webp`, made `webp-container` independent, removed obsolete crates, and reduced fuzz/build dependencies to the two production libraries. |
+
+The consolidation shares the VP8L canonical-symbol writer, length/distance
+prefix encoder, pixel representation, and color-cache hash with the ALPH
+headerless-VP8L path. `webp-container` treats codec payloads as opaque bytes;
+its provisional serializer remains deliberately narrower than a general muxer
+or editor.
+
+## Final acceptance
+
+Final validation ran after the owner consolidation and final module-path audit.
+The ordinary toolchain remained stable Rust; nightly was used only for
+`cargo fuzz`.
+
+| Gate | Result |
+| --- | --- |
+| Cargo metadata and dependency direction | pass; packages are `webp-container`, `webp`, and tool `xtask`; `webp` has one repository path dependency (`webp-container`), and `webp-container` has none |
+| Formatting | pass: `cargo fmt --all -- --check` |
+| Debug workspace tests | pass: 256 `webp` unit tests, 12 container tests, all workspace integration/oracle tests, and doctests |
+| Release workspace tests | pass with the same test and oracle matrix |
+| Clippy | pass: `cargo clippy --workspace --all-targets -- -D warnings` |
+| Documentation | pass: `cargo doc --workspace --no-deps`; normal docs do not compile or expose the `fuzzing` module |
+| Bazel | pass: three final library/tool test targets, with external corpus targets excluded as documented |
+| Fuzz build | pass: all 12 targets |
+| Fuzz smoke | pass: every target completed at least 100 runs with no crash |
+
+### Final performance matrix
+
+| Public path | Final Rust result | Guard |
+| --- | --- | --- |
+| VP8L conformance decode | 455.154 ms; checksum `96355` | libwebp 530.411 ms; checksum `96355` |
+| VP8L CLIC decode | 13,681.954 ms; checksum `997056` | libwebp 14,355.591 ms; checksum `997056`; methods 0/3/6 were 4,255.826 / 4,781.724 / 4,637.672 ms |
+| VP8L static encode | 1,260.988 ms; 91,508,840 bytes; checksum `91525650` | libwebp 9,712.771 ms; 70,883,120 bytes; within baseline and reviewed size/time limits |
+| VP8 static encode | 336.263 ms; 919,010 bytes; checksum `944840` | PSNR 25.857/37.376/48.650 dB; libwebp 676,130 bytes |
+| VP8/ALPH static encode | 7,026.601 ms; 66,189,100 whole bytes; 41,186,220 ALPH bytes | libwebp 10,142.944 ms; 65,099,020 whole bytes; 40,983,250 ALPH bytes; exact alpha oracle passed |
+| VP8L-frame animation encode | 30.055 ms; 1,937,440 bytes; checksum `1937850` | 387,488 bytes per animation; pinned `webpmux`/`dwebp` oracle passed |
+
+The first isolated VP8L and VP8 encode measurements landed just outside a
+relative or absolute boundary while the host was still compiling other gates.
+Immediate isolated reruns passed, and the post-audit results above passed again
+with identical output bytes, checksums, and quality metrics. No threshold was
+changed.
+
+All section 8 architecture checks pass. The section 9 full demux API, general
+mux/editor, decoder-only feature product, and SharpYUV work remain explicitly
+unimplemented for separate follow-up tasks.

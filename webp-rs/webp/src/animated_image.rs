@@ -1,5 +1,7 @@
 //! Animated WebP decode orchestration.
 
+mod writer;
+
 use crate::Animation;
 use crate::AnimationFrame;
 use crate::DecodeError;
@@ -9,6 +11,9 @@ use crate::animation::AnimationCanvas;
 use crate::animation::DecodedFrame;
 use crate::checked_image_bytes;
 use webp_container::FrameBitstream;
+
+pub use writer::encode_lossless_animation;
+pub use writer::encode_lossless_animation_with_metadata;
 
 pub(crate) fn decode_animation(
     data: &[u8],
@@ -129,27 +134,6 @@ fn clone_canvas(rgba: &[u8]) -> Result<Vec<u8>, DecodeError> {
 
 fn allocation_failed(context: &'static str) -> DecodeError {
     DecodeError::new(DecodeErrorKind::AllocationFailed, None, context)
-}
-
-pub fn encode_lossless_animation(
-    width: u32,
-    height: u32,
-    frames: &[crate::AnimationEncodeFrame<'_>],
-    options: crate::AnimationEncodeOptions,
-) -> Result<Vec<u8>, crate::EncodeError> {
-    crate::static_image_writer::encode_lossless_animation(width, height, frames, options)
-}
-
-pub fn encode_lossless_animation_with_metadata(
-    width: u32,
-    height: u32,
-    frames: &[crate::AnimationEncodeFrame<'_>],
-    options: crate::AnimationEncodeOptions,
-    metadata: &crate::Metadata,
-) -> Result<Vec<u8>, crate::EncodeError> {
-    crate::static_image_writer::encode_lossless_animation_with_metadata(
-        width, height, frames, options, metadata,
-    )
 }
 
 #[cfg(test)]

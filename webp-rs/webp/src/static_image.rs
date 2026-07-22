@@ -1,5 +1,19 @@
 //! Internal static-image decode dispatch.
 
+mod writer;
+
+#[cfg(test)]
+pub(crate) use writer::copy_vp8l_payload;
+pub use writer::encode_lossless_rgba;
+pub use writer::encode_lossless_rgba_with_metadata;
+pub use writer::encode_lossless_rgba_with_metadata_and_options;
+pub use writer::encode_lossless_rgba_with_options;
+pub use writer::encode_lossy_rgba;
+pub use writer::encode_lossy_rgba_with_alpha_options;
+pub use writer::encode_lossy_rgba_with_options;
+#[cfg(test)]
+pub(crate) use writer::wrap_vp8l_with_metadata;
+
 use crate::DecodeError;
 use crate::DecodeErrorKind;
 use crate::DecodeOptions;

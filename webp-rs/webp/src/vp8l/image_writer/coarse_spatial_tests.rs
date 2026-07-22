@@ -1,6 +1,6 @@
 use super::*;
-use crate::static_image_writer::copy_vp8l_payload;
-use crate::static_image_writer::wrap_vp8l_with_metadata;
+use crate::static_image::copy_vp8l_payload;
+use crate::static_image::wrap_vp8l_with_metadata;
 use crate::{
     DecodeLimits, DecodeOptions, LosslessEncodeOptions, LosslessEncodeProfile, Metadata, decode,
     encode_lossless_rgba, encode_lossless_rgba_with_metadata,
