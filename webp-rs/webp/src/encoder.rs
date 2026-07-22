@@ -1237,44 +1237,36 @@ fn make_anmf_payload(
     frame: &AnimationEncodeFrame<'_>,
     vp8l_payload: &[u8],
 ) -> Result<Vec<u8>, EncodeError> {
-    let nested_size = chunk_storage_len(vp8l_payload.len())?;
-    let payload_len = 16_usize
-        .checked_add(nested_size)
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let mut output = Vec::new();
-    output
-        .try_reserve_exact(payload_len)
-        .map_err(|_| EncodeError::allocation_failed())?;
-    output.extend_from_slice(&(frame.x / 2).to_le_bytes()[..3]);
-    output.extend_from_slice(&(frame.y / 2).to_le_bytes()[..3]);
-    output.extend_from_slice(&(frame.width - 1).to_le_bytes()[..3]);
-    output.extend_from_slice(&(frame.height - 1).to_le_bytes()[..3]);
-    output.extend_from_slice(&frame.duration_ms.to_le_bytes()[..3]);
-    output.push(u8::from(frame.dispose_to_background) | if frame.blend { 0 } else { 1 << 1 });
-    push_chunk(&mut output, b"VP8L", vp8l_payload)?;
-    Ok(output)
+    webp_container::serialize_animation_frame(webp_container::AnimationFrameMux {
+        x: frame.x,
+        y: frame.y,
+        width: frame.width,
+        height: frame.height,
+        duration_ms: frame.duration_ms,
+        dispose_to_background: frame.dispose_to_background,
+        blend: frame.blend,
+        vp8l_payload,
+    })
+    .map_err(map_container_error)
 }
 
 fn wrap_vp8l(payload: Vec<u8>) -> Result<Vec<u8>, EncodeError> {
-    wrap_vp8l_with_metadata(payload, 0, 0, false, &Metadata::default())
+    webp_container::serialize_vp8l(payload, 0, 0, false, webp_container::Metadata::default())
+        .map_err(map_container_error)
 }
 
 fn copy_vp8l_payload(riff: &[u8]) -> Result<Vec<u8>, EncodeError> {
-    if riff.len() < 20 || &riff[..4] != b"RIFF" || &riff[8..16] != b"WEBPVP8L" {
-        return Err(EncodeError::output_size_overflow());
-    }
-    let payload_len = u32::from_le_bytes(
-        riff[16..20]
-            .try_into()
-            .map_err(|_| EncodeError::output_size_overflow())?,
-    );
-    let payload_len =
-        usize::try_from(payload_len).map_err(|_| EncodeError::output_size_overflow())?;
-    let payload_end = 20_usize
-        .checked_add(payload_len)
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let payload = riff
-        .get(20..payload_end)
+    let parsed = webp_container::parse(
+        riff,
+        webp_core::CompatibilityProfile::SpecStrict,
+        &webp_core::DecodeLimits::default(),
+    )
+    .map_err(|_| EncodeError::output_size_overflow())?;
+    let payload = parsed
+        .chunks()
+        .iter()
+        .find(|chunk| chunk.fourcc == webp_container::VP8L)
+        .map(|chunk| chunk.payload)
         .ok_or_else(EncodeError::output_size_overflow)?;
     let mut copy = Vec::new();
     copy.try_reserve_exact(payload.len())
@@ -1296,38 +1288,8 @@ fn wrap_vp8(
                 .map_err(map_alpha_encode_error)
         })
         .transpose()?;
-    let mut chunk_size = chunk_storage_len(payload.len())?;
-    if let Some(alpha) = alpha_payload.as_deref() {
-        chunk_size = chunk_size
-            .checked_add(chunk_storage_len(10)?)
-            .and_then(|size| size.checked_add(chunk_storage_len(alpha.len()).ok()?))
-            .ok_or_else(EncodeError::output_size_overflow)?;
-    }
-    let riff_size = 4_usize
-        .checked_add(chunk_size)
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let riff_size = u32::try_from(riff_size).map_err(|_| EncodeError::output_size_overflow())?;
-    let capacity = usize::try_from(riff_size)
-        .ok()
-        .and_then(|size| size.checked_add(8))
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let mut output = Vec::new();
-    output
-        .try_reserve_exact(capacity)
-        .map_err(|_| EncodeError::allocation_failed())?;
-    output.extend_from_slice(b"RIFF");
-    output.extend_from_slice(&riff_size.to_le_bytes());
-    output.extend_from_slice(b"WEBP");
-    if let Some(alpha) = alpha_payload.as_deref() {
-        let mut vp8x = [0_u8; 10];
-        vp8x[0] = 1 << 4;
-        vp8x[4..7].copy_from_slice(&(width - 1).to_le_bytes()[..3]);
-        vp8x[7..10].copy_from_slice(&(height - 1).to_le_bytes()[..3]);
-        push_chunk(&mut output, b"VP8X", &vp8x)?;
-        push_chunk(&mut output, b"ALPH", alpha)?;
-    }
-    push_chunk(&mut output, b"VP8 ", &payload)?;
-    Ok(output)
+    webp_container::serialize_vp8(payload, width, height, alpha_payload.as_deref())
+        .map_err(map_container_error)
 }
 
 fn map_vp8_encode_error(error: webp_vp8::Vp8EncodeError) -> EncodeError {
@@ -1351,6 +1313,15 @@ fn map_alpha_encode_error(error: webp_alpha::AlphaEncodeError) -> EncodeError {
     }
 }
 
+fn map_container_error(error: webp_container::ContainerError) -> EncodeError {
+    match error.kind() {
+        webp_container::ContainerErrorKind::SizeOverflow => EncodeError::output_size_overflow(),
+        webp_container::ContainerErrorKind::AllocationFailed => EncodeError::allocation_failed(),
+        webp_container::ContainerErrorKind::InvalidDimensions => EncodeError::invalid_dimensions(),
+        webp_container::ContainerErrorKind::InvalidAnimation => EncodeError::invalid_animation(),
+    }
+}
+
 fn wrap_lossless_animation(
     width: u32,
     height: u32,
@@ -1359,74 +1330,22 @@ fn wrap_lossless_animation(
     frames: Vec<EncodedAnimationFrame>,
     metadata: &Metadata,
 ) -> Result<Vec<u8>, EncodeError> {
-    let mut chunks_size = chunk_storage_len(10)?;
-    chunks_size = chunks_size
-        .checked_add(chunk_storage_len(6)?)
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    for metadata in [
-        metadata.iccp.as_deref(),
-        metadata.exif.as_deref(),
-        metadata.xmp.as_deref(),
-    ]
-    .into_iter()
-    .flatten()
-    {
-        chunks_size = chunks_size
-            .checked_add(chunk_storage_len(metadata.len())?)
-            .ok_or_else(EncodeError::output_size_overflow)?;
-    }
-    for frame in &frames {
-        chunks_size = chunks_size
-            .checked_add(chunk_storage_len(frame.anmf_payload.len())?)
-            .ok_or_else(EncodeError::output_size_overflow)?;
-    }
-    let riff_size = 4_usize
-        .checked_add(chunks_size)
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let riff_size = u32::try_from(riff_size).map_err(|_| EncodeError::output_size_overflow())?;
-    let capacity = usize::try_from(riff_size)
-        .ok()
-        .and_then(|size| size.checked_add(8))
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let mut output = Vec::new();
-    output
-        .try_reserve_exact(capacity)
-        .map_err(|_| EncodeError::allocation_failed())?;
-
-    let mut vp8x = [0_u8; 10];
-    vp8x[0] = (1 << 1)
-        | if has_alpha { 1 << 4 } else { 0 }
-        | if metadata.iccp.is_some() { 1 << 5 } else { 0 }
-        | if metadata.exif.is_some() { 1 << 3 } else { 0 }
-        | if metadata.xmp.is_some() { 1 << 2 } else { 0 };
-    vp8x[4..7].copy_from_slice(&(width - 1).to_le_bytes()[..3]);
-    vp8x[7..10].copy_from_slice(&(height - 1).to_le_bytes()[..3]);
-    let animation_control = [
-        options.background_rgba[2],
-        options.background_rgba[1],
-        options.background_rgba[0],
-        options.background_rgba[3],
-        options.loop_count.to_le_bytes()[0],
-        options.loop_count.to_le_bytes()[1],
-    ];
-    output.extend_from_slice(b"RIFF");
-    output.extend_from_slice(&riff_size.to_le_bytes());
-    output.extend_from_slice(b"WEBP");
-    push_chunk(&mut output, b"VP8X", &vp8x)?;
-    if let Some(iccp) = metadata.iccp.as_deref() {
-        push_chunk(&mut output, b"ICCP", iccp)?;
-    }
-    push_chunk(&mut output, b"ANIM", &animation_control)?;
-    for frame in frames {
-        push_chunk(&mut output, b"ANMF", &frame.anmf_payload)?;
-    }
-    if let Some(exif) = metadata.exif.as_deref() {
-        push_chunk(&mut output, b"EXIF", exif)?;
-    }
-    if let Some(xmp) = metadata.xmp.as_deref() {
-        push_chunk(&mut output, b"XMP ", xmp)?;
-    }
-    Ok(output)
+    let frames = frames
+        .into_iter()
+        .map(|frame| frame.anmf_payload)
+        .collect::<Vec<_>>();
+    webp_container::serialize_animation(
+        width,
+        height,
+        webp_container::AnimationMuxOptions {
+            background_rgba: options.background_rgba,
+            loop_count: options.loop_count,
+        },
+        has_alpha,
+        &frames,
+        borrowed_metadata(metadata),
+    )
+    .map_err(map_container_error)
 }
 
 fn wrap_vp8l_with_metadata(
@@ -1436,106 +1355,22 @@ fn wrap_vp8l_with_metadata(
     has_alpha: bool,
     metadata: &Metadata,
 ) -> Result<Vec<u8>, EncodeError> {
-    let has_metadata = metadata.iccp.is_some() || metadata.exif.is_some() || metadata.xmp.is_some();
-    if !has_metadata {
-        return wrap_chunks(payload, None, None, None, None);
-    }
-    if width == 0 || height == 0 {
-        return Err(EncodeError::invalid_dimensions());
-    }
-
-    let mut flags = 0_u8;
-    if metadata.iccp.is_some() {
-        flags |= 1 << 5;
-    }
-    if has_alpha {
-        flags |= 1 << 4;
-    }
-    if metadata.exif.is_some() {
-        flags |= 1 << 3;
-    }
-    if metadata.xmp.is_some() {
-        flags |= 1 << 2;
-    }
-    let mut vp8x = [0_u8; 10];
-    vp8x[0] = flags;
-    vp8x[4..7].copy_from_slice(&(width - 1).to_le_bytes()[..3]);
-    vp8x[7..10].copy_from_slice(&(height - 1).to_le_bytes()[..3]);
-    wrap_chunks(
+    webp_container::serialize_vp8l(
         payload,
-        Some(&vp8x),
-        metadata.iccp.as_deref(),
-        metadata.exif.as_deref(),
-        metadata.xmp.as_deref(),
+        width,
+        height,
+        has_alpha,
+        borrowed_metadata(metadata),
     )
+    .map_err(map_container_error)
 }
 
-fn wrap_chunks(
-    payload: Vec<u8>,
-    vp8x: Option<&[u8; 10]>,
-    iccp: Option<&[u8]>,
-    exif: Option<&[u8]>,
-    xmp: Option<&[u8]>,
-) -> Result<Vec<u8>, EncodeError> {
-    let mut chunks_size = chunk_storage_len(payload.len())?;
-    for metadata in [vp8x.map(|value| value.as_slice()), iccp, exif, xmp]
-        .into_iter()
-        .flatten()
-    {
-        chunks_size = chunks_size
-            .checked_add(chunk_storage_len(metadata.len())?)
-            .ok_or_else(EncodeError::output_size_overflow)?;
+fn borrowed_metadata(metadata: &Metadata) -> webp_container::Metadata<'_> {
+    webp_container::Metadata {
+        iccp: metadata.iccp.as_deref(),
+        exif: metadata.exif.as_deref(),
+        xmp: metadata.xmp.as_deref(),
     }
-    // RIFF's declared size starts after `RIFF`: `WEBP` plus all chunks.
-    let riff_size = 4_usize
-        .checked_add(chunks_size)
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let riff_size = u32::try_from(riff_size).map_err(|_| EncodeError::output_size_overflow())?;
-    let capacity = usize::try_from(riff_size)
-        .ok()
-        .and_then(|size| size.checked_add(8))
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let mut output = Vec::new();
-    output
-        .try_reserve_exact(capacity)
-        .map_err(|_| EncodeError::allocation_failed())?;
-    output.extend_from_slice(b"RIFF");
-    output.extend_from_slice(&riff_size.to_le_bytes());
-    output.extend_from_slice(b"WEBP");
-    if let Some(vp8x) = vp8x {
-        push_chunk(&mut output, b"VP8X", vp8x)?;
-    }
-    if let Some(iccp) = iccp {
-        push_chunk(&mut output, b"ICCP", iccp)?;
-    }
-    push_chunk(&mut output, b"VP8L", &payload)?;
-    if let Some(exif) = exif {
-        push_chunk(&mut output, b"EXIF", exif)?;
-    }
-    if let Some(xmp) = xmp {
-        push_chunk(&mut output, b"XMP ", xmp)?;
-    }
-    Ok(output)
-}
-
-fn chunk_storage_len(payload_len: usize) -> Result<usize, EncodeError> {
-    u32::try_from(payload_len).map_err(|_| EncodeError::output_size_overflow())?;
-    8_usize
-        .checked_add(payload_len)
-        .and_then(|size| size.checked_add(payload_len & 1))
-        .ok_or_else(EncodeError::output_size_overflow)
-}
-
-fn push_chunk(output: &mut Vec<u8>, fourcc: &[u8; 4], payload: &[u8]) -> Result<(), EncodeError> {
-    let payload_len =
-        u32::try_from(payload.len()).map_err(|_| EncodeError::output_size_overflow())?;
-    output.extend_from_slice(fourcc);
-    output.extend_from_slice(&payload_len.to_le_bytes());
-    output.extend_from_slice(payload);
-    if payload.len() & 1 != 0 {
-        output.push(0);
-    }
-    Ok(())
 }
 
 fn write_bits(writer: &mut BitWriter, value: u32, count: u8) -> Result<(), EncodeError> {

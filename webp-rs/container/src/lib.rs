@@ -2,6 +2,8 @@
 //! Public surface for safe, zero-copy WebP RIFF container parsing.
 
 mod container;
+mod error;
+mod mux;
 
 pub use container::ALPH;
 pub use container::ANIM;
@@ -22,3 +24,17 @@ pub use container::Vp8x;
 pub use container::Vp8xFlags;
 pub use container::XMP;
 pub use container::parse;
+pub use error::ContainerError;
+pub use error::ContainerErrorKind;
+#[doc(hidden)]
+pub use mux::AnimationFrameMux;
+#[doc(hidden)]
+pub use mux::AnimationMuxOptions;
+#[doc(hidden)]
+pub use mux::serialize_animation;
+#[doc(hidden)]
+pub use mux::serialize_animation_frame;
+#[doc(hidden)]
+pub use mux::serialize_vp8;
+#[doc(hidden)]
+pub use mux::serialize_vp8l;
