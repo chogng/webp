@@ -1,10 +1,10 @@
+use crate::DecodeError;
+use crate::DecodeErrorKind;
 use crate::vp8l::header::BlockTransformDescriptor;
 use crate::vp8l::pixel::extend_rgba_from_argb;
 use crate::vp8l::pixel::pack_argb;
 use crate::vp8l::transforms::inverse_predictor::inverse_predictor_argb_to_rgba;
 use crate::vp8l::transforms::inverse_predictor::inverse_predictor_rgba;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
 
 /// Internal transform storage with explicit intermediate layout states.
 ///

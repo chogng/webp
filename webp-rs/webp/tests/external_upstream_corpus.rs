@@ -169,8 +169,12 @@ fn small_upstream_lossless_vectors_do_not_panic_at_any_byte_truncation() {
             );
         }
 
-        let container = webp_container::parse(&bytes, options.compatibility, &options.limits)
-            .expect("selected fixture has a valid strict RIFF container");
+        let container = webp_container::parse(
+            &bytes,
+            webp_container::CompatibilityProfile::SpecStrict,
+            &webp_container::ContainerLimits::default(),
+        )
+        .expect("selected fixture has a valid strict RIFF container");
         let payload = container
             .chunks()
             .iter()

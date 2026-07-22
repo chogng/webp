@@ -1,6 +1,0 @@
-load("//:defs.bzl", "webp_rust_crate")
-
-webp_rust_crate(
-    name = "core",
-    crate_name = "webp_core",
-)

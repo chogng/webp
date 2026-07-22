@@ -6,80 +6,16 @@
 //! image's red, blue, and alpha channels respectively.  The transform image's
 //! green channel is unused.
 
+use crate::vp8l::transforms::predictor::Rgba;
+use crate::vp8l::transforms::predictor::RgbaImage;
+#[cfg(test)]
+use crate::vp8l::transforms::predictor::TransformError;
 use core::fmt;
 
 /// The number of bits used by the VP8L color-transform block-size field.
 pub const COLOR_TRANSFORM_BITS_FIELD_BITS: u8 = 3;
 /// The greatest block-size exponent representable in a VP8L color transform.
 pub const MAX_COLOR_TRANSFORM_BITS: u8 = (1 << COLOR_TRANSFORM_BITS_FIELD_BITS) - 1;
-
-/// A straight, eight-bit-per-channel RGBA pixel.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub struct Rgba {
-    pub red: u8,
-    pub green: u8,
-    pub blue: u8,
-    pub alpha: u8,
-}
-
-impl Rgba {
-    #[must_use]
-    pub const fn new(red: u8, green: u8, blue: u8, alpha: u8) -> Self {
-        Self {
-            red,
-            green,
-            blue,
-            alpha,
-        }
-    }
-}
-
-/// A validated row-major RGBA image buffer.
-#[derive(Clone, Debug, Eq, PartialEq)]
-pub struct RgbaImage {
-    width: u32,
-    height: u32,
-    pixels: Vec<Rgba>,
-}
-
-impl RgbaImage {
-    /// Creates an image when `pixels` has exactly `width * height` entries.
-    pub fn new(width: u32, height: u32, pixels: Vec<Rgba>) -> Result<Self, ColorTransformError> {
-        let expected = pixel_len(width, height)?;
-        if pixels.len() != expected {
-            return Err(ColorTransformError::InvalidBufferLength {
-                width,
-                height,
-                actual: pixels.len(),
-            });
-        }
-        Ok(Self {
-            width,
-            height,
-            pixels,
-        })
-    }
-
-    #[must_use]
-    pub const fn width(&self) -> u32 {
-        self.width
-    }
-
-    #[must_use]
-    pub const fn height(&self) -> u32 {
-        self.height
-    }
-
-    #[must_use]
-    pub fn pixels(&self) -> &[Rgba] {
-        &self.pixels
-    }
-
-    #[must_use]
-    pub fn pixels_mut(&mut self) -> &mut [Rgba] {
-        &mut self.pixels
-    }
-}
 
 /// The three signed coefficients of a VP8L color-transform block.
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -191,11 +127,6 @@ pub enum ColorTransformError {
         width: u32,
         height: u32,
     },
-    InvalidBufferLength {
-        width: u32,
-        height: u32,
-        actual: usize,
-    },
     InvalidBlockBits(u8),
     InvalidMultiplierCount {
         width_blocks: u32,
@@ -220,14 +151,6 @@ impl fmt::Display for ColorTransformError {
                     "image dimensions {width} by {height} do not fit memory indexing"
                 )
             }
-            Self::InvalidBufferLength {
-                width,
-                height,
-                actual,
-            } => write!(
-                f,
-                "RGBA buffer has {actual} pixels; expected {width} by {height} pixels"
-            ),
             Self::InvalidBlockBits(bits) => write!(
                 f,
                 "VP8L color-transform block bits {bits} exceed {MAX_COLOR_TRANSFORM_BITS}"
@@ -290,15 +213,18 @@ pub fn inverse_color_transform(
     image: &mut RgbaImage,
     transform: &ColorTransform,
 ) -> Result<(), ColorTransformError> {
-    for y in 0..image.height {
-        for x in 0..image.width {
+    let width = image.width();
+    let height = image.height();
+    for y in 0..height {
+        for x in 0..width {
             let multiplier = transform.multipliers_at(x, y)?;
             let offset = usize::try_from(y)
                 .ok()
-                .and_then(|row| row.checked_mul(usize::try_from(image.width).ok()?))
+                .and_then(|row| row.checked_mul(usize::try_from(width).ok()?))
                 .and_then(|row_start| row_start.checked_add(usize::try_from(x).ok()?))
                 .expect("validated image coordinates must have a backing pixel");
-            image.pixels[offset] = inverse_color_transform_pixel(image.pixels[offset], multiplier);
+            let pixel = image.pixels()[offset];
+            image.pixels_mut()[offset] = inverse_color_transform_pixel(pixel, multiplier);
         }
     }
     Ok(())
@@ -453,7 +379,7 @@ mod tests {
         ));
         assert!(matches!(
             RgbaImage::new(2, 2, vec![Rgba::default(); 3]),
-            Err(ColorTransformError::InvalidBufferLength { .. })
+            Err(TransformError::InvalidBufferLength { .. })
         ));
         assert_eq!(
             ColorTransformError::InvalidBlockBits(8).to_string(),

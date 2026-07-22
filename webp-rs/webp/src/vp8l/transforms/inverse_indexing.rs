@@ -1,10 +1,10 @@
+use crate::DecodeError;
+use crate::DecodeErrorKind;
 use crate::vp8l::allocation::checked_transform_bytes;
 use crate::vp8l::allocation::pixel_count;
 use crate::vp8l::pixel::pack_argb;
 use crate::vp8l::transforms::indexing::Palette;
 use crate::vp8l::transforms::indexing::TRANSPARENT_BLACK;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
 
 /// Reverses VP8L color indexing in packed ARGB form.  The decoder keeps the
 /// narrow entropy output alive until the expanded row-major output is fully

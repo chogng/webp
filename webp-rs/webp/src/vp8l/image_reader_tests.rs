@@ -1,14 +1,14 @@
 use super::decode_literal_only;
 use super::decode_no_transform;
+use crate::BitWriter;
+use crate::DecodeErrorKind;
+use crate::DecodeLimits;
 use crate::vp8l::header::HEADER_LEN;
 use crate::vp8l::header::SIGNATURE;
 use crate::vp8l::image_stream::huffman_groups::CHANNEL_ALPHABET_SIZE;
 use crate::vp8l::image_stream::huffman_groups::GREEN_ALPHABET_SIZE;
 use crate::vp8l::image_stream::symbol_stream::prefix_image_dimensions;
 use crate::vp8l::pixel::pack_argb;
-use webp_core::BitWriter;
-use webp_core::DecodeErrorKind;
-use webp_core::DecodeLimits;
 
 fn limits() -> DecodeLimits {
     DecodeLimits::default()

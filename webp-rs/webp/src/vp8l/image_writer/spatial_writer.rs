@@ -208,14 +208,20 @@ fn write_token(
     tables: &EntropyTables,
 ) -> Result<(), EncodeError> {
     match token {
-        EntropyToken::Cache(index) => {
-            write_table_symbol(bits, &tables.green, FIRST_CACHE_SYMBOL + index)
-        }
+        EntropyToken::Cache(index) => Ok(write_table_symbol(
+            bits,
+            &tables.green,
+            FIRST_CACHE_SYMBOL + index,
+        )?),
         EntropyToken::Literal(rgba) => {
             write_table_symbol(bits, &tables.green, usize::from(rgba[1]))?;
             write_table_symbol(bits, &tables.red, usize::from(rgba[0]))?;
             write_table_symbol(bits, &tables.blue, usize::from(rgba[2]))?;
-            write_table_symbol(bits, &tables.alpha, usize::from(rgba[3]))
+            Ok(write_table_symbol(
+                bits,
+                &tables.alpha,
+                usize::from(rgba[3]),
+            )?)
         }
         EntropyToken::Copy { length } => write_lz77_copy(bits, tables, length),
     }

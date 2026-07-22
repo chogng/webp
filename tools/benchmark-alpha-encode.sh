@@ -77,16 +77,11 @@ echo "metadata os=$(uname -srm | tr ' ' '_')"
 echo "metadata rustc=$(rustc --version | tr ' ' '_')"
 echo "metadata cc=$(cc --version | sed -n '1p' | tr ' ' '_')"
 
-if [[ -n "${WEBP_ALPHA_BENCH_FEATURES:-}" ]]; then
-  cargo run --release -p webp --example alpha_encode_bench \
-    --manifest-path "$root/webp-rs/Cargo.toml" \
-    --features "$WEBP_ALPHA_BENCH_FEATURES" -- \
-    "$iterations" "${inputs[@]}"
-else
-  cargo run --release -p webp --example alpha_encode_bench \
-    --manifest-path "$root/webp-rs/Cargo.toml" -- \
-    "$iterations" "${inputs[@]}"
-fi
+features="${WEBP_ALPHA_BENCH_FEATURES:-fuzzing}"
+cargo run --release -p webp --example alpha_encode_bench \
+  --manifest-path "$root/webp-rs/Cargo.toml" \
+  --features "$features" -- \
+  "$iterations" "${inputs[@]}"
 
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/webp-alpha-encode-bench.XXXXXX")"
 trap 'rm -rf "$scratch"' EXIT

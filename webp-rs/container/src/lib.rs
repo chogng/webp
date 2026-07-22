@@ -1,31 +1,38 @@
 #![forbid(unsafe_code)]
 //! Public surface for safe, zero-copy WebP RIFF container parsing.
 
-mod container;
+mod animation;
+mod arithmetic;
+mod chunk;
+mod demux;
 mod error;
+mod fourcc;
+mod layout;
+mod metadata;
 mod mux;
+mod options;
 
-pub use container::ALPH;
-pub use container::ANIM;
-pub use container::ANMF;
-pub use container::Animation;
-pub use container::AnimationFrame;
-pub use container::Chunk;
-pub use container::Container;
-pub use container::EXIF;
-pub use container::FourCc;
-pub use container::FrameBitstream;
-pub use container::ICCP;
-pub use container::Metadata;
-pub use container::VP8;
-pub use container::VP8L;
-pub use container::VP8X;
-pub use container::Vp8x;
-pub use container::Vp8xFlags;
-pub use container::XMP;
-pub use container::parse;
+pub use animation::Animation;
+pub use animation::AnimationFrame;
+pub use animation::FrameBitstream;
+pub use chunk::Chunk;
+pub use demux::Container;
+pub use demux::parse;
 pub use error::ContainerError;
 pub use error::ContainerErrorKind;
+pub use fourcc::ALPH;
+pub use fourcc::ANIM;
+pub use fourcc::ANMF;
+pub use fourcc::EXIF;
+pub use fourcc::FourCc;
+pub use fourcc::ICCP;
+pub use fourcc::VP8;
+pub use fourcc::VP8L;
+pub use fourcc::VP8X;
+pub use fourcc::XMP;
+pub use layout::Vp8x;
+pub use layout::Vp8xFlags;
+pub use metadata::Metadata;
 #[doc(hidden)]
 pub use mux::AnimationFrameMux;
 #[doc(hidden)]
@@ -38,3 +45,5 @@ pub use mux::serialize_animation_frame;
 pub use mux::serialize_vp8;
 #[doc(hidden)]
 pub use mux::serialize_vp8l;
+pub use options::CompatibilityProfile;
+pub use options::ContainerLimits;

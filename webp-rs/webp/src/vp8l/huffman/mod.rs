@@ -6,10 +6,12 @@
 //! their bits least-significant bit first, so the table stores each canonical
 //! code with exactly its significant bits reversed.
 
-use webp_core::BitReader;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
-use webp_core::ShiftedBitReader;
+use crate::BitReader;
+use crate::DecodeError;
+use crate::DecodeErrorKind;
+use crate::ShiftedBitReader;
+
+pub(crate) mod symbol_writer;
 
 /// The longest code allowed by the VP8L format.
 pub const MAX_CODE_LENGTH: u8 = 15;
@@ -878,9 +880,9 @@ fn fill_secondary_table(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::BitWriter;
     use std::hint::black_box;
     use std::time::Instant;
-    use webp_core::BitWriter;
 
     #[derive(Clone, Copy)]
     struct LinearCode {

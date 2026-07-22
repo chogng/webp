@@ -1,3 +1,8 @@
+use crate::BitReader;
+use crate::DecodeError;
+use crate::DecodeErrorKind;
+use crate::DecodeLimits;
+use crate::WorkBudget;
 use crate::vp8l::allocation::check_allocation_budget;
 use crate::vp8l::allocation::checked_transform_bytes;
 use crate::vp8l::allocation::color_cache_size;
@@ -22,11 +27,6 @@ use crate::vp8l::image_stream::huffman_groups::decode_green_or_literal;
 use crate::vp8l::image_stream::huffman_groups::read_huffman_codes;
 use crate::vp8l::image_stream::pixel_sink::PixelOutput;
 use crate::vp8l::pixel::pack_argb;
-use webp_core::BitReader;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
-use webp_core::DecodeLimits;
-use webp_core::WorkBudget;
 
 /// Decodes VP8L's entropy image syntax at either nesting level.
 ///
@@ -119,7 +119,7 @@ pub(in crate::vp8l) fn decode_image_data(
 #[allow(clippy::too_many_arguments)]
 fn decode_entropy_run(
     codes: &HuffmanCodes,
-    shifted_bits: &mut webp_core::ShiftedBitReader<'_, '_>,
+    shifted_bits: &mut crate::ShiftedBitReader<'_, '_>,
     output: &mut PixelOutput,
     run_end: usize,
     pixels: usize,

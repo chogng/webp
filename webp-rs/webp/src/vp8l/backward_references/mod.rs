@@ -6,11 +6,13 @@
 //! LZ77 copy operation that the entropy decoder will call after decoding its
 //! Huffman symbols.
 
-use webp_core::BitReader;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
-use webp_core::ShiftedBitReader;
-use webp_core::WorkBudget;
+use crate::BitReader;
+use crate::DecodeError;
+use crate::DecodeErrorKind;
+use crate::ShiftedBitReader;
+use crate::WorkBudget;
+
+pub(crate) mod prefix;
 
 pub const LENGTH_PREFIX_COUNT: u8 = 24;
 pub const DISTANCE_PREFIX_COUNT: u8 = 40;
@@ -414,7 +416,7 @@ const DISTANCE_MAP: [(i8, i8); 120] = [
 #[cfg(test)]
 mod tests {
     use super::*;
-    use webp_core::BitWriter;
+    use crate::BitWriter;
 
     fn decode_with_extra(prefix: u8, extra: u32, limit: u8) -> u32 {
         let extra_bits = if prefix < 4 { 0 } else { (prefix - 2) >> 1 };

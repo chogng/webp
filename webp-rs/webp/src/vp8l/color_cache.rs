@@ -6,10 +6,10 @@
 //! decoded pixel is inserted; callers must therefore call [`ColorCache::insert`]
 //! for literals, cache hits, and every pixel emitted by a backward reference.
 
+use crate::DecodeError;
+use crate::DecodeErrorKind;
+use crate::WorkBudget;
 use crate::vp8l::backward_references::copy_lz77_pixels;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
-use webp_core::WorkBudget;
 
 /// The smallest color-cache exponent accepted by VP8L.
 pub const MIN_COLOR_CACHE_BITS: u8 = 1;
@@ -229,7 +229,7 @@ fn cache_len(bits: u8) -> Result<usize, DecodeError> {
     Ok(1_usize << bits)
 }
 
-fn hash_color(color: u32, bits: u8) -> usize {
+pub(crate) fn hash_color(color: u32, bits: u8) -> usize {
     let shift = u32::BITS - u32::from(bits);
     (color.wrapping_mul(COLOR_CACHE_HASH_MULTIPLIER) >> shift) as usize
 }

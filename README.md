@@ -8,7 +8,7 @@ encoding; performance work remains deliberately deferred.
 
 ## Current guarantees
 
-- Core crates forbid `unsafe` code.
+- Both production crates forbid `unsafe` code.
 - Container parsing uses checked size and padding arithmetic.
 - Strict and libwebp-compatible parsing policies are explicit.
 - Metadata can be inspected without allocating pixel buffers.
@@ -16,7 +16,7 @@ encoding; performance work remains deliberately deferred.
   are connected to the static VP8L public pixel decoder.
 - VP8 key frames decode through bounded entropy, reconstruction, loop
   filtering, and YUV-to-RGBA conversion.
-- `webp-alpha` owns complete `ALPH` payload encoding and decoding: raw and
+- The private `webp::alpha` owner implements complete `ALPH` payload encoding and decoding: raw and
   headerless-VP8L compression, fixed/fast/best spatial-filter selection,
   quality-driven level reduction, compressed-size comparison with raw
   fallback, LZ77 and frequency-derived Huffman coding, preprocessing/header
@@ -56,7 +56,7 @@ resource gates in [`docs/quality-gates.md`](docs/quality-gates.md); passing
 the test suite alone does not mark a decoder milestone complete.
 The record-only VP8L performance scoreboard, complete experiment/worktree
 index, and architecture-first follow-up policy are maintained in
-[`webp-rs/vp8l/README.md`](webp-rs/vp8l/README.md).
+[`docs/performance/vp8l.md`](docs/performance/vp8l.md).
 M3's functional exit record is in
 [`docs/m3-alpha-animation.md`](docs/m3-alpha-animation.md); M4's completed
 static VP8L encoding scope and exit criteria are in

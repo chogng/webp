@@ -1,3 +1,8 @@
+use crate::BitReader;
+use crate::DecodeError;
+use crate::DecodeErrorKind;
+use crate::DecodeLimits;
+use crate::WorkBudget;
 use crate::vp8l::allocation::check_transient_indexing_palette_allocation;
 use crate::vp8l::allocation::check_transient_transform_allocation;
 use crate::vp8l::allocation::checked_transform_bytes;
@@ -11,11 +16,6 @@ use crate::vp8l::transforms::color::ColorTransformMultipliers;
 use crate::vp8l::transforms::indexing::Palette;
 use crate::vp8l::transforms::predictor::PredictorMode;
 use crate::vp8l::transforms::predictor::Rgba;
-use webp_core::BitReader;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
-use webp_core::DecodeLimits;
-use webp_core::WorkBudget;
 
 pub(in crate::vp8l) enum DecodedTransform {
     Predictor {

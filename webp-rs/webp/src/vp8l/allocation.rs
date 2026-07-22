@@ -1,7 +1,7 @@
+use crate::DecodeError;
+use crate::DecodeErrorKind;
 use crate::vp8l::color_cache::MAX_COLOR_CACHE_BITS;
 use crate::vp8l::color_cache::MIN_COLOR_CACHE_BITS;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
 
 /// Bounds the allocations that coexist while entropy output becomes RGBA.
 ///

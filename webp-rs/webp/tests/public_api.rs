@@ -167,20 +167,18 @@ fn read_info_accepts_small_vp8_headers_without_decoding_pixels() {
 
 #[test]
 fn decode_returns_rgba_for_a_literal_vp8l_pixel() {
-    use webp_core::BitWriter;
-
-    let mut writer = BitWriter::new();
-    writer.write_bits(0x2f, 8).unwrap();
-    writer.write_bits(0, 14).unwrap();
-    writer.write_bits(0, 14).unwrap();
-    writer.write_bits(1, 1).unwrap();
-    writer.write_bits(0, 3).unwrap();
-    writer.write_bits(0, 3).unwrap();
+    let mut writer = TestBitWriter::default();
+    writer.write_bits(0x2f, 8);
+    writer.write_bits(0, 14);
+    writer.write_bits(0, 14);
+    writer.write_bits(1, 1);
+    writer.write_bits(0, 3);
+    writer.write_bits(0, 3);
     for channel in [0x34_u8, 0x12, 0x56, 0x78, 0] {
-        writer.write_bits(1, 1).unwrap();
-        writer.write_bits(0, 1).unwrap();
-        writer.write_bits(1, 1).unwrap();
-        writer.write_bits(u32::from(channel), 8).unwrap();
+        writer.write_bits(1, 1);
+        writer.write_bits(0, 1);
+        writer.write_bits(1, 1);
+        writer.write_bits(u32::from(channel), 8);
     }
     let payload = writer.into_bytes();
     let mut body = b"WEBPVP8L".to_vec();
@@ -200,4 +198,33 @@ fn decode_returns_rgba_for_a_literal_vp8l_pixel() {
             rgba: vec![0x12, 0x34, 0x56, 0x78],
         }
     );
+}
+
+#[derive(Default)]
+struct TestBitWriter {
+    bytes: Vec<u8>,
+    current: u8,
+    used: u8,
+}
+
+impl TestBitWriter {
+    fn write_bits(&mut self, mut value: u32, count: u8) {
+        for _ in 0..count {
+            self.current |= ((value & 1) as u8) << self.used;
+            self.used += 1;
+            value >>= 1;
+            if self.used == u8::BITS as u8 {
+                self.bytes.push(self.current);
+                self.current = 0;
+                self.used = 0;
+            }
+        }
+    }
+
+    fn into_bytes(mut self) -> Vec<u8> {
+        if self.used != 0 {
+            self.bytes.push(self.current);
+        }
+        self.bytes
+    }
 }

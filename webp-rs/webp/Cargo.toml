@@ -7,15 +7,17 @@ license.workspace = true
 repository.workspace = true
 description = "Public safe-Rust WebP API"
 
-[features]
-alpha-benchmark-internals = ["webp-alpha/benchmark-internals"]
-
 [lints]
 workspace = true
 
+[features]
+default = []
+fuzzing = []
+alpha-benchmark-internals = ["fuzzing"]
+
 [dependencies]
-webp-alpha = { path = "../alpha" }
-webp-animation = { path = "../animation" }
-webp-core = { path = "../core" }
 webp-container = { path = "../container" }
-webp-vp8 = { path = "../vp8" }
+
+[[example]]
+name = "alpha_encode_bench"
+required-features = ["fuzzing"]

@@ -286,7 +286,7 @@ and all exact and level-reduced `dwebp` oracle matrices remain unchanged.
 ## ALPH benchmark v3 current record
 
 The canonical detailed ledger is
-[`webp-rs/alpha/README.md`](../webp-rs/alpha/README.md). Benchmark v3 covers all
+[`performance/alpha.md`](performance/alpha.md). Benchmark v3 covers all
 41 transparent upstream files, reports per-case content and size metrics plus
 MPix/s and ns/pixel, and times a separate Rust ALPH-only profile. Three
 ten-iteration runs after revision `b32d350` measured a 7019.944 ms Rust
@@ -437,7 +437,7 @@ therefore spent most of its time repeatedly extracting, clamping, and repacking
 four channels. Rather than add a file-specific branch, the transform pipeline
 now has a private layout boundary: entropy, color, and indexing may retain
 packed ARGB, while predictor reconstruction requests an RGBA-byte backend.
-The shared `webp-vp8l-transform` crate and all of its callers are unchanged.
+The shared VP8L transform implementation and all of its callers are unchanged.
 
 The mode-12 kernel receives separate current-row, top-row, and top-left slices
 and iterates four-byte channel groups. This exposes non-aliasing and channel

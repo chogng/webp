@@ -1,10 +1,10 @@
+use crate::BitReader;
+use crate::DecodeError;
+use crate::DecodeErrorKind;
+use crate::WorkBudget;
 use crate::vp8l::huffman::FastHuffmanTable;
 use crate::vp8l::huffman::read_huffman_code;
 use crate::vp8l::pixel::pack_argb;
-use webp_core::BitReader;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
-use webp_core::WorkBudget;
 
 pub(in crate::vp8l) const GREEN_ALPHABET_SIZE: usize = 256 + 24;
 pub(in crate::vp8l) const CHANNEL_ALPHABET_SIZE: usize = 256;
@@ -64,7 +64,7 @@ fn read_table(
 
 pub(in crate::vp8l) fn decode_fast_symbol(
     table: &FastHuffmanTable,
-    bits: &mut webp_core::ShiftedBitReader<'_, '_>,
+    bits: &mut crate::ShiftedBitReader<'_, '_>,
     budget: &mut WorkBudget,
 ) -> Result<usize, DecodeError> {
     budget.consume(1)?;
@@ -87,7 +87,7 @@ pub(in crate::vp8l) enum GreenOrLiteral {
 #[inline]
 pub(in crate::vp8l) fn decode_green_or_literal(
     codes: &HuffmanCodes,
-    bits: &mut webp_core::ShiftedBitReader<'_, '_>,
+    bits: &mut crate::ShiftedBitReader<'_, '_>,
     budget: &mut WorkBudget,
 ) -> Result<GreenOrLiteral, DecodeError> {
     budget.consume(1)?;

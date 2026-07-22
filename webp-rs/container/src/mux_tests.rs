@@ -18,8 +18,8 @@ fn static_vp8l_serialization_preserves_chunk_order_and_padding() {
     assert_eq!(&encoded[8..12], b"WEBP");
     let parsed = crate::parse(
         &encoded,
-        webp_core::CompatibilityProfile::SpecStrict,
-        &webp_core::DecodeLimits::default(),
+        crate::CompatibilityProfile::SpecStrict,
+        &crate::ContainerLimits::default(),
     )
     .unwrap();
     let fourccs = parsed

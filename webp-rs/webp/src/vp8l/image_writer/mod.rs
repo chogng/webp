@@ -6,19 +6,25 @@
 //! frequency-ranked balanced Huffman codes. Small palette images use color
 //! indexing.
 
+use crate::BitWriter;
 use crate::EncodeError;
+use crate::vp8l::backward_references::prefix::encode_prefix as vp8l_prefix;
+use crate::vp8l::color_cache::hash_color;
 use crate::vp8l::header::MAX_DIMENSION;
 use crate::vp8l::header::SIGNATURE;
-use webp_core::BitWriter;
+use crate::vp8l::huffman::symbol_writer::EncodingTable;
+use crate::vp8l::huffman::symbol_writer::canonical_table;
+use crate::vp8l::huffman::symbol_writer::write_canonical_symbol;
+use crate::vp8l::huffman::symbol_writer::write_simple_table;
+use crate::vp8l::huffman::symbol_writer::write_table_symbol;
 
 const GREEN_ALPHABET_SIZE: usize = 256 + 24;
 const CHANNEL_ALPHABET_SIZE: usize = 256;
 const DISTANCE_ALPHABET_SIZE: usize = 40;
 const PREDICTOR_BLOCK_SIZE: u32 = 4;
 const LEFT_PREDICTOR_MODE: u8 = 1;
-const MAX_COLOR_CACHE_BITS: u8 = 4;
-const MAX_COLOR_CACHE_SIZE: usize = 1 << MAX_COLOR_CACHE_BITS;
-const COLOR_CACHE_HASH_MULTIPLIER: u32 = 0x1e35_a7bd;
+const MAX_ENCODER_COLOR_CACHE_BITS: u8 = 4;
+const MAX_COLOR_CACHE_SIZE: usize = 1 << MAX_ENCODER_COLOR_CACHE_BITS;
 const FIRST_CACHE_SYMBOL: usize = GREEN_ALPHABET_SIZE;
 const MAIN_GREEN_ALPHABET_SIZE: usize = GREEN_ALPHABET_SIZE + MAX_COLOR_CACHE_SIZE;
 const CODE_LENGTH_CODE_ORDER: [usize; 19] = [
@@ -52,10 +58,6 @@ pub(crate) struct EntropyTables {
     distance: EncodingTable,
 }
 
-pub(crate) struct EncodingTable {
-    codes: Vec<(u32, u8)>,
-}
-
 pub(crate) struct PalettePlan {
     entries: Vec<[u8; 4]>,
     indexed_rgba: Vec<u8>,
@@ -83,6 +85,9 @@ pub(crate) mod spatial_writer;
 #[cfg(test)]
 #[path = "coarse_spatial_tests.rs"]
 mod coarse_spatial_tests;
+#[cfg(test)]
+#[path = "product_benchmark_tests.rs"]
+mod product_benchmark_tests;
 
 pub(crate) fn encode_vp8l_payload(
     width: u32,
@@ -488,7 +493,7 @@ fn write_literal_entropy_image_prefix(
     write_literal_table(writer, CHANNEL_ALPHABET_SIZE, CHANNEL_ALPHABET_SIZE)?;
     write_literal_table(writer, CHANNEL_ALPHABET_SIZE, CHANNEL_ALPHABET_SIZE)?;
     write_literal_table(writer, CHANNEL_ALPHABET_SIZE, CHANNEL_ALPHABET_SIZE)?;
-    write_simple_table(writer, 0) // Distance codes are unused.
+    Ok(write_simple_table(writer, 0)?) // Distance codes are unused.
 }
 
 /// Writes a deterministic, frequency-adaptive complete Huffman table.
@@ -565,45 +570,6 @@ fn write_normal_table(writer: &mut BitWriter, lengths: &[u8]) -> Result<(), Enco
     Ok(())
 }
 
-fn canonical_table(lengths: &[u8]) -> Result<EncodingTable, EncodeError> {
-    let mut symbols = lengths
-        .iter()
-        .copied()
-        .enumerate()
-        .filter_map(|(symbol, length)| (length != 0).then_some((length, symbol)))
-        .collect::<Vec<_>>();
-    symbols.sort_unstable();
-    let mut codes = vec![(0_u32, 0_u8); lengths.len()];
-    if symbols.len() == 1 {
-        codes[symbols[0].1] = (0, 0);
-        return Ok(EncodingTable { codes });
-    }
-    let mut code = 0_u32;
-    let mut previous_length = 0_u8;
-    for (length, symbol) in symbols {
-        code <<= u32::from(length - previous_length);
-        codes[symbol] = (code, length);
-        code = code
-            .checked_add(1)
-            .ok_or_else(EncodeError::output_size_overflow)?;
-        previous_length = length;
-    }
-    Ok(EncodingTable { codes })
-}
-
-fn write_table_symbol(
-    writer: &mut BitWriter,
-    table: &EncodingTable,
-    symbol: usize,
-) -> Result<(), EncodeError> {
-    let (code, width) = table
-        .codes
-        .get(symbol)
-        .copied()
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    write_canonical_symbol(writer, code, width)
-}
-
 /// Emits one bounded distance-one VP8L copy. The distance code `121` is the
 /// format's linear representation of scan-line distance one, avoiding the
 /// spatial-distance map while remaining valid at every image width.
@@ -618,38 +584,6 @@ fn write_lz77_copy(
     let (distance_prefix, distance_extra) = vp8l_prefix(121, DISTANCE_ALPHABET_SIZE)?;
     write_table_symbol(writer, &tables.distance, distance_prefix)?;
     write_bits(writer, distance_extra.0, distance_extra.1)
-}
-
-/// Maps one VP8L length or distance value to its prefix and LSB-first extra
-/// bits. The small bounded prefix alphabets make exhaustive selection clearer
-/// and less error-prone than a duplicated closed-form inverse.
-fn vp8l_prefix(value: usize, prefix_count: usize) -> Result<(usize, (u32, u8)), EncodeError> {
-    for prefix in 0..prefix_count {
-        if prefix < 4 {
-            if value == prefix + 1 {
-                return Ok((prefix, (0, 0)));
-            }
-            continue;
-        }
-        let prefix = u8::try_from(prefix).map_err(|_| EncodeError::output_size_overflow())?;
-        let extra_bits = (prefix - 2) >> 1;
-        let offset = (2_usize + usize::from(prefix & 1)) << extra_bits;
-        let minimum = offset + 1;
-        let maximum = minimum
-            .checked_add((1_usize << extra_bits) - 1)
-            .ok_or_else(EncodeError::output_size_overflow)?;
-        if (minimum..=maximum).contains(&value) {
-            return Ok((
-                usize::from(prefix),
-                (
-                    u32::try_from(value - minimum)
-                        .map_err(|_| EncodeError::output_size_overflow())?,
-                    extra_bits,
-                ),
-            ));
-        }
-    }
-    Err(EncodeError::output_size_overflow())
 }
 
 /// Applies VP8L's forward subtract-green transform to one input pixel.
@@ -834,29 +768,10 @@ fn write_literal_table(
     Ok(())
 }
 
-fn write_simple_table(writer: &mut BitWriter, symbol: u8) -> Result<(), EncodeError> {
-    write_bits(writer, 1, 1)?; // Simple Huffman-code representation.
-    write_bits(writer, 0, 1)?; // One symbol.
-    write_bits(writer, 1, 1)?; // Symbol uses eight bits.
-    write_bits(writer, u32::from(symbol), 8)
-}
-
 /// Emits one symbol from a fixed eight-bit canonical table. VP8L transmits
 /// canonical codes least-significant bit first, hence the bit reversal.
 fn write_fixed_symbol(writer: &mut BitWriter, symbol: u8) -> Result<(), EncodeError> {
-    write_canonical_symbol(writer, u32::from(symbol), 8)
-}
-
-fn write_canonical_symbol(
-    writer: &mut BitWriter,
-    canonical_code: u32,
-    width: u8,
-) -> Result<(), EncodeError> {
-    if width == 0 {
-        return Ok(());
-    }
-    let wire_code = canonical_code.reverse_bits() >> (u32::BITS - u32::from(width));
-    write_bits(writer, wire_code, width)
+    Ok(write_canonical_symbol(writer, u32::from(symbol), 8)?)
 }
 
 fn pack_argb(rgba: [u8; 4]) -> u32 {
@@ -874,7 +789,7 @@ pub(crate) fn select_color_cache_bits(
 ) -> u8 {
     let mut selected_bits = 0;
     let mut best_hits = 0_u32;
-    for bits in 1..=MAX_COLOR_CACHE_BITS {
+    for bits in 1..=MAX_ENCODER_COLOR_CACHE_BITS {
         let mut cache = [0_u32; MAX_COLOR_CACHE_SIZE];
         let mut hits = 0_u32;
         for (index, _) in rgba.chunks_exact(4).enumerate() {
@@ -930,9 +845,8 @@ const fn color_cache_size(bits: u8) -> usize {
 }
 
 fn color_cache_index(color: u32, bits: u8) -> usize {
-    debug_assert!(bits != 0 && bits <= MAX_COLOR_CACHE_BITS);
-    let shift = u32::BITS - u32::from(bits);
-    (color.wrapping_mul(COLOR_CACHE_HASH_MULTIPLIER) >> shift) as usize
+    debug_assert!(bits != 0 && bits <= MAX_ENCODER_COLOR_CACHE_BITS);
+    hash_color(color, bits)
 }
 
 fn update_color_cache(cache: &mut [u32; MAX_COLOR_CACHE_SIZE], bits: u8, color: u32) {
@@ -959,6 +873,11 @@ fn wrap_vp8l(payload: Vec<u8>) -> Result<Vec<u8>, EncodeError> {
             }
             webp_container::ContainerErrorKind::InvalidAnimation => {
                 EncodeError::invalid_animation()
+            }
+            webp_container::ContainerErrorKind::UnexpectedEof
+            | webp_container::ContainerErrorKind::InvalidContainer
+            | webp_container::ContainerErrorKind::LimitExceeded => {
+                EncodeError::output_size_overflow()
             }
         })
 }

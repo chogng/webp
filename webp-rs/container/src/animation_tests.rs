@@ -31,7 +31,7 @@ fn frame_headers_and_nested_chunks_are_validated() {
     let parsed = parse(
         &bytes,
         CompatibilityProfile::SpecStrict,
-        &DecodeLimits::default(),
+        &ContainerLimits::default(),
     )
     .unwrap();
     let animation = parsed.animation().unwrap();
@@ -68,11 +68,11 @@ fn frame_layout_and_resource_limits_are_rejected() {
         parse(
             &invalid,
             CompatibilityProfile::SpecStrict,
-            &DecodeLimits::default()
+            &ContainerLimits::default()
         )
         .unwrap_err()
         .kind(),
-        DecodeErrorKind::InvalidContainer
+        ContainerErrorKind::InvalidContainer
     );
     let mut frame = vec![0; 16];
     frame.extend_from_slice(b"VP8 ");
@@ -82,15 +82,15 @@ fn frame_layout_and_resource_limits_are_rejected() {
         (ANIM, &[0; 6], None),
         (ANMF, &frame, None),
     ]);
-    let limits = DecodeLimits {
+    let limits = ContainerLimits {
         max_frames: 0,
-        ..DecodeLimits::default()
+        ..ContainerLimits::default()
     };
     assert_eq!(
         parse(&valid, CompatibilityProfile::SpecStrict, &limits)
             .unwrap_err()
             .kind(),
-        DecodeErrorKind::LimitExceeded
+        ContainerErrorKind::LimitExceeded
     );
 }
 
@@ -113,17 +113,17 @@ fn anmf_alpha_requires_the_vp8x_alpha_flag_in_strict_mode() {
         parse(
             &bytes,
             CompatibilityProfile::SpecStrict,
-            &DecodeLimits::default()
+            &ContainerLimits::default()
         )
         .unwrap_err()
         .kind(),
-        DecodeErrorKind::InvalidContainer
+        ContainerErrorKind::InvalidContainer
     );
     assert!(
         parse(
             &bytes,
             CompatibilityProfile::LibwebpCompatible,
-            &DecodeLimits::default()
+            &ContainerLimits::default()
         )
         .is_ok()
     );

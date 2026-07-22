@@ -1,7 +1,7 @@
+use crate::DecodeError;
+use crate::DecodeErrorKind;
 use crate::vp8l::header::BlockTransformDescriptor;
 use crate::vp8l::transforms::color::ColorTransformMultipliers;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
 
 /// Inverts subtract-green directly in the packed ARGB representation.
 ///

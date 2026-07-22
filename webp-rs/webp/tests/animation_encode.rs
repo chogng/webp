@@ -57,8 +57,8 @@ fn lossless_animation_encoder_preserves_rectangles_composition_and_wire_flags() 
 
     let parsed = webp_container::parse(
         &encoded,
-        webp::CompatibilityProfile::SpecStrict,
-        &DecodeLimits::default(),
+        webp_container::CompatibilityProfile::SpecStrict,
+        &webp_container::ContainerLimits::default(),
     )
     .expect("strictly parse encoded animation");
     let vp8x = parsed.vp8x().expect("animation has VP8X");

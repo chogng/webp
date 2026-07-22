@@ -1,6 +1,0 @@
-load("//:defs.bzl", "webp_rust_crate")
-
-webp_rust_crate(
-    name = "vp8l-huffman",
-    crate_name = "webp_vp8l_huffman",
-)

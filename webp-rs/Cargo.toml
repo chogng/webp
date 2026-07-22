@@ -1,18 +1,6 @@
 [workspace]
 members = [
-    "core",
-    "alpha",
-    "animation",
     "container",
-    "vp8",
-    "vp8l",
-    "vp8l-transform",
-    "vp8l-entropy",
-    "vp8l-huffman",
-    "vp8l-color-cache",
-    "vp8l-color-transform",
-    "vp8l-literal",
-    "vp8l-indexing",
     "webp",
     "xtask",
 ]

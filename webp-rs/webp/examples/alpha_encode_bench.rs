@@ -15,10 +15,10 @@ use webp::LossyEncodeOptions;
 use webp::decode;
 use webp::encode_lossy_rgba_with_alpha_options;
 #[cfg(feature = "alpha-benchmark-internals")]
-use webp_alpha::BenchmarkWriterVariant;
-use webp_alpha::encode as encode_alpha;
+use webp::fuzzing::BenchmarkWriterVariant;
+use webp::fuzzing::encode_alpha;
 #[cfg(feature = "alpha-benchmark-internals")]
-use webp_alpha::set_benchmark_writer_variant;
+use webp::fuzzing::set_benchmark_writer_variant;
 
 struct BenchImage {
     name: String,

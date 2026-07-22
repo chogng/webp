@@ -12,10 +12,10 @@ use std::path::PathBuf;
 use std::time::Duration;
 use std::time::Instant;
 
+use crate::BitReader;
+use crate::DecodeLimits;
 use crate::vp8l::header::HEADER_LEN;
 use crate::vp8l::header::parse_header;
-use webp_core::BitReader;
-use webp_core::DecodeLimits;
 
 use super::decode_no_transform_profiled;
 use crate::vp8l::image_stream::decode_profile::DecodePhaseTimings;

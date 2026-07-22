@@ -1,8 +1,8 @@
+use crate::DecodeError;
+use crate::DecodeErrorKind;
 use crate::vp8l::header::BlockTransformDescriptor;
 use crate::vp8l::pixel::extend_rgba_from_argb;
 use crate::vp8l::transforms::predictor::PredictorMode;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
 
 /// Validated dimensions shared by both predictor storage paths.
 struct PredictorLayout {

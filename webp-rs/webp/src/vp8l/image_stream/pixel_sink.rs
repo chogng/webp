@@ -1,8 +1,8 @@
+use crate::DecodeError;
+use crate::DecodeErrorKind;
+use crate::WorkBudget;
 use crate::vp8l::backward_references::copy_lz77_pixels_preallocated;
 use crate::vp8l::color_cache::ColorCache;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
-use webp_core::WorkBudget;
 
 pub(in crate::vp8l) struct PixelOutput {
     pixels: Vec<u32>,

@@ -1,3 +1,8 @@
+use crate::BitReader;
+use crate::DecodeError;
+use crate::DecodeErrorKind;
+use crate::DecodeLimits;
+use crate::checked_image_bytes;
 use crate::vp8l::header::HEADER_LEN;
 use crate::vp8l::header::Vp8lHeader;
 use crate::vp8l::header::parse_header;
@@ -8,11 +13,6 @@ use crate::vp8l::image_stream::transform_list::read_transform_list;
 use crate::vp8l::transforms::inverse_color::inverse_color_argb;
 use crate::vp8l::transforms::inverse_color::inverse_subtract_green_argb;
 use crate::vp8l::transforms::inverse_indexing::inverse_color_indexing_argb;
-use webp_core::BitReader;
-use webp_core::DecodeError;
-use webp_core::DecodeErrorKind;
-use webp_core::DecodeLimits;
-use webp_core::checked_image_bytes;
 
 #[cfg(test)]
 use crate::vp8l::image_stream::decode_profile::DecodePhaseTimings;
