@@ -159,7 +159,9 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 
 ### 进行中的 latest-main 编码优化
 
-E37 已完成并迁入；下一棵实验树只会从本次账本提交后的最新本地 `main` 创建，并在创建后登记分支、精确 base、工作树、task 与固定结果目录。
+| 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
+| --- | --- | --- | --- | --- |
+| P13 | 流式 tokenization + spatial sufficient statistics | `codex/vp8l-streaming-spatial-plan`；`cec68762e5ab6184bce275aeff5720ba3e6f96c7` | [25a6](</Users/lance/.codex/worktrees/25a6/webp>)；task `019f8915-45d9-7a90-a843-4d0062ade22b`；结果目录 `experiments/vp8l-streaming-spatial-plan` | 已证明创建时 HEAD/main/merge-base 精确；先隔离 S/C/F 三个同架构变体，正式同 binary 两档 >=10%、绝对 <=7.1/6.9 s、0/102 回退、306/306 byte identity、双 decoder exact、RSS 增量 <=64 MiB 且 <=5% 才可建议另建产品迁移树 |
 
 ## 每次优化的结果与结论
 
