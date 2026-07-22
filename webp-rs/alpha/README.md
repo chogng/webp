@@ -43,8 +43,35 @@ API is the comparison boundary.
 | ID | 假设 / 架构 | 分支 / HEAD | latest-main base | 独立 worktree / task | 当前状态与证据 | 推广决定 | `main` 总账动作 |
 |---|---|---|---|---|---|---|---|
 | A00 | benchmark v3、批量 bit writer、二维距离码与低基数 color-indexing | `codex/alpha-architecture@123961f`；核心提交 `d796657` / `86ea22b` / `b32d350` | 创建于 `5e54dd3`；推广前重放到 `a8a7371` | `/private/tmp/webp-alpha-arch-5e54dd3`；根任务 | 41 文件正式 3 x 10；Rust 整图吞吐比 libwebp 高 42.87%；ALPH-only 比基线少 55.42%；structured ALPH 少 10.98%；全门禁通过 | **已推广** | 已进入顶部表、迭代日志和 `main@123961f` |
-| A01 | row/RLE parser + 三档 cost planner；按完整 bitstream 成本择优 | `codex/alpha-cost-planner@4fe2063`；`6eb4d2a` 为中间诊断 | 创建于 `123961f`；正式基线锁定 `e72ed3b75d7211bfbcae2d18a866340ae81df233` | [`a2a2` worktree](</Users/lance/.codex/worktrees/a2a2/webp>)；task `019f8768-5da4-7622-952f-6958f53ecf71` | **候选复测中**：I1 structured ALPH `138,762 -> 121,559` bytes（-12.40%），对 libwebp 差距 `+15.14% -> +0.86%`；I2 `6eb4d2a` 正式整图 +0.68%、ALPH-only +9.01%，已定位并移除 O(pixels) planner；正从 `4fe2063` 重跑 3 x 10 与全门禁 | 未决；大小门槛已过，等待最终速度、oracle 与泛化 | 保留 `6eb4d2a` 反优化；最终结果回填原始轮次、报告、HEAD 和决定 |
-| A02 | 在真实/分层透明语料上验证 row/RLE planner 泛化与长尾 | `codex/alpha-row-parser-generalization@50a9d38`；正在应用 `4fe2063` follow-up | 创建于 `e72ed3b75d7211bfbcae2d18a866340ae81df233`；正式测量前必须包含本总账提交 | [`8cdc` worktree](</Users/lance/.codex/worktrees/8cdc/webp>)；task `019f877a-a92f-7f12-bd00-9c853e7a76d8` | **进行中**：固定许可/pin/manifest，按 alpha 基数、透明度、尺寸和结构性分桶；同机比较 main、最终候选与 pinned libwebp，报告 p5/p50/p95/worst、RSS 和误选样本 | 验证任务；不得自行推广 | 已登记；无论泛化成功或失败都提交 manifest、runner、原始汇总和结论 |
+| A01 | row/RLE parser + 三档 cost planner；采样后可直接选 parser，模糊区按完整 bitstream 成本择优 | `codex/alpha-cost-planner@909fc85`；latest-main 代码 `7039e8c` / `0613c88`；`6eb4d2a` 为 O(pixels) 反优化 | 创建于 `123961f`；最终重放到 `0e2ebb4db884893568470317cb922280baa2254f` | [`a2a2` worktree](</Users/lance/.codex/worktrees/a2a2/webp>)；task `019f8768-5da4-7622-952f-6958f53ecf71` | 41 文件正式 3 x 10：structured ALPH `138,762 -> 121,624`（**-12.35%**），距 libwebp `+0.92%`；整图 `7033.002 ms`（+0.09%），ALPH-only `747.279 ms`（-6.18%）；exact oracle、workspace、clippy、fmt、Bazel 全过；报告 `909fc85:reports/alpha-cost-planner/README.md` | **benchmark-only / 不推广**；A02 证明直接 RowRLE 快路径存在灾难性误选 | 不进入顶部表；保留 9 份 raw 日志、12.35% 局部收益和 `6eb4d2a` 反优化，作为 A03 的架构输入 |
+| A02 | 在可追溯真实透明图与分层 synthetic 语料上验证 A01 泛化、长尾和资源成本 | `codex/alpha-row-parser-generalization@12444f0`；candidate `b6eb728 -> 142c242`；harness `24fabe0` | 创建于 `e72ed3b`；正式测量前重放到 `0e2ebb4db884893568470317cb922280baa2254f` | [`8cdc` worktree](</Users/lance/.codex/worktrees/8cdc/webp>)；task `019f877a-a92f-7f12-bd00-9c853e7a76d8` | 4 real + 11 synthetic，5 x 5 交错：real ALPH aggregate **+438.98%**、WebP **+224.88%**；23/24 平面直接 RowRLE、0 次 Compare；Metal/icon/shadow 最坏 `+579.69% / +1347.48% / +2232.03%`；30/30 pinned-dwebp exact；报告 `12444f0:tools/alpha-generalization/REPORT.md` | **reject / generalization failure**；不合并候选代码 | 顶部表不变；manifest、runner、raw timing/RSS、逐文件/分类汇总和失败结论固化于 `12444f0` |
+| A03 | fallback-safe guarded planner：采样只生成候选，赢家由字节级成本证据决定；不确定/平局回 greedy | `codex/alpha-guarded-row-planner`；进行中 | 创建并核验于 `0e2ebb4db884893568470317cb922280baa2254f`；正式测量前须重放到届时最新 `main` | [`84c4` worktree](</Users/lance/.codex/worktrees/84c4/webp>)；task `019f8789-204c-7c41-8dda-e591b37c8ab8` | **进行中**：三个 A02 反例已恢复到 main 的 `80,196 / 2,972 / 3,097` ALPH bytes；研究 token/frequency state 复用、Huffman + extra-bit 精确成本与数学可证的提前回退下界 | 未决；必须同时保持 structured `>=10%` 收益、消除逐文件长尾并通过正式速度/资源/兼容门禁 | 新架构独立验证；无论成功或失败都回填代码 HEAD、完整 41-file 与泛化数据、报告和 raw evidence |
+
+### A01 / A02 已完成结果明细
+
+A01 的 41-file conformance 结果证明 row/RLE parser 本身有价值，但 A02
+证明其“高结构即直接采用 RowRLE”的选择边界不安全。因此 A02 的泛化结论覆盖
+A01 报告中原先的 promote 建议；A01 代码不进入 `main`，顶部 Pareto 表保持 I3。
+
+| 指标 | 当前 Rust / A02 baseline | A01 bounded planner | 变化 | pinned libwebp / 目标 | 结论 |
+|---|---:|---:|---:|---:|---|
+| 41-file whole median，3 x 10 | 7026.367 ms | 7033.002 ms | +0.09% | 10037.038 ms | noise-level；Rust 吞吐高 42.71% |
+| 41-file ALPH-only median，3 x 10 | 796.468 ms | 747.279 ms | -6.18% | 无公开 standalone API | 未达单项 10% 门槛 |
+| 40 structured ALPH | 138,762 bytes | **121,624 bytes** | **-12.35%** | 120,521 bytes | 局部大小门槛通过，距 libwebp +0.92% |
+| all-41 ALPH | 4,118,622 bytes | 4,101,484 bytes | -0.42% | 4,098,325 bytes | 随机压力图主导总量；距 libwebp +0.08% |
+| all-41 complete WebP | 6,618,910 bytes | 6,601,768 bytes | -0.26% | 6,509,902 bytes | 距 libwebp +1.41% |
+| A01 peak RSS | 未测 | 未测 | 未测 | 下一实验必测 | A01 报告明确保留缺口 |
+
+| A02 泛化指标 | Baseline | Candidate | 变化 / 分布 | 决定 |
+|---|---:|---:|---:|---|
+| real ALPH，4 files | 105,175 bytes | 566,877 bytes | **+438.98% aggregate**；逐文件 p50 -5.24%，worst +579.69% | reject |
+| real complete WebP | 205,314 bytes | 667,016 bytes | **+224.88% aggregate** | reject |
+| real whole / ALPH-only p50 | 1088.662 / 165.430 ms | 1071.279 / 160.623 ms | -0.94% / -4.20% | 速度不足以抵消体积长尾 |
+| synthetic ALPH，11 files | 1,269,394 bytes | 1,294,168 bytes | +1.95% aggregate；p50 -16.58%，worst **+2232.03%** | reject；不得与 real 混报 |
+| synthetic whole / ALPH-only p50 | 3765.349 / 255.073 ms | 3739.977 / 208.630 ms | -0.35% / -18.06% | ALPH 速度正向，但体积不安全 |
+| all-15 ALPH / WebP（诊断） | 1,374,569 / 4,193,334 bytes | 1,861,045 / 4,679,812 bytes | +35.39% / +11.60% | 不作为 real 泛化 headline |
+| process peak RSS p50 | 130.08 MiB | 129.84 MiB | -0.18% | 进程级，非 allocator live bytes |
+| exactness | 15/15 project；30/30 pinned `dwebp` | 全过 | random stress 正确 raw fallback | 正确性通过不等于压缩选择安全 |
 
 ### 总账更新规则
 
@@ -223,6 +250,25 @@ From the latest-main I1 code baseline through I3, whole time is down **12.89%**,
 ALPH-only time is down **55.42%**, complete size is down 0.26%, and ALPH size is
 down 0.41% across all files.
 
+### I4 research - row/RLE parser and guarded selection (`909fc85` / `12444f0`)
+
+A01 added a parser specialized for distance-1 runs and exact previous-row
+matches. Its first full-plane structural planner (`6eb4d2a`) preserved the
+12.40% structured-size signal but regressed formal ALPH-only time 9.01%; this
+is retained as the explicit O(pixels)-planning anti-pattern. Bounding the probe
+to 4,096 samples removed that timing regression. On the 41-file gate the final
+candidate cut structured ALPH 12.35%, reduced ALPH-only time 6.18%, and left
+whole-image time within 0.09% of baseline.
+
+A02 then isolated the selector from the parser on a fixed 4-real/11-synthetic
+generalization corpus. The structural score sent 23 of 24 planes directly to
+RowRLE and never entered its exact `Compare` path. This produced 5.80x ALPH on
+the real Metal image and 14.47x / 23.32x ALPH on the synthetic icon/shadow
+families. The candidate was therefore rejected despite the conformance win.
+The architecture lesson is now a stable invariant for A03: sampling may decide
+whether a parser candidate is worth constructing, but cannot by itself select
+the winning bitstream.
+
 ## Rejected and non-material experiments
 
 Diagnostic probes below used the same code base and corpus stated in each row,
@@ -238,6 +284,10 @@ primary headline measurements.
 | one-step lazy parsing | candidate-parser probe | about -0.04% from the already worse candidate result | rejected as immaterial |
 | alternate Huffman heap | nine-file timing probe | no size change and about +2.2% time | rejected |
 | I2f cleanup as independent win | formal v3 | -1.41% whole / -8.94% ALPH-only | retained only as folded architecture support |
+| unconditional greedy vs row/RLE | A01 v3 diagnostic | structured -12.40%, but ALPH-only about +33% and whole about +5.2% | reject execution policy; retain parser signal |
+| full-plane three-way planner (`6eb4d2a`) | A01 formal 3 x 10 | structured -12.40%; whole +0.68%; ALPH-only **+9.01%** | reject O(pixels) planner scan |
+| bounded planner (`0613c88`) on 41-file gate | A01 formal 3 x 10 | structured **-12.35%**; whole +0.09%; ALPH-only -6.18% | benchmark-only pending generalization; superseded by A02 failure |
+| bounded planner on 4 real + 11 synthetic | A02 formal 5 x 5 | real ALPH **+438.98%**, real WebP **+224.88%**, worst synthetic ALPH **+2232.03%** | reject and do not merge; direct RowRLE selector is unsafe |
 
 ## Research basis and next architecture targets
 
@@ -263,9 +313,11 @@ The next accepted architecture should target at least one measurable 10% gap:
 
 1. **Structured ALPH density:** Rust is still 15.14% above libwebp on the
    40-file structured subtotal. A costed choice among palette, color cache,
-   row/RLE, and bounded multi-candidate parses is the leading target. The
-   rejected unconditional candidate walk shows that more search alone is not
-   enough; token cost must govern it.
+   row/RLE, and bounded multi-candidate parses is the leading target. A01/A02
+   show that neither more search nor sampled match density is sufficient:
+   sampling may open a candidate set, but actual Huffman-table, prefix, length,
+   and distance costs must govern the winner, with greedy fallback on ties or
+   incomplete evidence.
 2. **Real-image evidence:** add a pinned, licensed translucent PNG/WebP corpus
    with PSNR/SSIM or exact-alpha gates, alpha-cardinality buckets, p50/p95
    latency, and peak RSS. No architecture should be tuned only to conformance
