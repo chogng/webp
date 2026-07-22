@@ -1,5 +1,5 @@
 use super::{PackedTokenWriter, TokenPacket, packet_for_token, packet_reserve_bytes};
-use crate::encoder::{
+use crate::vp8l::image_writer::{
     BitWriter, CHANNEL_ALPHABET_SIZE, DISTANCE_ALPHABET_SIZE, EncodeError, EncodingTable,
     EntropyTables, EntropyToken, FIRST_CACHE_SYMBOL, vp8l_prefix,
 };

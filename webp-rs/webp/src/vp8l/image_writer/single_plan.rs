@@ -8,7 +8,7 @@ use super::{
 const FAST_PREFIX_BITS: usize = 44;
 const NORMAL_TABLE_FIXED_BITS: usize = 63;
 
-pub(super) struct SinglePlan {
+pub(crate) struct SinglePlan {
     green_lengths: Vec<u8>,
     red_lengths: Vec<u8>,
     blue_lengths: Vec<u8>,
@@ -20,7 +20,7 @@ pub(super) struct SinglePlan {
 }
 
 impl SinglePlan {
-    pub(super) fn build(frequencies: &EntropyFrequencies) -> Result<Self, EncodeError> {
+    pub(crate) fn build(frequencies: &EntropyFrequencies) -> Result<Self, EncodeError> {
         let (green_lengths, green) =
             prepare_adaptive_table(&frequencies.green[..frequencies.green_len])?;
         let (red_lengths, red) = prepare_adaptive_table(&frequencies.red)?;
@@ -126,7 +126,7 @@ impl SinglePlan {
         })
     }
 
-    pub(super) fn write_main_prefix(&self, bits: &mut BitWriter) -> Result<(), EncodeError> {
+    pub(crate) fn write_main_prefix(&self, bits: &mut BitWriter) -> Result<(), EncodeError> {
         write_bits(bits, 0, 1)?; // No color cache.
         write_bits(bits, 0, 1)?; // One entropy-code group.
         for lengths in [
@@ -141,20 +141,20 @@ impl SinglePlan {
         Ok(())
     }
 
-    pub(super) const fn tables(&self) -> &EntropyTables {
+    pub(crate) const fn tables(&self) -> &EntropyTables {
         &self.tables
     }
 
-    pub(super) const fn payload_bits(&self) -> usize {
+    pub(crate) const fn payload_bits(&self) -> usize {
         self.payload_bits
     }
 
     #[cfg(test)]
-    pub(super) const fn payload_bytes(&self) -> usize {
+    pub(crate) const fn payload_bytes(&self) -> usize {
         self.payload_bits.div_ceil(8)
     }
 
-    pub(super) const fn riff_bytes(&self) -> usize {
+    pub(crate) const fn riff_bytes(&self) -> usize {
         self.riff_bytes
     }
 }

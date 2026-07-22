@@ -94,13 +94,13 @@ impl Signature {
     }
 }
 
-pub(super) struct ClusteredMap {
-    pub(super) block_width: usize,
-    pub(super) assignments: Vec<u8>,
-    pub(super) group_count: usize,
+pub(crate) struct ClusteredMap {
+    pub(crate) block_width: usize,
+    pub(crate) assignments: Vec<u8>,
+    pub(crate) group_count: usize,
 }
 
-pub(super) fn cluster_tokens(
+pub(crate) fn cluster_tokens(
     tokens: &[EntropyToken],
     width: usize,
     height: usize,
@@ -173,7 +173,7 @@ pub(super) fn cluster_tokens(
     })
 }
 
-pub(super) const fn token_span(token: EntropyToken) -> usize {
+pub(crate) const fn token_span(token: EntropyToken) -> usize {
     match token {
         EntropyToken::Literal(_) | EntropyToken::Cache(_) => 1,
         EntropyToken::Copy { length } => length,

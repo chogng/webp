@@ -1,6 +1,10 @@
 use super::*;
+use crate::encoder::copy_vp8l_payload;
+use crate::encoder::wrap_vp8l_with_metadata;
 use crate::{
-    DecodeLimits, DecodeOptions, LosslessEncodeOptions, LosslessEncodeProfile, decode,
+    DecodeLimits, DecodeOptions, LosslessEncodeOptions, LosslessEncodeProfile, Metadata, decode,
+    encode_lossless_rgba, encode_lossless_rgba_with_metadata,
+    encode_lossless_rgba_with_metadata_and_options, encode_lossless_rgba_with_options,
     read_metadata,
 };
 

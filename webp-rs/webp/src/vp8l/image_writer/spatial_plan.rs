@@ -8,27 +8,27 @@ use super::{
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub(super) enum SpatialProfile {
+pub(crate) enum SpatialProfile {
     Compact,
     LowLatency,
 }
 
 impl SpatialProfile {
-    pub(super) const fn block_pixels(self) -> usize {
+    pub(crate) const fn block_pixels(self) -> usize {
         match self {
             Self::Compact => 128,
             Self::LowLatency => 256,
         }
     }
 
-    pub(super) const fn maximum_groups(self) -> usize {
+    pub(crate) const fn maximum_groups(self) -> usize {
         match self {
             Self::Compact => 64,
             Self::LowLatency => 16,
         }
     }
 
-    pub(super) const fn wire_block_bits(self) -> u8 {
+    pub(crate) const fn wire_block_bits(self) -> u8 {
         match self {
             Self::Compact => 5,
             Self::LowLatency => 6,
@@ -36,7 +36,7 @@ impl SpatialProfile {
     }
 }
 
-pub(super) struct SpatialPlan {
+pub(crate) struct SpatialPlan {
     profile: SpatialProfile,
     image_width: usize,
     map_width: usize,
@@ -45,7 +45,7 @@ pub(super) struct SpatialPlan {
 }
 
 impl SpatialPlan {
-    pub(super) fn build(
+    pub(crate) fn build(
         tokens: &[EntropyToken],
         width: usize,
         height: usize,
@@ -86,19 +86,19 @@ impl SpatialPlan {
         })
     }
 
-    pub(super) const fn map_width(&self) -> usize {
+    pub(crate) const fn map_width(&self) -> usize {
         self.map_width
     }
 
-    pub(super) fn group_map(&self) -> &[u8] {
+    pub(crate) fn group_map(&self) -> &[u8] {
         &self.group_map
     }
 
-    pub(super) fn frequencies(&self) -> &[EntropyFrequencies] {
+    pub(crate) fn frequencies(&self) -> &[EntropyFrequencies] {
         &self.frequencies
     }
 
-    pub(super) fn group_for_pixel(&self, pixel: usize) -> usize {
+    pub(crate) fn group_for_pixel(&self, pixel: usize) -> usize {
         let block = block_index(
             pixel,
             self.image_width,

@@ -20,7 +20,7 @@ struct Prepared {
     frequencies: EntropyFrequencies,
 }
 
-pub(super) fn encode_profile(
+pub(crate) fn encode_profile(
     width: u32,
     height: u32,
     rgba: &[u8],
@@ -77,7 +77,7 @@ fn encode_prepared_with_plan(
     }
 }
 
-pub(super) const fn candidate_wins(candidate_bytes: usize, single_bytes: usize) -> bool {
+pub(crate) const fn candidate_wins(candidate_bytes: usize, single_bytes: usize) -> bool {
     candidate_bytes < single_bytes
 }
 
@@ -222,7 +222,7 @@ fn write_token(
 }
 
 #[cfg(test)]
-pub(super) fn encode_single_for_test(
+pub(crate) fn encode_single_for_test(
     width: u32,
     height: u32,
     rgba: &[u8],
@@ -231,7 +231,7 @@ pub(super) fn encode_single_for_test(
 }
 
 #[cfg(test)]
-pub(super) fn encode_candidate_for_test(
+pub(crate) fn encode_candidate_for_test(
     width: u32,
     height: u32,
     rgba: &[u8],
@@ -242,7 +242,7 @@ pub(super) fn encode_candidate_for_test(
 }
 
 #[cfg(test)]
-pub(super) fn encode_profile_control_for_test(
+pub(crate) fn encode_profile_control_for_test(
     width: u32,
     height: u32,
     rgba: &[u8],
@@ -253,17 +253,17 @@ pub(super) fn encode_profile_control_for_test(
 }
 
 #[cfg(test)]
-pub(super) struct SelectionStats {
-    pub(super) predicted_payload_bits: Option<usize>,
-    pub(super) predicted_payload_bytes: Option<usize>,
-    pub(super) predicted_riff_bytes: Option<usize>,
-    pub(super) losing_single_main_written: bool,
-    pub(super) estimator_fallback: bool,
-    pub(super) candidate_won: bool,
+pub(crate) struct SelectionStats {
+    pub(crate) predicted_payload_bits: Option<usize>,
+    pub(crate) predicted_payload_bytes: Option<usize>,
+    pub(crate) predicted_riff_bytes: Option<usize>,
+    pub(crate) losing_single_main_written: bool,
+    pub(crate) estimator_fallback: bool,
+    pub(crate) candidate_won: bool,
 }
 
 #[cfg(test)]
-pub(super) fn encode_profile_exact_for_test(
+pub(crate) fn encode_profile_exact_for_test(
     width: u32,
     height: u32,
     rgba: &[u8],
@@ -280,7 +280,7 @@ pub(super) fn encode_profile_exact_for_test(
 }
 
 #[cfg(test)]
-pub(super) fn encode_profile_plan_fallback_for_test(
+pub(crate) fn encode_profile_plan_fallback_for_test(
     width: u32,
     height: u32,
     rgba: &[u8],
@@ -308,7 +308,7 @@ fn selection_stats(
 }
 
 #[cfg(test)]
-pub(super) fn single_estimate_for_test(
+pub(crate) fn single_estimate_for_test(
     width: u32,
     height: u32,
     rgba: &[u8],

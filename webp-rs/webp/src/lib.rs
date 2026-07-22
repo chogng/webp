@@ -19,6 +19,7 @@ mod decoder;
 mod encoder;
 mod incremental;
 mod info;
+mod vp8l;
 
 pub use api::Animation;
 pub use api::AnimationEncodeFrame;
