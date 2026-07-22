@@ -55,7 +55,7 @@ API is the comparison boundary.
 | A10 | single match frontier + iterative entropy-cost shortest path：一次发现 bounded LZ candidates，在同一 DAG 上重计 Huffman/extra 成本，替代 greedy/RowRLE 双解析 | `codex/alpha-iterative-optimal-parse@1f201d60`；analyzer `f54426ed`；Phase-A evidence `b7e88cb4`；candidate `38632244` | 创建于 `db279a3a`；登记后两次重放，正式基线 `2c87bf27e6093ccbd55f20a71cd8d8bd260fb33a` | [`787b` worktree](</Users/lance/.codex/worktrees/787b/webp>)；task `019f8881-6279-70e2-b72a-6f235661691a` | Phase A structured `138,762 -> 119,593`（**-13.814%**）、29 wins/11 ties/0 expansion；real -45.272%、synthetic -12.735%；168/168 project + `dwebp` exact；报告 `1f201d60:reports/alpha-iterative-optimal-parse/README.md` | **Phase A 通过 / Phase B reject**；corrected production probe ALPH-only **4,832x**、whole 723x、RSS 11.35x 回退；default encoder 不变 | 顶部表不变；保留 K=20 ceiling、RowRLE 同基线对照、default-off production 负证据、raw/hash/gate 日志 |
 | A11 | compact single-best-match traceback：每位置只保留 implicit literal + one-best copy，消除 A10 K-list/depth64 rich discovery | `codex/alpha-compact-traceback@9ee9336c`；analyzer `7fa3d806`；Phase-A evidence `80cd30da`；candidate `4a2d0f19` | 创建于 `ec0e624c`；登记后多次主线前进，最终完整重跑到 `17e4a2b858cabbe567717e4ee8d8f01eabe327bf` | [`9538` worktree](</Users/lance/.codex/worktrees/9538/webp>)；task `019f88c3-301c-7473-a659-4e2584636017` | Phase A 按规则选 R：structured `138,762 -> 120,336`（**-13.279%**），real -13.199%、synthetic -12.405%，336/336 `dwebp` exact；discovery 比 A10 少 98.823%；报告 `9ee9336c:reports/alpha-compact-traceback/README.md` | **Phase A 通过 / Phase B reject**；56/56 production size exact，但 ALPH-only **48.33x**、whole 7.56x、RSS 1.88x 回退；default encoder 不变 | 顶部表不变；保留四 variant ablation、R 固定选择、default-off candidate、final-base raw/hash/gate 日志 |
 | A12 | byte-identical greedy LZ hot loop：safe word-at-a-time LCP 与 rolling 3-byte skipped hashes，保持 hash overwrite、token、Huffman 和输出字节完全不变 | `codex/alpha-byte-identical-greedy-hotloop@990e0b20` | 精确创建于 `a648cbd8b23b323209c6d4d750924eb003bd6a07`；登记后重放到测量基线 `5e6b549abd5b9e7ad4f0b89ceda81da8a8e97e3a` | [`169c` worktree](</Users/lance/.codex/worktrees/169c/webp>)；task `019f88fd-6e65-7e60-997b-35d1f7712a6d` | 5 轮 same-binary：parse 硬上限 31.174%，但 L/H/LH 可信 ALPH ceiling 仅 2.854% / 2.113% / **4.878%**；355/355 plane token exact；报告 `990e0b20:reports/alpha-byte-identical-greedy-hotloop/README.md` | **Phase-A reject / 不实现**；无 production candidate，不跑 formal/q-matrix/RSS/libwebp；default encoder 不变 | 顶部表不变；保留 31 项 raw/hash、source/codegen audit、per-file 负值与 10% 早停证据 |
-| A13 | byte-identical packed ALPH entropy-token writer：把 literal/copy 的 Huffman + extra 段预组为 bounded packet，以 persistent safe accumulator 批量 flush | `codex/alpha-packed-token-writer@180eafd4`（创建态） | 精确创建于 `180eafd4ad7cd91b4593a83e8284ab8a7af9350b`；正式数据前必须重放到本登记提交 | [`8d9d` worktree](</Users/lance/.codex/worktrees/8d9d/webp>)；task `019f8919-78ee-70b2-8be9-9e9deb9e7e80` | 已反向验证 `HEAD == main == merge-base` 且 clean；先证明合法 packet width、write-call/capacity owner 与 >=10% ceiling，再隔离 P/S/PS | **进行中 / 尚无 headline**；推广要求 ALPH-only formal >=10%、全语料/q-matrix byte identity、资源无 material regression | 本次只登记任务；分支 rebase 后回填 analyzer/candidate/raw、正式基线和决定 |
+| A13 | byte-identical packed ALPH entropy-token writer：把 literal/copy 的 Huffman + extra 段预组为 bounded packet，以 persistent safe accumulator 批量 flush | `codex/alpha-packed-token-writer@ac1d30d6`；Phase A `dfd1eff6`；candidate `302904b0`；evidence `2552cdda` | 创建于 `180eafd4`；登记后正式基线 `e655ab9a79c018176992d200f3cd79a3cc6c73a8` | [`8d9d` worktree](</Users/lance/.codex/worktrees/8d9d/webp>)；task `019f8919-78ee-70b2-8be9-9e9deb9e7e80` | 41×10×5 ALPH `895.748 -> 743.931 ms`（**-16.949%**），whole -3.644%、CPU -4.257%、RSS median -3.450%；224/224 q-matrix byte/project/`dwebp` exact；报告 `ac1d30d6:reports/alpha-packed-token-writer/README.md` | **研究通过 / 建议推广**；但 15-file 仅 -7.078%，且 review 发现模块双向依赖与 `encode.rs` 532 行；由 A14 latest-main 产品化重放 | 暂不进入顶部表；保留 136 项 checksum、P +4.731% 反优化、泛化/小文件限制与全部 invalidated runs |
 
 ### A01 / A02 已完成结果明细
 
@@ -406,6 +406,44 @@ fuzz build、diff-check、AArch64 codegen 与 31 项 SHA-256 全过。
 packed writer；A12 没有 formal/promotion 数据可刷新，其测量明确保留为登记基线
 analyzer reject。最终证据与报告提交为 `990e0b20`。
 
+### A13 Phase A / 正式结果明细
+
+A13 证明 A00 之后仍有独立的大 owner：71 个 entropy planes 共 4,356,631
+tokens，当前路径执行 4,536,569 次 `write_bits`、4,072,691 次逻辑 byte-resize
+请求，但实际 capacity growth 只有 255 次。合法 ALPH literal 最多 15 bit；copy
+为 `15 + 10 + 15 + 18 = 58 bit`。预声明 P 只预组完整 packet 后仍喂普通
+`BitWriter`，PS 再换 persistent sink。P 在正式运行是 **+4.731%** 反优化，证明
+收益来自 sink 持有 accumulator/flush 状态，而不是把相同工作换一种写法。
+
+| A13 41-file formal（5 rounds × 10） | Reference | P / PS | 变化 | MAD / 尾部 |
+|---|---:|---:|---:|---:|
+| ALPH-only | 895.748 ms | P 938.122 ms | **+4.731%** | P MAD 4.032 ms |
+| ALPH-only | 895.748 ms | PS 743.931 ms | **-16.949%** | ref / PS MAD 2.436 / 6.462 ms |
+| whole encode | 7303.091 ms | PS 7036.965 ms | -3.644% | PS MAD 38.698 ms |
+| process CPU median | 9.003 s | 8.620 s | -4.257% | 5 rotations |
+| peak RSS median | 112,541,696 B | 108,658,688 B | -3.450% | max 114,327,552 -> 109,133,824 B |
+| ALPH per-file | n/a | 3/41 regressions | p5/p50/p95 -16.015/-5.837/+2.857% | best -21.369%、worst +6.604% |
+| whole per-file | n/a | 5/41 regressions | p5/p50/p95 -9.730/-3.017/+2.484% | best -13.107%、worst +3.415% |
+
+独立 15-file ×5 泛化不能混入 headline：all ALPH `427.000 -> 396.778 ms`
+（-7.078%），real4 -2.955%，synthetic11 -9.307%；15/15 ALPH medians 都改善，
+但没有达到普遍 10%。Whole 仅 -0.304%，最大 RSS +0.592%。56 文件 ×
+q0/70/99/100 的 **224/224** reference/PS ALPH 和完整 WebP 逐字节一致，项目
+decoder 与 pinned `dwebp@733c91e` 全过。Pinned libwebp 只按 whole boundary
+比较：Rust candidate 7007.718 ms，libwebp 9949.583 ms，Rust time -29.568%。
+
+Focused default/control 各 28/28、workspace debug/release、Clippy、fmt、Bazel
+alpha/webp/oracle 与全部现有 fuzz target build 通过。Example binary +432 B
+（+0.056%），alpha rlib +17,848 B（+8.726%）；136 项 checksum 零失败。首次
+146-vs-56 corpus scope、错误 archive build、Bash 空数组和 log-path 失败均明确
+作废并保留。Phase A/candidate/evidence/final 为 `dfd1eff6` / `302904b0` /
+`2552cdda` / `ac1d30d6`。
+
+A13 formal 完成后 `main` 前进到 `3474599d`；同时 root review 发现候选让
+`encode.rs` 达 532 行，且 `encode` 与 `packed_token_writer` 相互引用实现细节。
+因此 A13 是通过的架构证据，不直接合并；A14 必须从新的 latest main 手工迁移，
+把 syntax/token-output 依赖改为单向并重新跑 screen/formal，才进入顶部表。
+
 ### 总账更新规则
 
 1. 创建实验前先记录最新 `main` 完整 SHA；工作树就绪后再次验证 `main`、`HEAD` 和祖先关系。
@@ -687,13 +725,14 @@ under the 10% contract. More importantly, the census moved the next target to
 the 45.75% token-serialization owner: a byte-identical packed entropy-token
 sink can attack a large enough surface without purchasing another parse.
 
-A13 was therefore created from exact local `main@180eafd4` in independent task
-`019f8919-78ee-70b2-8be9-9e9deb9e7e80` and worktree `8d9d`. It owns only
-complete-token packet composition and a safe persistent sink; filtering,
-palette/LZ/Huffman decisions and every output byte remain fixed. A00's
-per-call byte batching and the new VP8L packet writer are explicit controls and
-mechanism priors, not reusable ALPH performance claims. Formal numbers are
-forbidden until A13 rebases onto this registration commit.
+A13 then passed the registered-base primary gate: packed packets plus the
+persistent sink cut formal ALPH-only time by 16.95%, while P alone regressed
+4.73%. The mechanism is byte-identical across 224 quality-matrix cases, but
+the independent real/synthetic aggregate reaches only 7.08%. The experiment
+also exposed a productization boundary: its otherwise valid prototype leaves
+`encode.rs` above the module target and introduces a two-way dependency with
+the packet module. A14 must migrate the same invariant onto latest main with a
+directional module graph and reproduce the performance before promotion.
 
 ## Rejected and non-material experiments
 
@@ -724,6 +763,7 @@ primary headline measurements.
 | multi-edge iterative shortest-path parser | A10 fixed K=20 frontier, neutral + three Huffman-cost DP rounds, actual serialization over 56 files | structured **-13.814%** and zero expansion, but corrected production probe ALPH-only **4,832x** / whole 723x / RSS 11.35x | reject Phase B; retain density ceiling and default-off implementation, never enable rich frontier |
 | compact single-best traceback | A11 R/RP4/RP8/RPH4 ablation with global lowest-discovery selection | selected R structured **-13.279%**, discovery -98.823% vs A10 and 336/336 `dwebp`; production ALPH-only **48.33x** / whole 7.56x | reject Phase B; compact storage solves discovery scale but not repeated parse/table evaluation cost |
 | byte-identical greedy LZ hot loop | A12 five-rotation production-trace replay with safe word-LCP / rolling skipped-hash ablation | parse hard bound 31.174%，but L/H/LH realistic ALPH ceilings only 2.854% / 2.113% / **4.878%**；355/355 token exact | reject Phase A; no production candidate or microbenchmark-only promotion claim |
+| packet precomposition through ordinary `BitWriter` | A13 P control, same token packets/tables as PS | formal ALPH-only **+4.731%**；generalization all/real/synthetic -0.099/-1.005/+0.245% | reject P; packet composition only matters when the persistent sink also removes segment state updates |
 
 ## Research basis and next architecture targets
 
@@ -771,15 +811,15 @@ The next accepted architecture should target at least one measurable 10% gap:
    ALPH-only 48.33x slower. Parser-density work is therefore closed under the
    current CPU contract. A12 then rejected **byte-identical greedy LZ hot-loop
    acceleration**: safe word LCP plus rolling skipped hashes can recover only
-   4.878% of ALPH-only time. A13 is now independently targeting the measured
-   **45.748% token-serialization owner** with a byte-identical packed
+   4.878% of ALPH-only time. A13 then passed on the measured **45.748%
+   token-serialization owner** with a byte-identical packed
    entropy-token sink: prove legal literal/copy packet widths and LSB order,
    precompose each token's Huffman and extra-bit segments, and bulk-append them
    through a safe bounded accumulator. The recently productized VP8L packed
-   writer is mechanism evidence, not transferable ALPH benchmark evidence.
-   Phase A must first show a credible >=10% ALPH-only ceiling; promotion still
-   requires formal >=10%, full corpus/q-matrix byte identity, no material
-   whole-image/RSS regression, and no unsafe code or new dependency.
+   writer was mechanism evidence, not transferred benchmark evidence. A13's
+   formal -16.949% and 224/224 exactness clear the research gate, but A14 must
+   now reproduce them from actual latest main while fixing the prototype's
+   module direction/size before the code and a new top-table row are promoted.
 2. **Real-image evidence:** add a pinned, licensed translucent PNG/WebP corpus
    with PSNR/SSIM or exact-alpha gates, alpha-cardinality buckets, p50/p95
    latency, and peak RSS. No architecture should be tuned only to conformance
