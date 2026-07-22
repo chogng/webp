@@ -1,0 +1,16 @@
+{
+  "task": "P21 sparse exact-histogram merge recovery",
+  "root_task": "019f8321-035e-7211-8f53-987e18891c8c",
+  "branch": "codex/vp8l-sparse-histogram-merge",
+  "base": "8485fc0593bf6e29715350ea72b15a9dabf4c80b",
+  "worktree": "/Users/lance/.codex/worktrees/1841/webp",
+  "measurement_head": "a07b3d21aaf240bb38e31b7265fca4a1681ede7d",
+  "phase_r_mechanism_identity_census": "pass",
+  "recovery_screen": "fail",
+  "failed_gate": "LowLatency B was 0.42984922577105067% slower than A with 23/41 per-image median regressions; required >=3.0% improvement and 0/41 regressions",
+  "product_phase_a": "not run: prohibited by recovery stop rule",
+  "product_screen": "not run: prohibited by recovery stop rule",
+  "formal_102x5": "not run: prohibited by recovery stop rule",
+  "final_product_gates": "not run: prohibited by recovery stop rule",
+  "decision": "reject"
+}

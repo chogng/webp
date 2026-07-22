@@ -1,0 +1,74 @@
+{
+  "task": "P21 sparse exact-histogram merge recovery",
+  "root_task": "019f8321-035e-7211-8f53-987e18891c8c",
+  "branch": "codex/vp8l-sparse-histogram-merge",
+  "base": "8485fc0593bf6e29715350ea72b15a9dabf4c80b",
+  "measurement_head": "a07b3d21aaf240bb38e31b7265fca4a1681ede7d",
+  "worktree": "/Users/lance/.codex/worktrees/1841/webp",
+  "output": "/private/tmp/vp8l-sparse-histogram-merge-p21-phase-r-a07b3d21",
+  "binary_sha256": "5851733d03d4a2670b8490d57ac99751ae0bcdf0d341ca6d4ee54aa4c910bb4f",
+  "p18_binary_sha256": "2e5f7b11b959de3cb25a251649ee7ffa87528b0346d92fdfbb03547da5f5e570",
+  "manifest_sha256": "9feb09f469753c43864011aa6f00cfc5ee1bd48da5aac8f9b16d105890e14f86",
+  "identity": {
+    "a_b": "204/204",
+    "public": "204/204",
+    "p18": "204/204",
+    "eb_selector": "204/204",
+    "final_selector": "204/204",
+    "strict_fallback": "204/204",
+    "stderr_bytes": 0
+  },
+  "profiles": {
+    "compact": {
+      "aggregate_bytes": 599398064,
+      "spatial_planner_writer_exact": "306/306",
+      "growth": "0/0",
+      "growth_state_rows": 0,
+      "slot_visits": 50676141,
+      "nonzero_adds": 12709476,
+      "skipped_zero": 37966665,
+      "zero_elision_ratio": 0.7492019765277708
+    },
+    "low-latency": {
+      "aggregate_bytes": 601400998,
+      "spatial_planner_writer_exact": "408/408",
+      "growth": "336/336",
+      "growth_state_rows": 102,
+      "slot_visits": 54971796,
+      "nonzero_adds": 16563739,
+      "skipped_zero": 38408057,
+      "zero_elision_ratio": 0.698686595577121
+    }
+  },
+  "census_by_stage": {
+    "compact": {
+      "self-model": [0, 0, 0],
+      "exact-symbol": [16892047, 4236492, 12655555],
+      "bin-mass": [16892047, 4236492, 12655555],
+      "refinement": [16892047, 4236492, 12655555],
+      "growth": [0, 0, 0]
+    },
+    "low-latency": {
+      "self-model": [4422584, 1456945, 2965639],
+      "exact-symbol": [4422584, 1456945, 2965639],
+      "bin-mass": [4422584, 1456945, 2965639],
+      "refinement": [4422584, 1456945, 2965639],
+      "growth": [37281460, 10735959, 26545501]
+    }
+  },
+  "census_tuple_order": ["slot_visits", "nonzero_adds", "skipped_zero"],
+  "all_profiles": {
+    "slot_visits": 105647937,
+    "nonzero_adds": 29273215,
+    "skipped_zero": 76374722,
+    "zero_elision_ratio": 0.7229173059952889
+  },
+  "raw_sha256": {
+    "phase_r": "3788d1fa7318c70581eee955b5e10a5bf307fdcc447744d91ab546a4ce9084b5",
+    "census": "ac34a19f049a27335dcba19d3bfa1a67a835c1595a1bb85b4f5b9294dc5933d4",
+    "p18_compact": "3a49dab92092f5707ac64f953b190d03267b4d0e39ece32e3169bec4ae9789c4",
+    "p18_low_latency": "f6288398aaaccfffcb79f20bea3834df8cc87e984c63cef0836381ab5d94cce4",
+    "external_sha256sums": "241dc328bbc272a6dc48bc3f77bb793cab9341fa0722e77b228ea20e59986e8a"
+  },
+  "gate": true
+}

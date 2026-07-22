@@ -1,0 +1,39 @@
+{
+  "task": "P21 sparse exact-histogram merge recovery",
+  "root_task": "019f8321-035e-7211-8f53-987e18891c8c",
+  "branch": "codex/vp8l-sparse-histogram-merge",
+  "base": "8485fc0593bf6e29715350ea72b15a9dabf4c80b",
+  "worktree": "/Users/lance/.codex/worktrees/1841/webp",
+  "transplant_commit": "1746c7bd69f85d4719f402983b2d7e9561fada53",
+  "binary_sha256": "b1913994afd53b3cb1547b63b0778c5baed34ca87bc4cebd9c57d95c72b7c8ce",
+  "corpus_manifest_sha256": "9feb09f469753c43864011aa6f00cfc5ee1bd48da5aac8f9b16d105890e14f86",
+  "output": "/private/tmp/vp8l-sparse-histogram-merge-p21-a-baseline",
+  "profiles": {
+    "compact": {
+      "images": 102,
+      "aggregate_bytes": 599398064,
+      "aggregate_stream_checksum": "0ad271f1634fbdfd",
+      "stderr_bytes": 0
+    },
+    "low-latency": {
+      "images": 102,
+      "aggregate_bytes": 601400998,
+      "aggregate_stream_checksum": "cb88130c798bbe3d",
+      "stderr_bytes": 0
+    }
+  },
+  "p18_oracle": {
+    "head": "c04bed7bf044dc610081ff1de0e43a2a579258bb",
+    "rebuilt_binary_sha256": "2e5f7b11b959de3cb25a251649ee7ffa87528b0346d92fdfbb03547da5f5e570",
+    "size_and_stream_hash_identity": "204/204",
+    "mismatches": 0
+  },
+  "raw_sha256": {
+    "compact_tsv": "12093acf219568df77aaddc43ff658122bb47a3c9623f9cb4378b88de1d012d4",
+    "low_latency_tsv": "f7e127ac50749ba48f55709d04c1e94069b013ed29a59f422d192ce50e79cddd",
+    "generate_tsv": "a64540ecf512e79e3a52c326934f0071305f5fadd7e371bde132087bb2126184",
+    "p18_compact_tsv": "9133c0a970d9586365de3494b07885734d0e98681dc76bddaebffd73ecf83253",
+    "p18_low_latency_tsv": "79b2c2fd638468aad7537e1e473c9d9612b3f4f9347b85d90284e4426e757367"
+  },
+  "gate": true
+}
