@@ -46,7 +46,7 @@ API is the comparison boundary.
 | A01 | row/RLE parser + 三档 cost planner；采样后可直接选 parser，模糊区按完整 bitstream 成本择优 | `codex/alpha-cost-planner@909fc85`；latest-main 代码 `7039e8c` / `0613c88`；`6eb4d2a` 为 O(pixels) 反优化 | 创建于 `123961f`；最终重放到 `0e2ebb4db884893568470317cb922280baa2254f` | [`a2a2` worktree](</Users/lance/.codex/worktrees/a2a2/webp>)；task `019f8768-5da4-7622-952f-6958f53ecf71` | 41 文件正式 3 x 10：structured ALPH `138,762 -> 121,624`（**-12.35%**），距 libwebp `+0.92%`；整图 `7033.002 ms`（+0.09%），ALPH-only `747.279 ms`（-6.18%）；exact oracle、workspace、clippy、fmt、Bazel 全过；报告 `909fc85:reports/alpha-cost-planner/README.md` | **benchmark-only / 不推广**；A02 证明直接 RowRLE 快路径存在灾难性误选 | 不进入顶部表；保留 9 份 raw 日志、12.35% 局部收益和 `6eb4d2a` 反优化，作为 A03 的架构输入 |
 | A02 | 在可追溯真实透明图与分层 synthetic 语料上验证 A01 泛化、长尾和资源成本 | `codex/alpha-row-parser-generalization@12444f0`；candidate `b6eb728 -> 142c242`；harness `24fabe0` | 创建于 `e72ed3b`；正式测量前重放到 `0e2ebb4db884893568470317cb922280baa2254f` | [`8cdc` worktree](</Users/lance/.codex/worktrees/8cdc/webp>)；task `019f877a-a92f-7f12-bd00-9c853e7a76d8` | 4 real + 11 synthetic，5 x 5 交错：real ALPH aggregate **+438.98%**、WebP **+224.88%**；23/24 平面直接 RowRLE、0 次 Compare；Metal/icon/shadow 最坏 `+579.69% / +1347.48% / +2232.03%`；30/30 pinned-dwebp exact；报告 `12444f0:tools/alpha-generalization/REPORT.md` | **reject / generalization failure**；不合并候选代码 | 顶部表不变；manifest、runner、raw timing/RSS、逐文件/分类汇总和失败结论固化于 `12444f0` |
 | A03 | fallback-safe guarded planner：探针只生成候选，greedy 永远保底；RowRLE 仅凭最终字节成本获胜 | `codex/alpha-guarded-row-planner@4f99d8d`；代码 `21e0d15` | 创建于 `0e2ebb4`；正式测量前重放到 `ea346ff50fbc03f821eecfe8cce905419c75d070` | [`84c4` worktree](</Users/lance/.codex/worktrees/84c4/webp>)；task `019f8789-204c-7c41-8dda-e591b37c8ab8` | structured ALPH **-12.351%** 且三个 A01 反例 0% 回退；但 v3 ALPH-only **+15.153%**，4-real ALPH 仅 -3.414% 且 ALPH-only p50 **+39.089%**；全门禁通过；报告 `4f99d8d:reports/alpha-guarded-row-planner/README.md` | **reject / 安全但 CPU 成本过高** | 不进入顶部表；保留 exact-selection 不变量、全部 3 x 10 / 5 x 5 / RSS / oracle raw evidence，供 A04 降低候选执行数 |
-| A04 | filter-first exact portfolio：先完成全部 greedy/filter baseline，只对 top-1/top-k shortlist 运行 RowRLE | `codex/alpha-filter-first-portfolio`；进行中 | 创建并核验于 `ea346ff50fbc03f821eecfe8cce905419c75d070`；任何正式实现数据前须重放到届时最新 `main` | [`a11f` worktree](</Users/lance/.codex/worktrees/a11f/webp>)；task `019f87a6-663b-79a0-b644-c30407d4c28d` | **阶段 A**：top-1 oracle 暂时完整保留 structured -12.35% 且零尺寸回退；额外 RowRLE 尝试 `20 -> 11`（-45%），尚未过 -50% gate；正在检查能否复用 greedy token 证据继续排除无收益尝试 | 未决；阶段 A 不过门则不实现 | 独立 latest-main 架构验证；最终无论正负都回填 oracle CSV、parse-count、报告、HEAD 和决定 |
+| A04 | filter-first exact portfolio：先完成全部 greedy/filter baseline，只对 top-1/top-k shortlist 运行 RowRLE | `codex/alpha-filter-first-portfolio@15e4673`；oracle tooling `fa955f5` | 创建于 `ea346ff`；headline evidence 前重放到 `6627800d4786262651dd06e81022c7df2c3c84ab` | [`a11f` worktree](</Users/lance/.codex/worktrees/a11f/webp>)；task `019f87a6-663b-79a0-b644-c30407d4c28d` | top-1 完整保留 structured **-12.351%** 且零膨胀，但 41-file RowRLE 尝试只少 45.0%，real -50.0%、synthetic -33.33%、三集合合计 -41.86%；greedy token state 无安全 skip predicate；报告 `15e4673:reports/alpha-filter-first-portfolio/README.md` | **phase-A reject / 不实现**；未过额外解析数至少减半的 gate | 顶部表不变；保留全部 oracle candidate/rank/token ownership CSV、probe、输入哈希和 staged-check 失败记录 |
 
 ### A01 / A02 已完成结果明细
 
@@ -92,6 +92,26 @@ A03 消除了 A02 的安全性缺陷，但也量化了严格 exact portfolio 的
 | synthetic ALPH，11 files | current main | -6.652% aggregate | p50 -16.582%，worst 0% | 与 real 分开；不得作 real headline |
 | selector | 24 planes | 1 GreedyOnly；23 exact compares；13 RowRLE wins | direct RowRLE = 0；misselection = 0 | 安全不变量成立 |
 | gates | release oracle 2/2、41 exact + q0/70/99、workspace、clippy、fmt、Bazel 15/15、fuzz | 全过 | default build 不启用 benchmark feature | 正确性通过，仍不推广 |
+
+### A04 阶段 A 结果明细
+
+A04 先做离线 oracle，再决定是否实现。它验证了 greedy-best filter /
+representation 与 RowRLE winner 的重合度很高，但单靠 top-k 调度仍不足以把
+A03 的双解析成本可靠减半，因此按预设 gate 停在实现之前。
+
+| A04 oracle set | A03 RowRLE attempts | Top-1 attempts | Reduction | A03 size gain captured | Worst expansion |
+|---|---:|---:|---:|---:|---:|
+| 40 structured / all 41 | 20 | 11 | **45.00%** | 100%；structured **-12.351%** | 0 bytes |
+| A02 real，4 files | 8 | 4 | **50.00%** | 100%；ALPH -3.414% | 0 bytes |
+| A02 synthetic，11 files | 15 | 10 | **33.33%** | 99.934%；仅漏 56-byte win | 0 bytes |
+| combined | 43 | 25 | **41.86%** | 近完整 | 0 bytes |
+| top-2 / top-4 | 与 A03 相同 | 与 A03 相同 | 0% | 100% | 0 bytes |
+
+Greedy 已生成 token 中的 distance-1、previous-row、other-copy、literal 和
+coverage 计数无法安全区分 RowRLE winner/loser；任何计数或比例 cutoff 都会成为
+语料拟合阈值。证明另一种 segmentation 不可能获胜仍需实际 walking 和 pricing，
+正是 A04 试图消除的工作。因此没有实现代码，也没有冒充 A04 的 3 x 10 / 5 x 5
+性能结果；这些指标明确为未测。
 
 ### 总账更新规则
 
@@ -300,6 +320,14 @@ not promoted. A04 moves candidate scheduling above individual entropy planes
 to test whether a greedy-first filter shortlist can retain the size win while
 avoiding most second parses.
 
+A04's exact oracle found that top-1 filter/representation selection preserves
+every structured and real RowRLE win, but only reduces 41-file attempts from
+20 to 11. The combined 56-file reduction is 41.86%, below the predeclared 50%
+gate, and top-2 removes no work. Existing greedy token ownership cannot prove a
+different RowRLE segmentation will lose. A04 therefore stopped before runtime
+implementation; the next distinct question is the cost of constructing one
+required RowRLE candidate, not another shortlist threshold.
+
 ## Rejected and non-material experiments
 
 Diagnostic probes below used the same code base and corpus stated in each row,
@@ -320,6 +348,7 @@ primary headline measurements.
 | bounded planner (`0613c88`) on 41-file gate | A01 formal 3 x 10 | structured **-12.35%**; whole +0.09%; ALPH-only -6.18% | benchmark-only pending generalization; superseded by A02 failure |
 | bounded planner on 4 real + 11 synthetic | A02 formal 5 x 5 | real ALPH **+438.98%**, real WebP **+224.88%**, worst synthetic ALPH **+2232.03%** | reject and do not merge; direct RowRLE selector is unsafe |
 | exact guarded planner (`21e0d15`) | A03 formal v3 3 x 10 + generalization 5 x 5 | structured **-12.35%**, zero size regressions; v3 ALPH-only **+15.15%**, real p50 **+39.09%** | reject promotion; retain exact-selection boundary as A04 input |
+| filter-first top-1 portfolio | A04 exact oracle over 41 + 4 real + 11 synthetic | retains structured **-12.35%** and zero expansion, but parse count only -45.0% on 41 / -41.86% combined | reject at phase A; do not implement or claim runtime speed |
 
 ## Research basis and next architecture targets
 
@@ -349,7 +378,9 @@ The next accepted architecture should target at least one measurable 10% gap:
    show that neither more search nor sampled match density is sufficient:
    sampling may open a candidate set, but actual Huffman-table, prefix, length,
    and distance costs must govern the winner, with greedy fallback on ties or
-   incomplete evidence.
+   incomplete evidence. A04 shows that top-1 scheduling alone removes only 45%
+   of 41-file RowRLE walks, so the next parser experiment must reduce the cost
+   of each required exact candidate rather than relax the evidence boundary.
 2. **Real-image evidence:** add a pinned, licensed translucent PNG/WebP corpus
    with PSNR/SSIM or exact-alpha gates, alpha-cardinality buckets, p50/p95
    latency, and peak RSS. No architecture should be tuned only to conformance
