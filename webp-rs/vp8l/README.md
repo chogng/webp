@@ -8,6 +8,8 @@
 | libwebp 基准 | pinned libwebp m0+m3+m6 | 102 / 306 | 1 | 823,204,804 | 3,022,297,644 | 14,363 ms | 57.3 | 210.4 | 52.6 | 基准 | 三种标准流合计 | 306/306 | `733c91e`；[backend record](</Users/lance/.codex/worktrees/4c95/webp/tools/vp8l-backend-bakeoff/RESULTS.md>) |
 | 标准 VP8L 纪录 | 当前 Rust，m0+m3+m6 | 102 / 306 | 1 | 823,204,804 | 3,022,297,644 | 14,009 ms | 58.8 | 215.7 | 53.9 | **快 2.5%**，同输入同轮次 | 相同 | 306/306 | main lineage；最初记录于 `eca32b4` |
 | 标准 VP8L 自编码流纪录 | Rust `fast_no_cache` | 102 / 102 | 1 | 724,306,686 | 1,007,432,548 | 2,613 ms | 277.2 | 385.5 | 96.4 | 约快 45.3%†，相对 m6 C 基准 | +173.302% | 102/102，两套 decoder | `codex/vp8l-fast-decode-profile@232a32c`；[report](</Users/lance/.codex/worktrees/c68f/webp/docs/vp8l-fast-decode-research.md>) |
+| 标准 VP8L 自编码 Pareto | Rust `FastDecodeCompact` | 102 / 102 | 1 | 617,958,802 | 1,007,432,548 | 4,034 ms | 153.2 | 249.7 | 62.4 | 同流比 pinned C 快 24.4%†；相对 m6 C 快 32.4%† | +133.174% | 408/408 两套 decoder；Default 不变 | main `9776da40`；[report](../../experiments/vp8l-coarse-spatial-product/REPORT.md) |
+| 标准 VP8L 自编码 Pareto | Rust `FastDecodeLowLatency` | 102 / 102 | 1 | 625,321,072 | 1,007,432,548 | 4,010 ms | 156.0 | 251.3 | 62.8 | 同流比 pinned C 快 24.1%†；相对 m6 C 快 32.8%† | +135.952% | 408/408 两套 decoder；Default 不变 | main `9776da40`；[report](../../experiments/vp8l-coarse-spatial-product/REPORT.md) |
 | 私有兼容表示实用档纪录 | FDEC Zstd-1 / RGB / Row-Sub，融合输出 | 102 / 102 | 1 | 663,622,132 | 1,007,432,548 | 923.689 ms | 718.4 | 1,090.7 | 272.7 | 约快 80.7%†；同轮 Rust m6 快 81.8% | +150.404% | 102/102；libwebp fallback 102/102 | `codex/fdec-hot-path-migration@ba4b530`；[report](</Users/lance/.codex/worktrees/a386/webp/docs/fdec-hot-path-migration.md>) |
 | 私有兼容表示极速档纪录 | FDEC LZ4 / RGB / none，融合输出 | 102 / 102 | 1 | 935,997,910 | 1,007,432,548 | **416.581 ms** | 2,246.9 | 2,418.3 | 604.6 | 约快 91.3%†；同轮 Rust m6 快 91.8% | +253.179% | 102/102；libwebp fallback 102/102 | `codex/fdec-hot-path-migration@ba4b530`；[report](</Users/lance/.codex/worktrees/a386/webp/docs/fdec-hot-path-migration.md>) |
 | 单图流水线纪录 | entropy producer + transform consumer | 102 / 306 | 2 | 823,204,804 | 3,022,297,644 | 9,375 ms | 87.8 | 322.4 | 80.6 | 快 34.7% | 相同 | 306/306 | `codex/vp8l-single-image-pipeline@66356c6` |
@@ -15,7 +17,7 @@
 
 顶部表只保留 pinned 基准，以及在自己的可比类别中刷新时间纪录或形成明确速度/体积 Pareto 的结果。被后续结果完全支配、仅改善内存但降低速度、未通过正确性、或只产生诊断信息的实验只进入下方实验账本。
 
-`MB/s` 使用十进制 MB，所有主解码时间均排除文件读取和进程启动，输入先载入内存，输出 RGBA 完整分配、写出并参与校验。`MP/s` 按 RGBA 像素数计算。标有 `†` 的 FDEC/自编码流相对 libwebp 数字使用历史 pinned C 基准作为固定参考，不是同一最终二进制对相同候选容器的交错 A/B；下一次统一基准必须补齐这一列。FDEC 的 `306` 结果若出现，是同一 102 图 profile 重复三次的等价投影，不应写成 306 个不同码流。
+`MB/s` 使用十进制 MB，所有主解码时间均排除文件读取和进程启动，输入先载入内存，输出 RGBA 完整分配、写出并参与校验。`MP/s` 按 RGBA 像素数计算。标有 `†` 的 Rust/C 比较使用不同语言的独立锁定 runner，不能称为同一 binary A/B：旧 FDEC/`fast_no_cache` 行使用历史 pinned C 固定参考；两个 coarse 产品档使用本次同语料、同规则、五轮的 pinned C 实测。FDEC 的 `306` 结果若出现，是同一 102 图 profile 重复三次的等价投影，不应写成 306 个不同码流。
 
 ### 纪录的资源与产品成本
 
@@ -23,6 +25,8 @@
 | --- | ---: | ---: | ---: | ---: | --- | --- | ---: | ---: |
 | pinned libwebp m6 | 未测 | n/a | n/a | 未分离 | aggregate live-allocation 下界 835,656,644 B | pinned C static library | 基准 | 由标准 VP8L 覆盖 |
 | Rust `fast_no_cache` | 未保留可比 encode 计时 | n/a | n/a | 未分离 | 799,277,056 B RSS | 默认 safe Rust workspace | 未实测 | 本轮 CLIC 为 opaque |
+| `FastDecodeCompact` | 14,668.471 ms；相对同 profile single +128.112% | 680,790,322 B single；逐图严格回退 | n/a；普通标准 VP8L | 未分离 | 661.95 MiB；含预载输入 | safe Rust；无新增依赖/线程；main `9776da40` | n/a | 标准 VP8L；透明/metadata 通过 |
+| `FastDecodeLowLatency` | 14,253.173 ms；相对同 profile single +121.654% | 680,790,322 B single；逐图严格回退 | n/a；普通标准 VP8L | 未分离 | 668.72 MiB；含预载输入 | safe Rust；无新增依赖/线程；main `9776da40` | n/a | 标准 VP8L；透明/metadata 通过 |
 | FDEC Zstd-Sub fused | 2,176.514 ms | 265,020,980 B | 398,596,613 B compressed；398,601,152 B complete chunk | 21,790,720 B | 旧 harness RSS 718,323,712 B | `zstd-sys` C/FFI；整个 research feature 令最新 release binary +280,768 B / +44.54% | 136.9 MB/s | promoted RGB：0/28 alpha；RGBA screen 待新协议 |
 | FDEC LZ4 fused | 1,210.423 ms | 265,020,980 B | 670,972,393 B compressed；670,976,930 B complete chunk | **13,238,272 B** | 旧 harness RSS 988,921,856 B | `lz4_flex` pure safe Rust；与 Zstd 合并 feature 的 binary 成本同上 | 162.3 MB/s | promoted RGB：0/28 alpha；RGBA screen 待新协议 |
 | 单图流水线 | n/a | n/a | n/a | 原 residual history + 最多约 792 KiB | 未保留统一 RSS | safe Rust；固定 1 个 consumer thread | n/a | 标准 decoder 覆盖 |
@@ -51,6 +55,24 @@
 | 标准命令 | `bash tools/benchmark-vp8l-clic.sh 1 4`；以后扩展脚本时仍须保留可比的 serial 输出 |
 
 基准有两组容易混淆的数字：`14.363 s` 是 pinned C libwebp decoder 的真实 aggregate；`13.822 s` 是 decoder-aware encoder 实验中，Rust decoder 对三组 libwebp 生成流的逐图中位数求和。任何“相对 libwebp”的结论必须指明它比较的是 C decoder，还是 libwebp 生成的码流。
+
+## Coarse 产品跨实现五轮对照
+
+这组补测来自最终产品二进制和 pinned `libwebp@733c91e`。两个 runner 都预载输入、完整 materialize RGBA、做全字节 checksum/memcmp、正反交替五轮并记录进程 CPU/RSS/MAD；Rust 与 C 是两次独立锁定运行，因此跨实现百分比标 `†`，但每个实现内部的四种流比较是同 binary。
+
+| Decoder | 标准流 | 输入 bytes | 五轮中位 | MAD | CPU 中位 | RSS 中位 | 输入 MB/s | RGBA MB/s | MP/s |
+| --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
+| Rust | public Default | 661,692,326 | 5.002243 s | 0.006319 s | 5.085617 s | 703.25 MiB | 132.3 | 201.4 | 50.3 |
+| Rust | fast-no-cache single | 680,790,322 | 3.993188 s | 0.021705 s | 4.081290 s | 720.97 MiB | 170.5 | 252.3 | 63.1 |
+| Rust | `FastDecodeCompact` | 617,958,802 | 4.034269 s | 0.015141 s | 4.115655 s | 662.00 MiB | 153.2 | 249.7 | 62.4 |
+| Rust | `FastDecodeLowLatency` | 625,321,072 | 4.009531 s | 0.019459 s | 4.084358 s | 669.20 MiB | 156.0 | 251.3 | 62.8 |
+| Rust | pinned libwebp m6 生成流 | 265,020,980 | 5.938344 s | 0.032261 s | 5.963286 s | 328.03 MiB | 44.6 | 169.6 | 42.4 |
+| pinned C | public Default | 661,692,326 | 5.432180 s | 0.007423 s | 5.685760 s | 1,678.09 MiB | 121.8 | 185.5 | 46.4 |
+| pinned C | `FastDecodeCompact` | 617,958,802 | 5.335206 s | 0.001505 s | 5.570309 s | 1,636.69 MiB | 115.8 | 188.8 | 47.2 |
+| pinned C | `FastDecodeLowLatency` | 625,321,072 | 5.279929 s | 0.013647 s | 5.531357 s | 1,643.20 MiB | 118.4 | 190.8 | 47.7 |
+| pinned C | pinned libwebp m6 生成流 | 265,020,980 | 5.965627 s | 0.004489 s | 6.126984 s | 1,301.30 MiB | 44.4 | 168.9 | 42.2 |
+
+产品结论必须同时保留两面：相对 public Default，Compact/LowLatency 体积小 6.609%/5.497%，Rust 解码快 19.351%/19.845%；相对 pinned m6，它们体积大 133.174%/135.952%，但 Rust 解码快 32.064%/32.481%，pinned C 解码也快 10.568%/11.494%。因此这是跨 decoder 成立的速度/体积 Pareto，不是 m6 的压缩率替代品。
 
 ## 顶部纪录准入规则
 
@@ -89,7 +111,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 
 ## 与本任务关联的工作树索引
 
-根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 32 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
+根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 33 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
 
 | ID | 实验 | 分支 / HEAD | 实验 base | 当前工作树与结果 | 决定 |
 | --- | --- | --- | --- | --- | --- |
@@ -125,14 +147,15 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 | E30 | color-transform latest-main 产品迁移 | `codex/vp8l-color-transform-fix-product@e8066a3`；代码 `fb17a98` | `11f6f66` | [report](../../experiments/vp8l-color-transform-fix-product/REPORT.md)；[raw](../../experiments/vp8l-color-transform-fix-product)；[689c](</Users/lance/.codex/worktrees/689c/webp>)；task `019f87c8-58a0-7692-8e92-597b782957b0` | **已快进 main**；失败 101/102 -> 0/102，306/306 防回归通过 |
 | E31 | 流量感知可变宽 pair transducer | `codex/vp8l-adaptive-pair-transducer@95dfa3d`；候选 `26b9c21`；证据 `4f8f34d` | `11f6f66` | [report](</Users/lance/.codex/worktrees/a784/webp/docs/vp8l-adaptive-pair-transducer-experiment.md>)；[raw](</Users/lance/.codex/worktrees/a784/webp/docs/raw>)；[patch](</Users/lance/.codex/worktrees/a784/webp/docs/patches/0001-perf-vp8l-prototype-adaptive-pair-transducers.patch>)；[a784](</Users/lance/.codex/worktrees/a784/webp>)；task `019f87c2-b758-7012-9e5b-1b4ace778b2d` | 回滚；A-only 仅快 1.075%，A+B 全部变慢 |
 | E32 | coarse spatial meta-Huffman Pareto | `codex/vp8l-coarse-spatial-entropy@0240db2`；候选 `72409d7` | `11f6f66` | [report](</Users/lance/.codex/worktrees/6d6b/webp/experiments/vp8l-coarse-spatial-entropy/REPORT.md>)；[raw/reproducer](</Users/lance/.codex/worktrees/6d6b/webp/experiments/vp8l-coarse-spatial-entropy>)；[6d6b](</Users/lance/.codex/worktrees/6d6b/webp>)；task `019f87ca-6fbe-7d53-b10d-a265031b50aa` | **通过实验 gate**；128/64 体积 -9.229%、解码 +1.939%，转 P08 产品迁移 |
+| E33 | coarse spatial stable profiles 产品迁移 | `codex/vp8l-coarse-spatial-product@a489d0b`；代码 `fb869383` | `52c6b8fc` | [report](../../experiments/vp8l-coarse-spatial-product/REPORT.md)；[raw/reproducer](../../experiments/vp8l-coarse-spatial-product)；[070b](</Users/lance/.codex/worktrees/070b/webp>)；task `019f87f5-d9a0-7281-a319-5d6e4a1fc510` | **已线性迁入 main**：代码 `9776da40`、证据 `00f2f587`、raw whitespace policy `e35a00db`；两档 gate、正确性与 pinned C 泛化均通过 |
 
-### 进行中的 latest-main 产品迁移
+### 进行中的 latest-main 编码优化
 
-E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
+E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08，最终作为 E33 线性迁入 main。P09 又从创建时最新 `main@5362912a23a39175758796e07f45af3ee79143b1` 独立建树。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
 
 | 暂存 ID | 假设 | 分支 | 工作树 / task | 当前 gate |
 | --- | --- | --- | --- | --- |
-| P08 | coarse spatial stable profiles | `codex/vp8l-coarse-spatial-product` | [070b](</Users/lance/.codex/worktrees/070b/webp>)；task `019f87f5-d9a0-7281-a319-5d6e4a1fc510` | 从最新 main 迁移 128/64 compact 与 256/16 low-latency 档；保持默认 API/输出不变，独立复验中 |
+| P09 | exact-cost single-write | `codex/vp8l-exact-cost-single-write` | [b99f](</Users/lance/.codex/worktrees/b99f/webp>)；task `019f8825-e240-7f42-a04c-c1fa77b80476` | 先做编码阶段归因；验证精确 single RIFF 计价、候选只序列化一次、严格 size fallback，正式门槛为两档编码至少快 25% |
 
 ## 每次优化的结果与结论
 
@@ -397,15 +420,27 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 - 当前编码会共享一次 tokenization，但仍完整序列化 single 和 candidate 后比较；正式中位因此分别慢 131.713%/125.862%。这不影响本轮 size/decode gate，却是产品化后的首要编码瓶颈：下一独立实验将验证精确 bit-cost 先决策、只写胜出流。
 - 候选 `72409d7` 与证据/最终 `0240db2` 已提交，默认 encoder 的 `__text` 与 base 逐字节一致。P08 已从更新后的 `main@52c6b8fc` 新建产品迁移树，不直接把旧实验树合入 main。
 
+### E33：coarse spatial stable profiles 产品迁移
+
+优化点：把 E32 的两个 Pareto 点重新迁移到 latest main，并收敛为显式稳定 options；默认编码、metadata 默认路径和 animation 继续使用原 profile，不把研究特性静默变成默认行为。
+
+- 新增 `LosslessEncodeProfile::{Default, FastDecodeCompact, FastDecodeLowLatency}`、`LosslessEncodeOptions` 以及两个 options 入口；enum/options 均为 `#[non_exhaustive]`。Compact 为 128px/64 groups，LowLatency 为 256px/16 groups，输出仍是普通标准 VP8L。
+- encoder 只 tokenization 一次，但本版仍完整序列化 single 与 candidate；只有 candidate 的完整 padded RIFF 严格更小时才采用它。102 图五轮中，single/Compact/LowLatency 编码分别为 6.430381/14.668471/14.253173 s，后两者慢 128.112%/121.654%，因此产品 API 已稳定但编码架构尚未收口。
+- Compact/LowLatency 分别为 617,958,802/625,321,072 B，相对同 profile single 小 9.229%/8.148%；Rust 解码为 4.034269/4.009531 s。相对 public Default，它们体积小 6.609%/5.497%，Rust 解码快 19.351%/19.845%。
+- pinned `WebPDecodeRGBA` 对 Compact/LowLatency 的五轮解码为 5.335206/5.279929 s，相对 m6 生成流的 5.965627 s 快 10.568%/11.494%；这证明 coarse 布局收益不依赖本项目 decoder，但候选体积仍比 m6 大 133.174%/135.952%。
+- 当前 generation 的 Default/single/Compact/LowLatency 共 408 条流，项目 decoder 与 pinned C 均 408/408 完整 RGBA exact；产品流与 E32 306/306 长度、RGBA 和 stream hash 相同。默认 before/after 102 条 TSV 逐字节一致，metadata、透明、tiny、127/128/129、255/256/257 与跨 block copy 都有覆盖。
+- workspace debug/release/all-targets、Clippy `-D warnings`、fmt、rustdoc/doctest、WASM、Windows GNU/MSVC 和 C/Python/shell helper 均通过。产品分支代码 `fb869383`、证据 `a489d0b`；main 对应代码 `9776da40`、证据 `00f2f587`，raw TSV 属性修正为 `e35a00db`。
+
 ## 下一阶段：优先寻找更强且更通用的新架构
 
 标准 VP8L 的局部优化已经给出一致信号：Huffman、predictor、LZ77、PGO、单个 copy kernel 各自只有个位数收益或以明显 rate/latency 回退换取收益。后续优先级应从“继续打磨一个旧循环”转向能够同时改变表示、依赖图和输出流水线的架构方案。
 
-### 第一优先：coarse spatial 产品化与单流写出
+### 第一优先：coarse profiles 精确计价与单流写出
 
-- P08 从创建时最新 `main@52c6b8fc` 迁移 E32，而不是复用旧 worktree：默认 `encode_lossless_rgba` 和 metadata/animation 输出保持逐字节不变，128/64 compact 与 256/16 low-latency 只能由显式稳定 options 选择。
-- 产品树必须重新生成标准流并运行项目/pinned libwebp exact、同二进制正式 A/B、public default 与 m6 的绝对差距、跨目标构建和 API 文档审计；只有这些完成后才能进入顶部纪录表或 main。
-- 产品迁移稳定后另开 latest-main 实验，把 Huffman 表和 token code length 汇总为精确 bit-cost plan，在不写 losing RIFF 的前提下保留逐图 size fallback；目标是维持 8%–9% 体积收益，并把约 2.3x 编码成本压回接近单流。
+- E33 已完成 latest-main 产品迁移、两套 decoder 泛化、正式 A/B、跨目标构建和 API 文档审计，并线性进入 main；后续不再重复 P08，而以 main 上的稳定 profiles 为起点优化编码成本。
+- P09 从创建时最新 `main@5362912a` 独立建树：先归因 tokenization、single table planning、single main 写出、candidate planning/write 与 RIFF assembly，再把 single Huffman plan 变成无需写完整 payload 的精确 byte-cost。
+- 目标路径只完整序列化 candidate 一次；candidate 胜出时不再写 losing single，candidate 落败时使用已缓存的精确 single plan 写出与当前实现逐字节相同的 fallback。不得用近似估价、不得改变 profile 位流，也不得再做第二次完整 payload。
+- 正式晋级门槛是 Compact 和 LowLatency 在 102 图五轮下都至少比 E33 快 25%，即从 14.668/14.253 s 至少降到 11.001/10.690 s；更理想的目标是接近 10 s，同时保持 8%–9% 体积收益、102/102 stream hash 和两套 decoder exact。
 
 ### 第二优先：统一的 Fast Representation v2
 
