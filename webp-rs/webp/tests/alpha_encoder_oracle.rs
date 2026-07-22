@@ -18,6 +18,49 @@ use webp::decode;
 use webp::encode_lossy_rgba_with_alpha_options;
 
 const ALPHA_VECTORS: &[&str] = &[
+    "alpha_color_cache.webp",
+    "alpha_filter_0_method_0.webp",
+    "alpha_filter_0_method_1.webp",
+    "alpha_filter_1.webp",
+    "alpha_filter_1_method_0.webp",
+    "alpha_filter_1_method_1.webp",
+    "alpha_filter_2.webp",
+    "alpha_filter_2_method_0.webp",
+    "alpha_filter_2_method_1.webp",
+    "alpha_filter_3.webp",
+    "alpha_filter_3_method_0.webp",
+    "alpha_filter_3_method_1.webp",
+    "alpha_no_compression.webp",
+    "big_endian_bug_393.webp",
+    "dual_transform.webp",
+    "lossless1.webp",
+    "lossless2.webp",
+    "lossless3.webp",
+    "lossless4.webp",
+    "lossless_big_random_alpha.webp",
+    "lossless_vec_1_0.webp",
+    "lossless_vec_1_1.webp",
+    "lossless_vec_1_10.webp",
+    "lossless_vec_1_11.webp",
+    "lossless_vec_1_12.webp",
+    "lossless_vec_1_13.webp",
+    "lossless_vec_1_14.webp",
+    "lossless_vec_1_15.webp",
+    "lossless_vec_1_2.webp",
+    "lossless_vec_1_3.webp",
+    "lossless_vec_1_4.webp",
+    "lossless_vec_1_5.webp",
+    "lossless_vec_1_6.webp",
+    "lossless_vec_1_7.webp",
+    "lossless_vec_1_8.webp",
+    "lossless_vec_1_9.webp",
+    "lossy_alpha1.webp",
+    "lossy_alpha2.webp",
+    "lossy_alpha3.webp",
+    "lossy_alpha4.webp",
+    "one_color_no_palette.webp",
+];
+const LEVEL_REDUCTION_VECTORS: &[&str] = &[
     "alpha_no_compression.webp",
     "alpha_filter_0_method_0.webp",
     "alpha_filter_1_method_0.webp",
@@ -90,7 +133,7 @@ fn level_reduced_alpha_matches_pinned_dwebp_on_upstream_vectors() {
     };
     let scratch = ScratchDirectory::new();
     let mut changed_planes = 0_usize;
-    for name in ALPHA_VECTORS {
+    for name in LEVEL_REDUCTION_VECTORS {
         let source = fs::read(corpus.join(name)).expect("read upstream ALPH vector");
         let image = decode(&source, &DecodeOptions::default()).expect("decode source ALPH vector");
         for quality in [0, 70, 99] {

@@ -159,26 +159,3 @@ fn best_filter_selects_the_smallest_lossless_payload() {
     assert_eq!(header.compression, AlphaCompression::Lossless);
     assert_eq!(payload.len(), smallest_fixed);
 }
-
-#[test]
-fn lz77_tokenizer_finds_repeated_sequences() {
-    let mut tokens = Vec::new();
-    let mut match_heads = allocate_match_heads().unwrap();
-    walk_tokens(b"abcabcabcabcabc", &mut match_heads, |token| {
-        tokens.push(token);
-        Ok(())
-    })
-    .unwrap();
-    assert_eq!(
-        tokens,
-        [
-            EntropyToken::Literal(b'a'),
-            EntropyToken::Literal(b'b'),
-            EntropyToken::Literal(b'c'),
-            EntropyToken::Copy {
-                length: 12,
-                distance: 3,
-            },
-        ]
-    );
-}

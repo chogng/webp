@@ -8,19 +8,17 @@ use crate::encode_filter;
 use crate::encode_huffman::write_adaptive_table;
 use crate::encode_huffman::write_simple_table;
 use crate::encode_huffman::write_table_symbol;
+use crate::encode_lz77;
+use crate::encode_lz77::Token;
+use crate::encode_palette;
 use crate::level_reduction;
+use std::borrow::Cow;
 use webp_core::BitWriter;
 
 const MAX_LOSSLESS_DIMENSION: u32 = 1 << 14;
 const GREEN_ALPHABET_SIZE: usize = 256 + 24;
 const DISTANCE_ALPHABET_SIZE: usize = 40;
 const CHANNEL_ALPHABET_SIZE: usize = 256;
-const MIN_MATCH_LENGTH: usize = 4;
-const MAX_MATCH_LENGTH: usize = 4096;
-const MATCH_HASH_SIZE: usize = 1 << 16;
-const MAX_LINEAR_DISTANCE: usize = 1_048_456;
-const MAX_CACHED_TOKEN_SAMPLES: usize = 4 * 1024 * 1024;
-
 /// Configuration for encoding one complete `ALPH` payload.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AlphaEncodeOptions {
@@ -85,9 +83,9 @@ pub fn encode(
 ) -> Result<Vec<u8>, AlphaEncodeError> {
     let (width, height) = validate_input(samples, width, height, options)?;
     let preprocessed = if options.quality < 100 {
-        level_reduction::quantize(samples, options.quality)?
+        Cow::Owned(level_reduction::quantize(samples, options.quality)?)
     } else {
-        copy_samples(samples)?
+        Cow::Borrowed(samples)
     };
     let preprocessing = if options.quality < 100 {
         AlphaPreprocessing::LevelReduction
@@ -104,7 +102,7 @@ pub fn encode(
     for filter in encode_filter::candidates(&preprocessed, width, height, selection) {
         let filtered = encode_filter::apply(&preprocessed, width, filter)?;
         let lossless = if options.compression == AlphaCompression::Lossless {
-            Some(encode_lossless(&filtered)?)
+            Some(encode_lossless(&filtered, width)?)
         } else {
             None
         };
@@ -158,15 +156,6 @@ fn validate_input(
     Ok((width, height))
 }
 
-fn copy_samples(samples: &[u8]) -> Result<Vec<u8>, AlphaEncodeError> {
-    let mut output = Vec::new();
-    output
-        .try_reserve_exact(samples.len())
-        .map_err(|_| AlphaEncodeError::AllocationFailed)?;
-    output.extend_from_slice(samples);
-    Ok(output)
-}
-
 fn make_payload(
     encoded_samples: Vec<u8>,
     header: AlphaHeader,
@@ -184,12 +173,49 @@ fn make_payload(
     Ok(output)
 }
 
-fn encode_lossless(samples: &[u8]) -> Result<Vec<u8>, AlphaEncodeError> {
-    let mut match_heads = allocate_match_heads()?;
-    let mut cached_tokens = allocate_token_cache(samples.len());
-    let frequencies = collect_frequencies(samples, &mut match_heads, cached_tokens.as_mut())?;
+fn encode_lossless(samples: &[u8], width: usize) -> Result<Vec<u8>, AlphaEncodeError> {
+    if let Some(palette) = encode_palette::make_plan(samples, width)? {
+        if palette.entries.len() == 1 {
+            return encode_plain_lossless(samples, width);
+        }
+        let indexed = encode_palette_lossless(&palette)?;
+        if samples.len() >= 1024 {
+            return Ok(indexed);
+        }
+        let plain = encode_plain_lossless(samples, width)?;
+        return Ok(if indexed.len() < plain.len() {
+            indexed
+        } else {
+            plain
+        });
+    }
+    encode_plain_lossless(samples, width)
+}
+
+fn encode_plain_lossless(samples: &[u8], width: usize) -> Result<Vec<u8>, AlphaEncodeError> {
     let mut writer = BitWriter::new();
     write_bits(&mut writer, 0, 1)?; // Transform-list terminator.
+    encode_entropy_stream(samples, width, writer)
+}
+
+fn encode_palette_lossless(
+    palette: &encode_palette::PalettePlan,
+) -> Result<Vec<u8>, AlphaEncodeError> {
+    let mut writer = BitWriter::new();
+    encode_palette::write_transform(&mut writer, &palette.entries)?;
+    encode_entropy_stream(&palette.indexed_samples, palette.indexed_width, writer)
+}
+
+fn encode_entropy_stream(
+    samples: &[u8],
+    width: usize,
+    mut writer: BitWriter,
+) -> Result<Vec<u8>, AlphaEncodeError> {
+    let mut match_table = encode_lz77::MatchTable::allocate(samples.len())
+        .map_err(|_| AlphaEncodeError::AllocationFailed)?;
+    let mut cached_tokens = encode_lz77::allocate_token_cache(samples.len());
+    let frequencies =
+        collect_frequencies(samples, width, &mut match_table, cached_tokens.as_mut())?;
     write_bits(&mut writer, 0, 1)?; // No color cache.
     write_bits(&mut writer, 0, 1)?; // One entropy group, not meta-Huffman.
     let green = write_adaptive_table(&mut writer, &frequencies.green)?;
@@ -199,12 +225,18 @@ fn encode_lossless(samples: &[u8]) -> Result<Vec<u8>, AlphaEncodeError> {
     let distance = write_adaptive_table(&mut writer, &frequencies.distance)?;
     if let Some(tokens) = cached_tokens {
         for token in tokens {
-            write_entropy_token(&mut writer, &green, &distance, unpack_token(token))?;
+            write_entropy_token(
+                &mut writer,
+                &green,
+                &distance,
+                width,
+                encode_lz77::unpack(token),
+            )?;
         }
     } else {
-        match_heads.fill(u32::MAX);
-        walk_tokens(samples, &mut match_heads, |token| {
-            write_entropy_token(&mut writer, &green, &distance, token)
+        match_table.reset();
+        encode_lz77::walk(samples, &mut match_table, |token| {
+            write_entropy_token(&mut writer, &green, &distance, width, token)
         })?;
     }
     Ok(writer.into_bytes())
@@ -214,32 +246,25 @@ fn write_entropy_token(
     writer: &mut BitWriter,
     green: &crate::encode_huffman::EncodingTable,
     distance: &crate::encode_huffman::EncodingTable,
-    token: EntropyToken,
+    width: usize,
+    token: Token,
 ) -> Result<(), AlphaEncodeError> {
     match token {
-        EntropyToken::Literal(sample) => write_table_symbol(writer, green, usize::from(sample)),
-        EntropyToken::Copy {
+        Token::Literal(sample) => write_table_symbol(writer, green, usize::from(sample)),
+        Token::Copy {
             length,
             distance: copy_distance,
         } => {
             let (length_prefix, length_extra) = vp8l_prefix(length, 24)?;
             write_table_symbol(writer, green, CHANNEL_ALPHABET_SIZE + length_prefix)?;
             write_bits(writer, length_extra.0, length_extra.1)?;
-            let distance_code = copy_distance
-                .checked_add(120)
-                .ok_or(AlphaEncodeError::SizeOverflow)?;
+            let distance_code = encode_lz77::distance_code(width, copy_distance);
             let (distance_prefix, distance_extra) =
                 vp8l_prefix(distance_code, DISTANCE_ALPHABET_SIZE)?;
             write_table_symbol(writer, distance, distance_prefix)?;
             write_bits(writer, distance_extra.0, distance_extra.1)
         }
     }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-enum EntropyToken {
-    Literal(u8),
-    Copy { length: usize, distance: usize },
 }
 
 struct EntropyFrequencies {
@@ -249,137 +274,35 @@ struct EntropyFrequencies {
 
 fn collect_frequencies(
     samples: &[u8],
-    match_heads: &mut [u32],
+    width: usize,
+    match_table: &mut encode_lz77::MatchTable,
     mut cached_tokens: Option<&mut Vec<u32>>,
 ) -> Result<EntropyFrequencies, AlphaEncodeError> {
     let mut frequencies = EntropyFrequencies {
         green: [0; GREEN_ALPHABET_SIZE],
         distance: [0; DISTANCE_ALPHABET_SIZE],
     };
-    walk_tokens(samples, match_heads, |token| {
+    encode_lz77::walk(samples, match_table, |token| {
         if let Some(tokens) = cached_tokens.as_mut() {
-            tokens.push(pack_token(token));
+            tokens.push(encode_lz77::pack(token));
         }
         match token {
-            EntropyToken::Literal(sample) => {
+            Token::Literal(sample) => {
                 increment_frequency(&mut frequencies.green, usize::from(sample))
             }
-            EntropyToken::Copy { length, distance } => {
+            Token::Copy { length, distance } => {
                 let (length_prefix, _) = vp8l_prefix(length, 24)?;
                 increment_frequency(
                     &mut frequencies.green,
                     CHANNEL_ALPHABET_SIZE + length_prefix,
                 )?;
-                let distance_code = distance
-                    .checked_add(120)
-                    .ok_or(AlphaEncodeError::SizeOverflow)?;
+                let distance_code = encode_lz77::distance_code(width, distance);
                 let (distance_prefix, _) = vp8l_prefix(distance_code, DISTANCE_ALPHABET_SIZE)?;
                 increment_frequency(&mut frequencies.distance, distance_prefix)
             }
         }
     })?;
     Ok(frequencies)
-}
-
-fn allocate_token_cache(sample_count: usize) -> Option<Vec<u32>> {
-    if sample_count > MAX_CACHED_TOKEN_SAMPLES {
-        return None;
-    }
-    let mut tokens = Vec::new();
-    tokens.try_reserve_exact(sample_count).ok()?;
-    Some(tokens)
-}
-
-fn pack_token(token: EntropyToken) -> u32 {
-    match token {
-        EntropyToken::Literal(sample) => u32::from(sample),
-        EntropyToken::Copy { length, distance } => {
-            debug_assert!((1..=MAX_MATCH_LENGTH).contains(&length));
-            debug_assert!((1..=MAX_LINEAR_DISTANCE).contains(&distance));
-            ((distance as u32) << 12) | (length as u32 - 1)
-        }
-    }
-}
-
-fn unpack_token(token: u32) -> EntropyToken {
-    let distance = (token >> 12) as usize;
-    if distance == 0 {
-        EntropyToken::Literal(token as u8)
-    } else {
-        EntropyToken::Copy {
-            length: ((token & 0x0fff) + 1) as usize,
-            distance,
-        }
-    }
-}
-
-fn walk_tokens(
-    samples: &[u8],
-    heads: &mut [u32],
-    mut emit: impl FnMut(EntropyToken) -> Result<(), AlphaEncodeError>,
-) -> Result<(), AlphaEncodeError> {
-    let mut index = 0_usize;
-    while index < samples.len() {
-        let mut match_length = 0_usize;
-        let mut match_distance = 0_usize;
-        if index + MIN_MATCH_LENGTH <= samples.len() {
-            let hash = match_hash(samples, index);
-            let candidate = heads[hash];
-            heads[hash] = u32::try_from(index).map_err(|_| AlphaEncodeError::SizeOverflow)?;
-            if candidate != u32::MAX {
-                let candidate =
-                    usize::try_from(candidate).map_err(|_| AlphaEncodeError::SizeOverflow)?;
-                let distance = index - candidate;
-                if distance <= MAX_LINEAR_DISTANCE
-                    && samples[candidate..candidate + MIN_MATCH_LENGTH]
-                        == samples[index..index + MIN_MATCH_LENGTH]
-                {
-                    let limit = MAX_MATCH_LENGTH.min(samples.len() - index);
-                    match_length = MIN_MATCH_LENGTH;
-                    while match_length < limit
-                        && samples[index + match_length] == samples[index + match_length - distance]
-                    {
-                        match_length += 1;
-                    }
-                    match_distance = distance;
-                }
-            }
-        }
-
-        if match_length >= MIN_MATCH_LENGTH {
-            emit(EntropyToken::Copy {
-                length: match_length,
-                distance: match_distance,
-            })?;
-            for skipped in index + 1..index + match_length {
-                if skipped + MIN_MATCH_LENGTH <= samples.len() {
-                    heads[match_hash(samples, skipped)] =
-                        u32::try_from(skipped).map_err(|_| AlphaEncodeError::SizeOverflow)?;
-                }
-            }
-            index += match_length;
-        } else {
-            emit(EntropyToken::Literal(samples[index]))?;
-            index += 1;
-        }
-    }
-    Ok(())
-}
-
-fn allocate_match_heads() -> Result<Vec<u32>, AlphaEncodeError> {
-    let mut heads = Vec::new();
-    heads
-        .try_reserve_exact(MATCH_HASH_SIZE)
-        .map_err(|_| AlphaEncodeError::AllocationFailed)?;
-    heads.resize(MATCH_HASH_SIZE, u32::MAX);
-    Ok(heads)
-}
-
-fn match_hash(samples: &[u8], index: usize) -> usize {
-    let word = u32::from(samples[index])
-        | (u32::from(samples[index + 1]) << 8)
-        | (u32::from(samples[index + 2]) << 16);
-    ((word.wrapping_mul(0x1e35_a7bd)) >> 16) as usize
 }
 
 fn increment_frequency(table: &mut [u32], symbol: usize) -> Result<(), AlphaEncodeError> {

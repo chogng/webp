@@ -53,48 +53,62 @@ pub(super) fn apply(
     width: usize,
     filter: AlphaFilter,
 ) -> Result<Vec<u8>, AlphaEncodeError> {
+    if filter == AlphaFilter::None {
+        return copy_samples(samples);
+    }
     let mut output = Vec::new();
     output
         .try_reserve_exact(samples.len())
         .map_err(|_| AlphaEncodeError::AllocationFailed)?;
-    for (index, &sample) in samples.iter().enumerate() {
-        let x = index % width;
-        let y = index / width;
-        let left = if x != 0 { samples[index - 1] } else { 0 };
-        let top = if y != 0 { samples[index - width] } else { 0 };
-        let top_left = if x != 0 && y != 0 {
-            samples[index - width - 1]
-        } else {
-            0
-        };
-        let predictor = match filter {
-            AlphaFilter::None => 0,
-            AlphaFilter::Horizontal => {
-                if x == 0 {
-                    top
-                } else {
-                    left
+    for row_start in (0..samples.len()).step_by(width) {
+        let row = &samples[row_start..row_start + width];
+        let previous = row_start
+            .checked_sub(width)
+            .map(|start| &samples[start..start + width]);
+        for (x, &sample) in row.iter().enumerate() {
+            let left = x.checked_sub(1).map_or(0, |left| row[left]);
+            let top = previous.map_or(0, |previous| previous[x]);
+            let top_left = previous
+                .and_then(|previous| x.checked_sub(1).map(|left| previous[left]))
+                .unwrap_or(0);
+            let predictor = match filter {
+                AlphaFilter::None => unreachable!(),
+                AlphaFilter::Horizontal => {
+                    if x == 0 {
+                        top
+                    } else {
+                        left
+                    }
                 }
-            }
-            AlphaFilter::Vertical => {
-                if y == 0 {
-                    left
-                } else {
-                    top
+                AlphaFilter::Vertical => {
+                    if previous.is_none() {
+                        left
+                    } else {
+                        top
+                    }
                 }
-            }
-            AlphaFilter::Gradient => {
-                if x == 0 {
-                    top
-                } else if y == 0 {
-                    left
-                } else {
-                    gradient(left, top, top_left)
+                AlphaFilter::Gradient => {
+                    if x == 0 {
+                        top
+                    } else if previous.is_none() {
+                        left
+                    } else {
+                        gradient(left, top, top_left)
+                    }
                 }
-            }
-        };
-        output.push(sample.wrapping_sub(predictor));
+            };
+            output.push(sample.wrapping_sub(predictor));
+        }
     }
+    Ok(output)
+}
+
+fn copy_samples(samples: &[u8]) -> Result<Vec<u8>, AlphaEncodeError> {
+    let mut output = Vec::new();
+    output
+        .try_reserve_exact(samples.len())
+        .map_err(|_| AlphaEncodeError::AllocationFailed)?;
+    output.extend_from_slice(samples);
     Ok(output)
 }
 
