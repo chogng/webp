@@ -46,9 +46,5 @@ name = "vp8_encode_bench"
 required-features = ["encode"]
 
 [[example]]
-name = "sharp_yuv_bench"
-required-features = ["fuzzing"]
-
-[[example]]
 name = "vp8l_color_transform_reproducer"
 required-features = ["encode"]
