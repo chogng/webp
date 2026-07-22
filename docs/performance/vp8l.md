@@ -164,7 +164,9 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 
 ### 进行中的 latest-main 编码优化
 
-P16/P17 已收口为 E41/E42。下一棵研究树必须从包含本次归档的最新本地 `main` 创建，并在开始 headline 测量前登记于此。
+| 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
+| --- | --- | --- | --- | --- |
+| P18 | profile-specialized exact-cost hybrid | `codex/vp8l-profile-hybrid-clustering`；`58f7b8dd047cad1733bc2766a797d8f2e4b5ff3c` | [7d78](</Users/lance/.codex/worktrees/7d78/webp>)；task `019f8a34-8286-70d2-84ba-461fbb4117d5`；结果目录 `experiments/vp8l-profile-hybrid-clustering` | 创建时 worktree HEAD/local main/merge-base 已精确相等；Compact 固定复建 E40 one-pass refinement，LowLatency 固定复建 E41 capacity growth；先证明 102 图 rate/tail/exactness，再以同一最终 binary 跑双档 screen |
 
 ## 每次优化的结果与结论
 
