@@ -52,7 +52,7 @@ API is the comparison boundary.
 | A07 | ALPH exact color cache：复用既有 greedy token 流，对标准 cache bits 1..11 做逐像素状态模拟与完整 bitstream 计价 | `codex/alpha-exact-color-cache@2f731fa8`；analyzer `b9940ff8` | 创建于 `5362912a`；三次主线前进后最终完整重跑到 `d70b0cbe42467f3942e26eee11546cecdd60a39a` | [`40fa` worktree](</Users/lance/.codex/worktrees/40fa/webp>)；task `019f8825-6465-74c3-a880-ea07b1870c26` | structured/all-41/real 均 **0.000000%**、0 cache winner；仅 synthetic `shadow-soft` -6.393284%，synthetic aggregate -0.015598%；56/56 baseline/project/`dwebp` exact，零膨胀；报告 `2f731fa8:reports/alpha-exact-color-cache/README.md` | **phase-A reject / 不实现**；96.66% hit 仍反优化，未过 10% | 顶部表不变；保留逐 bits/hit/component/owner raw、三次 rebase 历史、22/22 SHA-256 清单 |
 | A08 | optimal length-limited Huffman：量化当前超长树触发整树 `balanced_lengths` 的损失，以 package-merge 精确替代并按完整 payload 选择 | `codex/alpha-length-limited-huffman@5aa6a618`；analyzer `7dfa3ddc`；owner fixes `87595158` / `40822cbd` | 创建于 `8574b4ef`；登记和 A07 收口后最终完整重跑到 `e7891b27484ec0f66e86b46a2b1e9c8b981e77e5` | [`e754` worktree](</Users/lance/.codex/worktrees/e754/webp>)；task `019f8836-b206-7750-9b7e-8de995eeba06` | structured `138,762 -> 138,648`（**-0.082155%**）；real -19.621583%，但由 `metal-raytracing` 单图 -25.707018% 主导；56/56 baseline/project exact、112/112 `dwebp`、零膨胀；报告 `5aa6a618:reports/alpha-length-limited-huffman/README.md` | **phase-A reject / 不实现**；structured 未达 10%，不进入 production/decode timing | 顶部表不变；保留 package-merge/brute-force oracle、limit=15/7 owner waterfall、31 项 SHA 与 diagnostic 中断数据 |
 | A09 | ALPH palette co-occurrence ordering：在 <=16 色 palette 上重新分配 index，精确量化 palette delta、packed-symbol table RLE、hash-collision parse 与 partial rows | `codex/alpha-palette-cooccurrence@690dddfd`；analyzer `da28b8c0` | 创建于 `6f2e07fb`；登记后正式完整重跑到 `130aa1f347ae1193463f35205b5bd98b4031bc7c` | [`dda9` worktree](</Users/lance/.codex/worktrees/dda9/webp>)；task `019f8858-35db-7191-8d13-76cffe852420` | structured `138,762 -> 138,718`（**-0.031709%**）；all-41 -0.001068%、real -0.002852%、synthetic 0%；56/56 modeled/project exact、112/112 `dwebp`、零膨胀；报告 `690dddfd:reports/alpha-palette-cooccurrence/README.md` | **phase-A reject / 不实现**；只关闭 structured libwebp 差距的 0.241%，不进入 production/decode timing | 顶部表不变；保留 <=8 穷举、9..16 有界搜索、owner waterfall、26 项 SHA 与正式 raw evidence |
-| A10 | single match frontier + iterative entropy-cost shortest path：一次发现 bounded LZ candidates，在同一 DAG 上重计 Huffman/extra 成本，替代 greedy/RowRLE 双解析 | `codex/alpha-iterative-optimal-parse`；进行中 | worktree 从当时最新 `db279a3ab5aacfe9eccb5e982a68b10d69f4eba1` 创建；headline 前须重放到本登记提交后的最新 `main` | [`787b` worktree](</Users/lance/.codex/worktrees/787b/webp>)；task `019f8881-6279-70e2-b72a-6f235661691a` | **Phase A**：固定 frontier 下比较 main greedy、neutral-cost DP 与 2–3 轮实际 Huffman-cost DP；分 40 structured/all-41/4 real/11 synthetic，并与 A03 RowRLE 同基线对照 | 未决；structured ALPH >=10%、56-file exact fallback 零膨胀；过门后 production ALPH-only 还须比同基线 A03 至少快 10% | 已登记；禁止把被裁剪 frontier 或联合 Huffman/token 迭代称为全局最优，正式数据须基于登记后的最新 `main` |
+| A10 | single match frontier + iterative entropy-cost shortest path：一次发现 bounded LZ candidates，在同一 DAG 上重计 Huffman/extra 成本，替代 greedy/RowRLE 双解析 | `codex/alpha-iterative-optimal-parse@1f201d60`；analyzer `f54426ed`；Phase-A evidence `b7e88cb4`；candidate `38632244` | 创建于 `db279a3a`；登记后两次重放，正式基线 `2c87bf27e6093ccbd55f20a71cd8d8bd260fb33a` | [`787b` worktree](</Users/lance/.codex/worktrees/787b/webp>)；task `019f8881-6279-70e2-b72a-6f235661691a` | Phase A structured `138,762 -> 119,593`（**-13.814%**）、29 wins/11 ties/0 expansion；real -45.272%、synthetic -12.735%；168/168 project + `dwebp` exact；报告 `1f201d60:reports/alpha-iterative-optimal-parse/README.md` | **Phase A 通过 / Phase B reject**；corrected production probe ALPH-only **4,832x**、whole 723x、RSS 11.35x 回退；default encoder 不变 | 顶部表不变；保留 K=20 ceiling、RowRLE 同基线对照、default-off production 负证据、raw/hash/gate 日志 |
 
 ### A01 / A02 已完成结果明细
 
@@ -287,6 +287,48 @@ Clippy、fmt、Bazel、fuzz check 与 SHA-256 26/26 全过。Analyzer working bo
 也没有用 analyzer 耗时冒充 production timing。Analyzer/evidence commits 为
 `da28b8c0` / `690dddfd`；完整报告与 raw hash 清单在
 `690dddfd:reports/alpha-palette-cooccurrence/`。
+
+### A10 Phase A / Phase B 结果明细
+
+A10 把 literal、distance-1 run、previous-row、current greedy head、最多 8 个
+plane matches 与 8 个 depth-64 hash-chain matches 固化为每位置 K<=20 的
+immutable frontier。Neutral path 与三轮 previous-Huffman-cost shortest path
+都实际写出 transform/palette prefix、五表及 code-length RLE、tokens、extra、
+padding、ALPH header 和 raw fallback；只有完整 payload 严格更小时替换 main。
+固定成本 DAG 的 shortest path 才称 exact，联合 token/Huffman 与裁剪 match
+空间明确不称全局最优。
+
+| A10 set | Files | Main ALPH | Selected ALPH | Aggregate | RowRLE control | Wins / ties / expansion | Complete WebP delta |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| 40 structured | 40 | 138,762 B | 119,593 B | **-13.814301%** | 120,534 B / -13.136161% | 29 / 11 / 0 | -7.219648% |
+| all 41 | 41 | 4,118,622 B | 4,097,726 B | -0.507354% | 4,098,327 B | 30 / 11 / 0 | -0.315641% |
+| A02 real | 4 | 105,175 B | 57,560 B | **-45.272165%** | 101,584 B | 4 / 0 / 0 | -23.191794% |
+| A02 synthetic | 11 | 1,269,394 B | 1,107,733 B | **-12.735289%** | 1,184,957 B | 10 / 1 / 0 | -4.053741% |
+| all 56 | 56 | 5,493,191 B | 5,263,019 B | -4.190133% | 5,384,868 B | 44 / 12 / 0 | -2.128809% |
+
+Structured per-file p5/p50/p95/worst 为 -32.183/-31.250/0/0%，并非由小
+fixtures 单独构成：`lossy_alpha1..4` 分别节省 2,912/2,916/2,675/289 B，
+`lossless1..4` 分别节省 3,147/3,147/3,147/582 B。Neutral/iter1/iter2/iter3/
+main fallback 分别赢 22/2/9/11/12 个文件。119 条 RowRLE control path 全部可由
+frontier 表示；18 个 structured RowRLE winners 中，迭代 selector 覆盖 6 个，
+其余 12 个是 cost-iteration miss，不是 frontier clipping。即便如此，A10 仍比
+同基线 RowRLE aggregate 少 941 B。
+
+Modeled baseline 56/56 byte-exact；baseline/selected/RowRLE 的项目 decoder 与
+pinned `dwebp` 各 168/168 exact，零膨胀。实测最大 K=18，frontier 最高
+68.016 B/pixel，最大 analyzer working set 198,846,700 B；v3/real/synthetic
+wall 为 99.80/315.83/331.47 s，RSS 为 277/326/254 MB。全部 56 文件中
+frontier build 用 714.438 s，DP 只用 27.073 s，证明 discovery 才是成本 owner。
+
+Phase B 的 default-off production candidate 复现 `lossy_alpha1` 的 Phase-A
+`9,077 -> 6,165 B`（-32.081%），但 release ALPH-only 从 10.933 增至
+52,829.506 ns/pixel（**4,832x**），whole 从 73.186 增至 52,942.062 ns/pixel
+（723x），RSS 从 9.72 增至 110.22 MB（11.35x）。该差距不可能满足 main +5%
+或比 A03 快 10% 的门槛，因此没有浪费时间跑 3 x 10 / 5-rotation、q0/70/99、
+Bazel、fuzz 与 promotion oracle。Default workspace/pinned integration、candidate
+23/23、all-feature 25/25、fmt 与 Clippy `-D warnings` 通过；feature 保持默认关闭，
+默认 API、selector 和码流均不变。最终 analyzer/evidence/candidate/reject commits
+为 `f54426ed` / `b7e88cb4` / `38632244` / `1f201d60`。
 
 ### 总账更新规则
 
@@ -544,6 +586,15 @@ Zeng remains a legitimate seed for other palette codecs, but it is not a
 material ALPH architecture here. The next parser study must therefore change
 the match/parse frontier itself rather than relabel the same packed stream.
 
+A10 changed that frontier and proved a broader density ceiling: one fixed
+multi-edge DAG plus actual-byte selection beats main by 13.81% structured and
+also clears 10% on independent real and synthetic sets. It also established
+the decisive anti-pattern. A K=20, depth-64 frontier spends 96% of analyzer
+time discovering candidates and becomes 4,832x slower in a production-shaped
+probe; extra iterative DP is not the dominant cost. Future work may reuse the
+shortest-path evidence, but must not retain the rich frontier or hide it behind
+file-specific activation thresholds.
+
 ## Rejected and non-material experiments
 
 Diagnostic probes below used the same code base and corpus stated in each row,
@@ -570,6 +621,7 @@ primary headline measurements.
 | ALPH exact color cache | A07 actual serialization for bits 1..11 over 40 structured + random + 4 real + 11 synthetic | structured/all-41/real **0%** after fallback; 96.66% hit still expands; only one synthetic file -6.39% | reject at phase A; cache symbols fragment already-cheap green literals |
 | optimal length-limited Huffman | A08 package-merge + brute-force oracle over every real table owner | structured **-0.082155%**; real -19.621583% from one depth-16 green owner; 56/56 exact and zero expansion | reject at phase A; retain real-image owner evidence, no default solver |
 | ALPH palette co-occurrence ordering | A09 <=8 exhaustive + 9..16 fixed bounded actual-byte search over 40 structured + random + 4 real + 11 synthetic | structured **-0.031709%** / 44 B；real -0.002852%；synthetic 0%；112/112 `dwebp` exact and zero expansion | reject at phase A; permutation-invariant packed tuples leave only immaterial header/hash/partial-row effects |
+| multi-edge iterative shortest-path parser | A10 fixed K=20 frontier, neutral + three Huffman-cost DP rounds, actual serialization over 56 files | structured **-13.814%** and zero expansion, but corrected production probe ALPH-only **4,832x** / whole 723x / RSS 11.35x | reject Phase B; retain density ceiling and default-off implementation, never enable rich frontier |
 
 ## Research basis and next architecture targets
 
@@ -609,16 +661,18 @@ The next accepted architecture should target at least one measurable 10% gap:
    structured target: even its exact independent complete streams cannot repay
    table/map cost. A07 has also ruled out the remaining standard color-cache
    mechanism, A08 found only -0.082% from optimal length-limited Huffman, and
-   A09 found only -0.032% from palette ordering. A10 is now testing a
-   **single-pass bounded match frontier plus iterative entropy-cost shortest
-   path**: enumerate literals, run/previous-row, plane-distance, and a fixed
-   number of hash-chain matches once; choose one token path with actual
-   Huffman-aware costs instead of constructing both greedy and RowRLE streams.
-   Phase A must first produce an offline upper bound on the same 40 files. It
-   advances only if structured ALPH improves >=10% with exact fallback and the
-   bounded production design is at least 10% cheaper than A03's second-parser
-   work (or keeps ALPH CPU within the accepted main envelope). File labels and
-   corpus-specific thresholds are forbidden.
+   A09 found only -0.032% from palette ordering. A10 then proved a 13.814%
+   structured multi-edge parsing ceiling, but its depth-64/K=20 discovery is
+   4,832x too slow. The next distinct architecture is a **single-best-match
+   traceback / compact rolling frontier**: at each position retain only one
+   deterministic best copy after folding run, previous-row, low plane-code,
+   and current hash-head evidence, then run bounded fixed-cost traceback without
+   storing the rich frontier. Phase A must ablate edge classes and prove the
+   compact path still saves >=10% structured before production work. Phase B
+   advances only if discovery is O(n), memory stays near the current token
+   cache, exact fallback gives zero expansion, and ALPH-only is at least 10%
+   faster than A03 while remaining near the accepted main envelope. File labels
+   and corpus-specific thresholds remain forbidden.
 2. **Real-image evidence:** add a pinned, licensed translucent PNG/WebP corpus
    with PSNR/SSIM or exact-alpha gates, alpha-cardinality buckets, p50/p95
    latency, and peak RSS. No architecture should be tuned only to conformance
