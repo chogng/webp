@@ -14,7 +14,11 @@ use webp::DecodeOptions;
 use webp::LossyEncodeOptions;
 use webp::decode;
 use webp::encode_lossy_rgba_with_alpha_options;
+#[cfg(feature = "alpha-benchmark-internals")]
+use webp_alpha::BenchmarkWriterVariant;
 use webp_alpha::encode as encode_alpha;
+#[cfg(feature = "alpha-benchmark-internals")]
+use webp_alpha::set_benchmark_writer_variant;
 
 struct BenchImage {
     name: String,
@@ -80,6 +84,18 @@ fn main() -> ExitCode {
         filter: AlphaFilterSelection::Fast,
         quality: 100,
     };
+    #[cfg(feature = "alpha-benchmark-internals")]
+    let alpha_writer_variant = match env::var("WEBP_ALPHA_WRITER_VARIANT").as_deref() {
+        Ok("reference") => BenchmarkWriterVariant::Reference,
+        Ok("packet-reference") => BenchmarkWriterVariant::PacketReference,
+        Ok("packed") | Err(_) => BenchmarkWriterVariant::Packed,
+        Ok(value) => {
+            eprintln!("unknown WEBP_ALPHA_WRITER_VARIANT: {value}");
+            return ExitCode::FAILURE;
+        }
+    };
+    #[cfg(feature = "alpha-benchmark-internals")]
+    set_benchmark_writer_variant(alpha_writer_variant);
     for image in &images {
         let encoded = match encode_lossy_rgba_with_alpha_options(
             image.width,
@@ -117,6 +133,7 @@ fn main() -> ExitCode {
     }
 
     let mut whole_checksum = 0_u64;
+    let mut whole_hash = FNV_OFFSET;
     let mut whole_rgba_bytes = 0_usize;
     let mut whole_output_bytes = 0_usize;
     let mut whole_alpha_bytes = 0_usize;
@@ -142,6 +159,7 @@ fn main() -> ExitCode {
             whole_checksum = whole_checksum
                 .wrapping_add(encoded.len() as u64)
                 .wrapping_add(u64::from(encoded[0]));
+            whole_hash = fnv1a(whole_hash, &encoded);
             whole_rgba_bytes = whole_rgba_bytes.saturating_add(image.rgba.len());
             whole_output_bytes = whole_output_bytes.saturating_add(encoded.len());
             let encoded_alpha_bytes = alpha_payload(&encoded).0;
@@ -153,7 +171,7 @@ fn main() -> ExitCode {
         let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
         whole_elapsed_ms += elapsed_ms;
         println!(
-            "measurement encoder=rust profile=vp8-q75-alpha-lossless-fast file={} encodes={iterations} pixels={} output_bytes={image_output_bytes} alpha_bytes={image_alpha_bytes} elapsed_ms={elapsed_ms:.3} mpix_s={:.3} ns_pixel={:.3}",
+            "measurement encoder=rust profile=vp8-q75-alpha-lossless-fast file={} encodes={iterations} pixels={} output_bytes={image_output_bytes} alpha_bytes={image_alpha_bytes} elapsed_ms={elapsed_ms:.3} mpix_s={:.3} ns_pixel={:.3} output_hash={whole_hash:016x}",
             image.name,
             image.alpha.len().saturating_mul(iterations),
             throughput(image.alpha.len(), iterations, elapsed_ms),
@@ -161,7 +179,7 @@ fn main() -> ExitCode {
         );
     }
     println!(
-        "aggregate encoder=rust profile=vp8-q75-alpha-lossless-fast files={} encodes={} pixels={} rgba_bytes={whole_rgba_bytes} output_bytes={whole_output_bytes} alpha_bytes={whole_alpha_bytes} elapsed_ms={whole_elapsed_ms:.3} mpix_s={:.3} ns_pixel={:.3} checksum={whole_checksum}",
+        "aggregate encoder=rust profile=vp8-q75-alpha-lossless-fast files={} encodes={} pixels={} rgba_bytes={whole_rgba_bytes} output_bytes={whole_output_bytes} alpha_bytes={whole_alpha_bytes} elapsed_ms={whole_elapsed_ms:.3} mpix_s={:.3} ns_pixel={:.3} checksum={whole_checksum} output_hash={whole_hash:016x}",
         images.len(),
         images.len().saturating_mul(iterations),
         images
@@ -174,6 +192,7 @@ fn main() -> ExitCode {
     );
 
     let mut alpha_checksum = 0_u64;
+    let mut alpha_hash = FNV_OFFSET;
     let mut alpha_input_bytes = 0_usize;
     let mut alpha_output_bytes = 0_usize;
     let mut alpha_elapsed_ms = 0.0_f64;
@@ -192,6 +211,7 @@ fn main() -> ExitCode {
             alpha_checksum = alpha_checksum
                 .wrapping_add(encoded.len() as u64)
                 .wrapping_add(u64::from(encoded[0]));
+            alpha_hash = fnv1a(alpha_hash, &encoded);
             alpha_input_bytes = alpha_input_bytes.saturating_add(image.alpha.len());
             alpha_output_bytes = alpha_output_bytes.saturating_add(encoded.len());
             image_output_bytes = image_output_bytes.saturating_add(encoded.len());
@@ -200,7 +220,7 @@ fn main() -> ExitCode {
         let elapsed_ms = started.elapsed().as_secs_f64() * 1_000.0;
         alpha_elapsed_ms += elapsed_ms;
         println!(
-            "measurement encoder=rust profile=alpha-only-lossless-fast file={} encodes={iterations} pixels={} alpha_bytes={image_output_bytes} elapsed_ms={elapsed_ms:.3} mpix_s={:.3} ns_pixel={:.3}",
+            "measurement encoder=rust profile=alpha-only-lossless-fast file={} encodes={iterations} pixels={} alpha_bytes={image_output_bytes} elapsed_ms={elapsed_ms:.3} mpix_s={:.3} ns_pixel={:.3} output_hash={alpha_hash:016x}",
             image.name,
             image.alpha.len().saturating_mul(iterations),
             throughput(image.alpha.len(), iterations, elapsed_ms),
@@ -208,7 +228,7 @@ fn main() -> ExitCode {
         );
     }
     println!(
-        "aggregate encoder=rust profile=alpha-only-lossless-fast files={} encodes={} pixels={} alpha_input_bytes={alpha_input_bytes} alpha_bytes={alpha_output_bytes} elapsed_ms={alpha_elapsed_ms:.3} mpix_s={:.3} ns_pixel={:.3} checksum={alpha_checksum}",
+        "aggregate encoder=rust profile=alpha-only-lossless-fast files={} encodes={} pixels={} alpha_input_bytes={alpha_input_bytes} alpha_bytes={alpha_output_bytes} elapsed_ms={alpha_elapsed_ms:.3} mpix_s={:.3} ns_pixel={:.3} checksum={alpha_checksum} output_hash={alpha_hash:016x}",
         images.len(),
         images.len().saturating_mul(iterations),
         images
@@ -220,6 +240,17 @@ fn main() -> ExitCode {
         aggregate_nanoseconds_per_pixel(&images, iterations, alpha_elapsed_ms),
     );
     ExitCode::SUCCESS
+}
+
+const FNV_OFFSET: u64 = 0xcbf2_9ce4_8422_2325;
+const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
+
+fn fnv1a(mut hash: u64, bytes: &[u8]) -> u64 {
+    for &byte in bytes {
+        hash ^= u64::from(byte);
+        hash = hash.wrapping_mul(FNV_PRIME);
+    }
+    hash
 }
 
 fn distinct_alpha_count(alpha: &[u8]) -> usize {

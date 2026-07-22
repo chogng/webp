@@ -5,6 +5,11 @@ use crate::parse_header;
 use webp_core::CompatibilityProfile;
 use webp_core::DecodeLimits;
 
+#[cfg(feature = "benchmark-internals")]
+use crate::BenchmarkWriterVariant;
+#[cfg(feature = "benchmark-internals")]
+use crate::set_benchmark_writer_variant;
+
 const SAMPLES: [u8; 12] = [0, 1, 2, 255, 17, 9, 200, 4, 88, 88, 99, 3];
 
 fn round_trip(compression: AlphaCompression, filter: AlphaFilter) {
@@ -158,4 +163,25 @@ fn best_filter_selects_the_smallest_lossless_payload() {
     .unwrap();
     assert_eq!(header.compression, AlphaCompression::Lossless);
     assert_eq!(payload.len(), smallest_fixed);
+}
+
+#[cfg(feature = "benchmark-internals")]
+#[test]
+fn benchmark_writer_controls_preserve_complete_payload_bytes() {
+    let samples = (0..4096)
+        .map(|index| ((index / 11 + index / 64) % 29) as u8)
+        .collect::<Vec<_>>();
+    let options = AlphaEncodeOptions {
+        compression: AlphaCompression::Lossless,
+        filter: AlphaFilterSelection::Fast,
+        quality: 100,
+    };
+    set_benchmark_writer_variant(BenchmarkWriterVariant::Reference);
+    let reference = encode(&samples, 64, 64, options).unwrap();
+    set_benchmark_writer_variant(BenchmarkWriterVariant::PacketReference);
+    let packet_reference = encode(&samples, 64, 64, options).unwrap();
+    set_benchmark_writer_variant(BenchmarkWriterVariant::Packed);
+    let packed = encode(&samples, 64, 64, options).unwrap();
+    assert_eq!(packet_reference, reference);
+    assert_eq!(packed, reference);
 }

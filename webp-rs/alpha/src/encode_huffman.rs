@@ -47,6 +47,22 @@ pub(super) fn write_table_symbol(
     write_canonical_symbol(writer, code, width)
 }
 
+pub(super) fn table_wire_symbol(
+    table: &EncodingTable,
+    symbol: usize,
+) -> Result<(u32, u8), AlphaEncodeError> {
+    let (code, width) = table
+        .codes
+        .get(symbol)
+        .copied()
+        .ok_or(AlphaEncodeError::SizeOverflow)?;
+    if width == 0 {
+        return Ok((0, 0));
+    }
+    let wire_code = code.reverse_bits() >> (u32::BITS - u32::from(width));
+    Ok((wire_code, width))
+}
+
 pub(super) fn write_simple_table(
     writer: &mut BitWriter,
     symbol: u8,
@@ -318,6 +334,11 @@ fn zero_codes(alphabet_size: usize) -> Result<Vec<(u32, u8)>, AlphaEncodeError> 
         .map_err(|_| AlphaEncodeError::AllocationFailed)?;
     codes.resize(alphabet_size, (0, 0));
     Ok(codes)
+}
+
+#[cfg(test)]
+pub(super) fn table_from_codes_for_test(codes: Vec<(u32, u8)>) -> EncodingTable {
+    EncodingTable { codes }
 }
 
 fn write_canonical_symbol(

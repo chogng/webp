@@ -7,18 +7,15 @@ use crate::AlphaPreprocessing;
 use crate::encode_filter;
 use crate::encode_huffman::write_adaptive_table;
 use crate::encode_huffman::write_simple_table;
-use crate::encode_huffman::write_table_symbol;
 use crate::encode_lz77;
 use crate::encode_lz77::Token;
 use crate::encode_palette;
+use crate::encode_token_output;
 use crate::level_reduction;
 use std::borrow::Cow;
 use webp_core::BitWriter;
 
 const MAX_LOSSLESS_DIMENSION: u32 = 1 << 14;
-const GREEN_ALPHABET_SIZE: usize = 256 + 24;
-const DISTANCE_ALPHABET_SIZE: usize = 40;
-const CHANNEL_ALPHABET_SIZE: usize = 256;
 /// Configuration for encoding one complete `ALPH` payload.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct AlphaEncodeOptions {
@@ -223,53 +220,20 @@ fn encode_entropy_stream(
     write_simple_table(&mut writer, 0)?; // Blue is unused.
     write_simple_table(&mut writer, u8::MAX)?; // Opaque VP8L alpha lane.
     let distance = write_adaptive_table(&mut writer, &frequencies.distance)?;
-    if let Some(tokens) = cached_tokens {
-        for token in tokens {
-            write_entropy_token(
-                &mut writer,
-                &green,
-                &distance,
-                width,
-                encode_lz77::unpack(token),
-            )?;
-        }
-    } else {
-        match_table.reset();
-        encode_lz77::walk(samples, &mut match_table, |token| {
-            write_entropy_token(&mut writer, &green, &distance, width, token)
-        })?;
-    }
-    Ok(writer.into_bytes())
-}
-
-fn write_entropy_token(
-    writer: &mut BitWriter,
-    green: &crate::encode_huffman::EncodingTable,
-    distance: &crate::encode_huffman::EncodingTable,
-    width: usize,
-    token: Token,
-) -> Result<(), AlphaEncodeError> {
-    match token {
-        Token::Literal(sample) => write_table_symbol(writer, green, usize::from(sample)),
-        Token::Copy {
-            length,
-            distance: copy_distance,
-        } => {
-            let (length_prefix, length_extra) = vp8l_prefix(length, 24)?;
-            write_table_symbol(writer, green, CHANNEL_ALPHABET_SIZE + length_prefix)?;
-            write_bits(writer, length_extra.0, length_extra.1)?;
-            let distance_code = encode_lz77::distance_code(width, copy_distance);
-            let (distance_prefix, distance_extra) =
-                vp8l_prefix(distance_code, DISTANCE_ALPHABET_SIZE)?;
-            write_table_symbol(writer, distance, distance_prefix)?;
-            write_bits(writer, distance_extra.0, distance_extra.1)
-        }
-    }
+    encode_token_output::write_tokens(
+        samples,
+        width,
+        &mut match_table,
+        cached_tokens.as_deref(),
+        writer,
+        &green,
+        &distance,
+    )
 }
 
 struct EntropyFrequencies {
-    green: [u32; GREEN_ALPHABET_SIZE],
-    distance: [u32; DISTANCE_ALPHABET_SIZE],
+    green: [u32; encode_lz77::GREEN_ALPHABET_SIZE],
+    distance: [u32; encode_lz77::DISTANCE_ALPHABET_SIZE],
 }
 
 fn collect_frequencies(
@@ -279,8 +243,8 @@ fn collect_frequencies(
     mut cached_tokens: Option<&mut Vec<u32>>,
 ) -> Result<EntropyFrequencies, AlphaEncodeError> {
     let mut frequencies = EntropyFrequencies {
-        green: [0; GREEN_ALPHABET_SIZE],
-        distance: [0; DISTANCE_ALPHABET_SIZE],
+        green: [0; encode_lz77::GREEN_ALPHABET_SIZE],
+        distance: [0; encode_lz77::DISTANCE_ALPHABET_SIZE],
     };
     encode_lz77::walk(samples, match_table, |token| {
         if let Some(tokens) = cached_tokens.as_mut() {
@@ -291,14 +255,18 @@ fn collect_frequencies(
                 increment_frequency(&mut frequencies.green, usize::from(sample))
             }
             Token::Copy { length, distance } => {
-                let (length_prefix, _) = vp8l_prefix(length, 24)?;
+                let length_prefix =
+                    encode_lz77::prefix_code(length, encode_lz77::LENGTH_PREFIX_COUNT)
+                        .ok_or(AlphaEncodeError::SizeOverflow)?;
                 increment_frequency(
                     &mut frequencies.green,
-                    CHANNEL_ALPHABET_SIZE + length_prefix,
+                    encode_lz77::CHANNEL_ALPHABET_SIZE + length_prefix.symbol,
                 )?;
                 let distance_code = encode_lz77::distance_code(width, distance);
-                let (distance_prefix, _) = vp8l_prefix(distance_code, DISTANCE_ALPHABET_SIZE)?;
-                increment_frequency(&mut frequencies.distance, distance_prefix)
+                let distance_prefix =
+                    encode_lz77::prefix_code(distance_code, encode_lz77::DISTANCE_ALPHABET_SIZE)
+                        .ok_or(AlphaEncodeError::SizeOverflow)?;
+                increment_frequency(&mut frequencies.distance, distance_prefix.symbol)
             }
         }
     })?;
@@ -319,34 +287,6 @@ fn write_bits(writer: &mut BitWriter, value: u32, count: u8) -> Result<(), Alpha
     writer
         .write_bits(value, count)
         .map_err(|_| AlphaEncodeError::AllocationFailed)
-}
-
-fn vp8l_prefix(value: usize, prefix_count: usize) -> Result<(usize, (u32, u8)), AlphaEncodeError> {
-    for prefix in 0..prefix_count {
-        if prefix < 4 {
-            if value == prefix + 1 {
-                return Ok((prefix, (0, 0)));
-            }
-            continue;
-        }
-        let prefix = u8::try_from(prefix).map_err(|_| AlphaEncodeError::SizeOverflow)?;
-        let extra_bits = (prefix - 2) >> 1;
-        let offset = (2_usize + usize::from(prefix & 1)) << extra_bits;
-        let minimum = offset + 1;
-        let maximum = minimum
-            .checked_add((1_usize << extra_bits) - 1)
-            .ok_or(AlphaEncodeError::SizeOverflow)?;
-        if (minimum..=maximum).contains(&value) {
-            return Ok((
-                usize::from(prefix),
-                (
-                    u32::try_from(value - minimum).map_err(|_| AlphaEncodeError::SizeOverflow)?,
-                    extra_bits,
-                ),
-            ));
-        }
-    }
-    Err(AlphaEncodeError::SizeOverflow)
 }
 
 #[cfg(test)]

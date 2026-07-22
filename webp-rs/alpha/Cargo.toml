@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 description = "WebP ALPH payload encoder and decoder"
 
+[features]
+benchmark-internals = []
+
 [lints]
 workspace = true
 

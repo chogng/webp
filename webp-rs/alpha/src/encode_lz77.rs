@@ -5,6 +5,10 @@ const MAX_MATCH_LENGTH: usize = 4096;
 const MATCH_HASH_SIZE: usize = 1 << 16;
 const MAX_LINEAR_DISTANCE: usize = 1_048_456;
 pub(super) const MAX_CACHED_TOKEN_SAMPLES: usize = 4 * 1024 * 1024;
+pub(super) const CHANNEL_ALPHABET_SIZE: usize = 256;
+pub(super) const LENGTH_PREFIX_COUNT: usize = 24;
+pub(super) const GREEN_ALPHABET_SIZE: usize = CHANNEL_ALPHABET_SIZE + LENGTH_PREFIX_COUNT;
+pub(super) const DISTANCE_ALPHABET_SIZE: usize = 40;
 
 const PLANE_TO_CODE: [u8; 128] = [
     96, 73, 55, 39, 23, 13, 5, 1, 255, 255, 255, 255, 255, 255, 255, 255, 101, 78, 58, 42, 26, 16,
@@ -19,6 +23,41 @@ const PLANE_TO_CODE: [u8; 128] = [
 pub(super) enum Token {
     Literal(u8),
     Copy { length: usize, distance: usize },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) struct PrefixCode {
+    pub(super) symbol: usize,
+    pub(super) extra: u32,
+    pub(super) extra_bits: u8,
+}
+
+pub(super) fn prefix_code(value: usize, prefix_count: usize) -> Option<PrefixCode> {
+    for prefix in 0..prefix_count {
+        if prefix < 4 {
+            if value == prefix + 1 {
+                return Some(PrefixCode {
+                    symbol: prefix,
+                    extra: 0,
+                    extra_bits: 0,
+                });
+            }
+            continue;
+        }
+        let prefix_byte = u8::try_from(prefix).ok()?;
+        let extra_bits = (prefix_byte - 2) >> 1;
+        let offset = (2_usize + usize::from(prefix_byte & 1)) << extra_bits;
+        let minimum = offset.checked_add(1)?;
+        let maximum = minimum.checked_add((1_usize << extra_bits) - 1)?;
+        if (minimum..=maximum).contains(&value) {
+            return Some(PrefixCode {
+                symbol: prefix,
+                extra: u32::try_from(value - minimum).ok()?,
+                extra_bits,
+            });
+        }
+    }
+    None
 }
 
 pub(super) struct MatchTable {

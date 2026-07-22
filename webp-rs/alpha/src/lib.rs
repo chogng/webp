@@ -7,6 +7,7 @@ mod encode_filter;
 mod encode_huffman;
 mod encode_lz77;
 mod encode_palette;
+mod encode_token_output;
 mod level_reduction;
 
 pub use alpha::AlphaCompression;
@@ -20,3 +21,9 @@ pub use encode::AlphaEncodeError;
 pub use encode::AlphaEncodeOptions;
 pub use encode::encode;
 pub use encode_filter::AlphaFilterSelection;
+#[cfg(feature = "benchmark-internals")]
+#[doc(hidden)]
+pub use encode_token_output::BenchmarkWriterVariant;
+#[cfg(feature = "benchmark-internals")]
+#[doc(hidden)]
+pub use encode_token_output::set_benchmark_writer_variant;

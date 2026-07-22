@@ -7,6 +7,9 @@ license.workspace = true
 repository.workspace = true
 description = "Public safe-Rust WebP API"
 
+[features]
+alpha-benchmark-internals = ["webp-alpha/benchmark-internals"]
+
 [lints]
 workspace = true
 
