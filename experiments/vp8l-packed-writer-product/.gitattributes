@@ -1,0 +1,2 @@
+*.tsv whitespace=-trailing-space
+*.log whitespace=-trailing-space
