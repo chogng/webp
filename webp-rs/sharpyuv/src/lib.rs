@@ -1,5 +1,5 @@
 #![forbid(unsafe_code)]
-//! Scalar, reconstruction-aware RGB-to-YUV420 sampling for VP8 encoding.
+//! Safe, reconstruction-aware RGB-to-YUV420 sampling for VP8 encoding.
 //!
 //! This owner ports the 8-bit sRGB/WebP-matrix portion of upstream SharpYUV.
 //! It owns only the iterative chroma reconstruction problem. `yuv_image`
@@ -10,6 +10,7 @@ use self::gamma::gamma_to_linear;
 use self::gamma::linear_to_gamma;
 
 mod gamma;
+mod kernels;
 
 const CHANNELS: usize = 3;
 const ITERATIONS: usize = 4;
@@ -36,7 +37,7 @@ pub struct SharpYuvPlanes<'a> {
     pub v: &'a mut [u8],
 }
 
-/// Fills macroblock-padded VP8 planes with the scalar SharpYUV 4:2:0 result.
+/// Fills macroblock-padded VP8 planes with the SharpYUV 4:2:0 result.
 pub fn convert_rgba_to_yuv420(
     width: u32,
     height: u32,
@@ -201,17 +202,17 @@ impl State {
                 update_w(&source_second, &mut rgb_second);
                 update_chroma(&source_first, &source_second, self.uv_width, &mut rgb_uv);
                 let y_offset = row * self.width;
-                difference += update_y(
+                difference += kernels::update_y(
                     &self.target_y[y_offset..y_offset + self.width],
                     &rgb_first,
                     &mut self.best_y[y_offset..y_offset + self.width],
                 );
-                difference += update_y(
+                difference += kernels::update_y(
                     &self.target_y[y_offset + self.width..y_offset + 2 * self.width],
                     &rgb_second,
                     &mut self.best_y[y_offset + self.width..y_offset + 2 * self.width],
                 );
-                update_rgb(
+                kernels::update_rgb(
                     &self.target_uv[current_start..current_start + uv_row_len],
                     &rgb_uv,
                     &mut self.best_uv[current_start..current_start + uv_row_len],
@@ -358,26 +359,19 @@ fn interpolate_rows(
         let output = channel * width;
         first[output] = filter2(current[offset], previous[offset], best_y[0]);
         second[output] = filter2(current[offset], next[offset], best_y[width]);
-        for index in 0..uv_width - 1 {
-            let a0 = i32::from(current[offset + index]);
-            let a1 = i32::from(current[offset + index + 1]);
-            let b0 = i32::from(previous[offset + index]);
-            let b1 = i32::from(previous[offset + index + 1]);
-            let c0 = i32::from(next[offset + index]);
-            let c1 = i32::from(next[offset + index + 1]);
-            first[output + 2 * index + 1] = clip_working(
-                i32::from(best_y[2 * index + 1]) + ((a0 * 9 + a1 * 3 + b0 * 3 + b1 + 8) >> 4),
+        let filtered = uv_width - 1;
+        if filtered > 0 {
+            kernels::filter_row(
+                &current[offset..offset + uv_width],
+                &previous[offset..offset + uv_width],
+                &best_y[1..1 + 2 * filtered],
+                &mut first[output + 1..output + 1 + 2 * filtered],
             );
-            first[output + 2 * index + 2] = clip_working(
-                i32::from(best_y[2 * index + 2]) + ((a1 * 9 + a0 * 3 + b1 * 3 + b0 + 8) >> 4),
-            );
-            second[output + 2 * index + 1] = clip_working(
-                i32::from(best_y[width + 2 * index + 1])
-                    + ((a0 * 9 + a1 * 3 + c0 * 3 + c1 + 8) >> 4),
-            );
-            second[output + 2 * index + 2] = clip_working(
-                i32::from(best_y[width + 2 * index + 2])
-                    + ((a1 * 9 + a0 * 3 + c1 * 3 + c0 + 8) >> 4),
+            kernels::filter_row(
+                &current[offset..offset + uv_width],
+                &next[offset..offset + uv_width],
+                &best_y[width + 1..width + 1 + 2 * filtered],
+                &mut second[output + 1..output + 1 + 2 * filtered],
             );
         }
         let last = width - 1;
@@ -404,25 +398,6 @@ struct ChromaRows<'a> {
 struct RgbRowsMut<'a> {
     first: &'a mut [u16],
     second: &'a mut [u16],
-}
-
-fn update_y(target: &[u16], reconstructed: &[u16], best: &mut [u16]) -> u64 {
-    target
-        .iter()
-        .zip(reconstructed)
-        .zip(best)
-        .map(|((&target, &reconstructed), best)| {
-            let difference = i32::from(target) - i32::from(reconstructed);
-            *best = clip_working(i32::from(*best) + difference);
-            difference.unsigned_abs() as u64
-        })
-        .sum()
-}
-
-fn update_rgb(target: &[i16], reconstructed: &[i16], best: &mut [i16]) {
-    for ((&target, &reconstructed), best) in target.iter().zip(reconstructed).zip(best) {
-        *best += target - reconstructed;
-    }
 }
 
 fn copy_with_edge_padding(

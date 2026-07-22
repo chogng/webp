@@ -8,6 +8,7 @@ fixture="$root/experiments/vp8l-color-transform-fix-product/reproducer-129x129.w
 scripts=(
   "$root/tools/benchmark-alpha-encode.sh"
   "$root/tools/benchmark-animation-encode.sh"
+  "$root/tools/benchmark-sharp-yuv.sh"
   "$root/tools/benchmark-vp8-encode.sh"
   "$root/tools/benchmark-vp8l-clic.sh"
   "$root/tools/benchmark-vp8l-encode.sh"
@@ -37,6 +38,7 @@ run_example() {
 run_example animation_encode_bench 1
 run_example decode_bench 1 "$fixture"
 run_example encode_bench 1 "$fixture"
+run_example sharp_yuv_bench 1 "$fixture"
 run_example vp8_encode_bench 1 "$fixture"
 cargo build --release -p webp --example alpha_encode_bench \
   --features fuzzing --manifest-path "$manifest"

@@ -28,6 +28,7 @@ webp-encode = { path = "../encode", default-features = false, optional = true }
 [dev-dependencies]
 webp-container = { path = "../container" }
 webp-demux = { path = "../demux" }
+webp-sharpyuv = { path = "../sharpyuv" }
 
 [[example]]
 name = "alpha_encode_bench"
@@ -48,6 +49,10 @@ required-features = ["encode"]
 [[example]]
 name = "vp8_encode_bench"
 required-features = ["encode"]
+
+[[example]]
+name = "sharp_yuv_bench"
+required-features = ["decode"]
 
 [[example]]
 name = "vp8l_color_transform_reproducer"

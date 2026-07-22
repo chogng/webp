@@ -9,3 +9,7 @@ description = "Reconstruction-aware RGB to YUV420 conversion for WebP"
 
 [lints]
 workspace = true
+
+[dependencies]
+bytemuck.workspace = true
+wide.workspace = true

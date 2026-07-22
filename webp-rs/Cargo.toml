@@ -29,5 +29,7 @@ unsafe_code = "forbid"
 all = { level = "warn", priority = -1 }
 
 [workspace.dependencies]
+bytemuck = "1.25.2"
 thiserror = "2.0.17"
 toml = "0.9.8"
+wide = "0.7.33"

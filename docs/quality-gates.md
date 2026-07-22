@@ -215,7 +215,7 @@ distortion record rather than optimizing size alone.
 
 ## VP8 SharpYUV product baseline
 
-The VP8 encoder now uses one private scalar SharpYUV path for all public lossy
+The VP8 encoder now uses one private safe-Rust SharpYUV path for all public lossy
 encoding. It implements the pinned algorithm's 8-bit sRGB/WebP-matrix profile
 with four reconstruction-aware iterations. The preceding 2x2 box sampler was
 removed rather than retained as a compatibility option. A high-chroma odd-size
@@ -233,6 +233,12 @@ dB, output by +3.47%, and median time by +35.1%. This is a reviewed sampling
 semantic change: SharpYUV targets reconstructed 4:2:0 chroma edges and exact
 upstream algorithm parity, not monotonic aggregate RGB PSNR. The complete
 contract and rationale are recorded in `sharpyuv.md`.
+
+The safe SIMD kernel baseline preserves all output metrics while reducing the
+isolated SharpYUV median by 20.96% (844.637 -> 667.634 ms) and the complete VP8
+median by 6.89% (970.248 -> 903.376 ms) across five alternating arm64 runs.
+The direct benchmark, pinned-C scalar/SIMD diagnostic, and exact RGBA handoff
+are reproduced by `bash tools/benchmark-sharp-yuv.sh 20`.
 
 ## VP8 fused coefficient observation
 

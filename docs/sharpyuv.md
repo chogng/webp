@@ -1,6 +1,6 @@
 # VP8 SharpYUV contract
 
-The VP8 encoder has one RGB-to-YUV420 production path: the private scalar
+The VP8 encoder has one RGB-to-YUV420 production path: the private safe-Rust
 SharpYUV implementation in `webp-encode::vp8`. The previous 2x2 box sampler is not
 retained as a compatibility profile, fallback, or hidden option. Public lossy
 options therefore continue to describe encoder quality only; they do not expose
@@ -45,11 +45,26 @@ guard rather than its defining objective.
 Three five-iteration runs measured 473.650, 477.949, and 478.849 ms; the median
 is 477.949 ms. The preceding scalar box path measured 353.658 ms, so the four
 reconstruction-aware iterations cost 35.1% on this matrix. The reviewed gate
-in `quality-gates.md` allows 5% headroom over the new median. SIMD remains a
-future optimization and must preserve the scalar oracle exactly.
+in `quality-gates.md` allows 5% headroom over the new median. This is the
+historical pre-SIMD product baseline.
+
+The first safe SIMD pass now vectorizes the three refinement kernels that
+upstream dispatches to SSE2 or NEON: row filtering, Y error update, and RGB
+error update. Five alternating scalar/SIMD runs on arm64 reduce the isolated
+conversion median from 844.637 to 667.634 ms (-20.96%) and the complete VP8
+median from 970.248 to 903.376 ms (-6.89%). Direct-plane checksums, encoded
+bytes, RGB SSE, and PSNR remain exact. The implementation uses safe 8-lane
+vectors and retains `unsafe_code = "forbid"`; allocation and final-plane copy
+changes remain separate future work.
 
 Reproduce the complete encode, size, distortion, and pinned-libwebp comparison:
 
 ```sh
 bash tools/benchmark-vp8-encode.sh 5
+```
+
+Reproduce the isolated Rust and pinned-libsharpyuv comparison:
+
+```sh
+bash tools/benchmark-sharp-yuv.sh 20
 ```

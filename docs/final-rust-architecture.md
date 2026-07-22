@@ -743,7 +743,7 @@ inlining、数据布局或重复转换，再决定边界；不得无记录地放
    `decode`/`encode`/`animation` Cargo features，默认仍是完整兼容产品档；decoder-only
    已验证不编译 encoder orchestration，并记录了 archive 大小、编译时间和依赖差异，详见
    [`decoder-only.md`](decoder-only.md)。
-4. **SharpYUV 等价能力 — 已完成**：VP8 唯一生产转换路径使用私有 scalar SharpYUV，
+4. **SharpYUV 等价能力 — 已完成**：VP8 唯一生产转换路径使用私有 safe-Rust SharpYUV，
    明确限定为 straight RGBA8、sRGB transfer、WebP limited-range matrix 和四次重建感知
    refinement。旧 2×2 box sampler 已删除，不作为兼容档、回退或隐藏配置保留；逐字节
    pinned libsharpyuv oracle、公开 VP8/dwebp oracle、客观质量记录和性能门禁均已建立，
