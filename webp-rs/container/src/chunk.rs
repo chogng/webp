@@ -18,3 +18,33 @@ impl Chunk<'_> {
         crate::fourcc::is_known(self.fourcc)
     }
 }
+
+/// An owned RIFF chunk for constructing or editing a WebP container.
+///
+/// `MuxChunk` owns only container bytes. Codec payloads are intentionally
+/// opaque, so using it never decodes or re-encodes VP8 or VP8L data.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MuxChunk {
+    fourcc: FourCc,
+    payload: Vec<u8>,
+}
+
+impl MuxChunk {
+    /// Creates an owned chunk with an opaque payload.
+    #[must_use]
+    pub fn new(fourcc: FourCc, payload: Vec<u8>) -> Self {
+        Self { fourcc, payload }
+    }
+
+    /// Returns the chunk identifier.
+    #[must_use]
+    pub fn fourcc(&self) -> FourCc {
+        self.fourcc
+    }
+
+    /// Returns the opaque payload bytes.
+    #[must_use]
+    pub fn payload(&self) -> &[u8] {
+        &self.payload
+    }
+}

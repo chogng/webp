@@ -727,21 +727,22 @@ inlining、数据布局或重复转换，再决定边界；不得无记录地放
 ## 9. 迁移完成后的产品路线
 
 以下四项明确排除在架构迁移之外。只有第 8 节全部通过并形成稳定基线后，才分别建立
-独立任务、分支、测试与性能记录；不得重新混入迁移分支。
+独立任务、测试与性能记录；不得重新混入迁移分支。
 
-1. **完整 demux API**：在现有零拷贝 parse 基础上补齐稳定 `Demuxer`、chunk/frame
-   iteration、随机查询、版本化公共错误和文档。
-2. **完整 mux/editor API**：在迁入的既有 serializer 基础上补齐通用 `Muxer`、
-   metadata/frame/chunk mutation、未知 chunk 保留和无需像素重编码的 edit round trip。
-3. **decoder-only 产品档**：为 `webp` 设计 `decode`/`encode`/`animation` Cargo
+1. **完整 demux API — 已完成**：`Demuxer` 提供稳定零拷贝 parse、chunk/frame
+   iteration、随机查询与资源策略；兼容的 `Container`/`parse` 入口继续保留。
+2. **完整 mux/editor API — 已完成**：`Muxer` 提供静态图像、动画帧和通用 owned chunk
+   构造；`Editor` 提供 metadata/frame/chunk mutation、未知 chunk 保留以及无需像素
+   重编码的 strict edit round trip。
+3. **decoder-only 产品档 — 下一项**：为 `webp` 设计 `decode`/`encode`/`animation` Cargo
    features，验证 decoder-only 不编译 encoder 路径并记录二进制、编译时间和依赖差异；
    默认 feature 行为必须保持兼容。
-4. **SharpYUV 等价能力**：作为独立的色度下采样/质量项目研究和实现，使用清晰的
+4. **SharpYUV 等价能力 — 待开始**：作为独立的色度下采样/质量项目研究和实现，使用清晰的
    RGB/YUV contract、客观质量指标、pinned libsharpyuv 对照和性能门禁。不得把当前
    简单 2×2 VP8 YUV420 转换仅改名为 SharpYUV。
 
-建议按上述顺序推进。前两项依赖 container 边界稳定，decoder-only 依赖最终 Cargo
-依赖图稳定，SharpYUV 会改变编码质量与性能，应最后独立评估。每项是否最终需要新的
+后续先推进 decoder-only。它依赖最终 Cargo 依赖图稳定；SharpYUV 会改变编码质量与性能，
+应最后独立评估。每项是否最终需要新的
 crate，必须以真实独立用户、依赖和版本需求为依据；当前预设 demux/mux 继续共同位于
 `webp-container`，decoder-only 使用 `webp` features，SharpYUV 在实现验证前不预建
 空 crate。

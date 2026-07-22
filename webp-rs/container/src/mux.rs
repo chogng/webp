@@ -1,16 +1,187 @@
-//! Minimal serialization used by the existing `webp` encoder.
-//!
-//! This is deliberately not a general muxer or editor API. It owns only the
-//! RIFF, chunk, metadata, and animation serialization behavior that existed
-//! before the container boundary was established. Codec payloads remain
-//! opaque bytes.
+//! Owned RIFF serialization for public muxing and existing encoder adapters.
 
+use crate::ALPH;
+use crate::ANIM;
+use crate::ANMF;
+use crate::CompatibilityProfile;
 use crate::ContainerError;
 use crate::ContainerErrorKind;
+use crate::ContainerLimits;
+use crate::DemuxOptions;
+use crate::EXIF;
+use crate::FourCc;
+use crate::ICCP;
 use crate::Metadata;
+use crate::MuxChunk;
+use crate::VP8;
+use crate::VP8L;
+use crate::VP8X;
+use crate::XMP;
 
 const MAX_ANIMATION_DURATION_MS: u32 = (1 << 24) - 1;
 const MAX_WIRE_DIMENSION: u32 = 1 << 24;
+
+/// Opaque codec payload carried by a constructed animation frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FramePayload<'a> {
+    Vp8(&'a [u8]),
+    Vp8l(&'a [u8]),
+}
+
+/// One animation frame supplied to [`Muxer::add_animation_frame`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AnimationFrameInput<'a> {
+    pub x: u32,
+    pub y: u32,
+    pub width: u32,
+    pub height: u32,
+    pub duration_ms: u32,
+    pub dispose_to_background: bool,
+    pub blend: bool,
+    pub alpha: Option<&'a [u8]>,
+    pub payload: FramePayload<'a>,
+}
+
+/// Builds a strict WebP RIFF container from owned, opaque chunks.
+///
+/// Common static and animation constructors establish `VP8X` geometry and
+/// flags for callers. [`Muxer::add_chunk`] is also available for extensions
+/// and unknown chunks; [`Muxer::finish`] validates the resulting layout.
+#[derive(Debug, Default)]
+pub struct Muxer {
+    chunks: Vec<MuxChunk>,
+}
+
+impl Muxer {
+    /// Creates an empty generic container builder.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Creates an extended static VP8L container with known canvas geometry.
+    pub fn static_vp8l(
+        width: u32,
+        height: u32,
+        payload: Vec<u8>,
+        has_alpha: bool,
+    ) -> Result<Self, ContainerError> {
+        let mut muxer = Self::with_canvas(width, height, u8::from(has_alpha) << 4)?;
+        muxer.add_chunk(MuxChunk::new(VP8L, payload))?;
+        Ok(muxer)
+    }
+
+    /// Creates an extended static VP8 container with an optional ALPH payload.
+    pub fn static_vp8(
+        width: u32,
+        height: u32,
+        payload: Vec<u8>,
+        alpha: Option<Vec<u8>>,
+    ) -> Result<Self, ContainerError> {
+        let mut muxer = Self::with_canvas(width, height, u8::from(alpha.is_some()) << 4)?;
+        if let Some(alpha) = alpha {
+            muxer.add_chunk(MuxChunk::new(ALPH, alpha))?;
+        }
+        muxer.add_chunk(MuxChunk::new(VP8, payload))?;
+        Ok(muxer)
+    }
+
+    /// Creates an animated container and writes its `VP8X` and `ANIM` chunks.
+    pub fn animation(
+        width: u32,
+        height: u32,
+        background_rgba: [u8; 4],
+        loop_count: u16,
+    ) -> Result<Self, ContainerError> {
+        let mut muxer = Self::with_canvas(width, height, 1 << 1)?;
+        let control = [
+            background_rgba[2],
+            background_rgba[1],
+            background_rgba[0],
+            background_rgba[3],
+            loop_count.to_le_bytes()[0],
+            loop_count.to_le_bytes()[1],
+        ];
+        muxer.add_chunk(MuxChunk::new(ANIM, control.to_vec()))?;
+        Ok(muxer)
+    }
+
+    /// Adds a top-level opaque chunk. Unknown chunks are serialized unchanged.
+    pub fn add_chunk(&mut self, chunk: MuxChunk) -> Result<&mut Self, ContainerError> {
+        self.chunks
+            .try_reserve(1)
+            .map_err(|_| allocation_failed())?;
+        self.chunks.push(chunk);
+        Ok(self)
+    }
+
+    /// Adds an opaque chunk while retaining builder chaining.
+    pub fn with_chunk(mut self, chunk: MuxChunk) -> Result<Self, ContainerError> {
+        self.add_chunk(chunk)?;
+        Ok(self)
+    }
+
+    /// Adds a validated ANMF frame to an animated container.
+    pub fn add_animation_frame(
+        &mut self,
+        frame: AnimationFrameInput<'_>,
+    ) -> Result<&mut Self, ContainerError> {
+        if !self.chunks.iter().any(|chunk| chunk.fourcc() == ANIM) {
+            return Err(error(
+                ContainerErrorKind::InvalidAnimation,
+                "animation frames require Muxer::animation",
+            ));
+        }
+        let payload = serialize_animation_frame_input(frame)?;
+        if frame.alpha.is_some() {
+            set_vp8x_flag(&mut self.chunks, 1 << 4, true)?;
+        }
+        self.add_chunk(MuxChunk::new(ANMF, payload))
+    }
+
+    /// Replaces or adds ICC profile metadata.
+    pub fn set_iccp(&mut self, payload: Vec<u8>) -> Result<&mut Self, ContainerError> {
+        set_metadata_chunk(&mut self.chunks, ICCP, payload)?;
+        Ok(self)
+    }
+
+    /// Replaces or adds EXIF metadata.
+    pub fn set_exif(&mut self, payload: Vec<u8>) -> Result<&mut Self, ContainerError> {
+        set_metadata_chunk(&mut self.chunks, EXIF, payload)?;
+        Ok(self)
+    }
+
+    /// Replaces or adds XMP metadata.
+    pub fn set_xmp(&mut self, payload: Vec<u8>) -> Result<&mut Self, ContainerError> {
+        set_metadata_chunk(&mut self.chunks, XMP, payload)?;
+        Ok(self)
+    }
+
+    /// Serializes and strictly validates the finished RIFF container.
+    pub fn finish(self) -> Result<Vec<u8>, ContainerError> {
+        finish_chunks(&self.chunks)
+    }
+
+    fn with_canvas(width: u32, height: u32, flags: u8) -> Result<Self, ContainerError> {
+        if !dimensions_fit_u24_minus_one(width, height) {
+            return Err(error(
+                ContainerErrorKind::InvalidDimensions,
+                "container dimensions exceed the VP8X wire range",
+            ));
+        }
+        let mut vp8x = [0_u8; 10];
+        vp8x[0] = flags;
+        vp8x[4..7].copy_from_slice(&(width - 1).to_le_bytes()[..3]);
+        vp8x[7..10].copy_from_slice(&(height - 1).to_le_bytes()[..3]);
+        let mut muxer = Self::new();
+        muxer.add_chunk(MuxChunk::new(VP8X, vp8x.to_vec()))?;
+        Ok(muxer)
+    }
+
+    pub(crate) fn from_chunks(chunks: Vec<MuxChunk>) -> Self {
+        Self { chunks }
+    }
+}
 
 const fn dimensions_fit_u24_minus_one(width: u32, height: u32) -> bool {
     width != 0 && height != 0 && width <= MAX_WIRE_DIMENSION && height <= MAX_WIRE_DIMENSION
@@ -126,31 +297,17 @@ pub fn serialize_vp8(
 /// Serializes one existing VP8L ANMF payload.
 #[doc(hidden)]
 pub fn serialize_animation_frame(frame: AnimationFrameMux<'_>) -> Result<Vec<u8>, ContainerError> {
-    if !dimensions_fit_u24_minus_one(frame.width, frame.height)
-        || frame.x & 1 != 0
-        || frame.y & 1 != 0
-        || frame.x > 0x01ff_fffe
-        || frame.y > 0x01ff_fffe
-        || frame.duration_ms > MAX_ANIMATION_DURATION_MS
-    {
-        return Err(error(
-            ContainerErrorKind::InvalidAnimation,
-            "invalid ANMF wire fields",
-        ));
-    }
-    let nested_size = chunk_storage_len(frame.vp8l_payload.len())?;
-    let payload_len = 16_usize
-        .checked_add(nested_size)
-        .ok_or_else(size_overflow)?;
-    let mut output = reserve(payload_len)?;
-    output.extend_from_slice(&(frame.x / 2).to_le_bytes()[..3]);
-    output.extend_from_slice(&(frame.y / 2).to_le_bytes()[..3]);
-    output.extend_from_slice(&(frame.width - 1).to_le_bytes()[..3]);
-    output.extend_from_slice(&(frame.height - 1).to_le_bytes()[..3]);
-    output.extend_from_slice(&frame.duration_ms.to_le_bytes()[..3]);
-    output.push(u8::from(frame.dispose_to_background) | if frame.blend { 0 } else { 1 << 1 });
-    push_chunk(&mut output, b"VP8L", frame.vp8l_payload)?;
-    Ok(output)
+    serialize_animation_frame_input(AnimationFrameInput {
+        x: frame.x,
+        y: frame.y,
+        width: frame.width,
+        height: frame.height,
+        duration_ms: frame.duration_ms,
+        dispose_to_background: frame.dispose_to_background,
+        blend: frame.blend,
+        alpha: None,
+        payload: FramePayload::Vp8l(frame.vp8l_payload),
+    })
 }
 
 /// Serializes the existing VP8L-frame animation container profile.
@@ -264,6 +421,170 @@ fn wrap_vp8l_chunks(
     Ok(output)
 }
 
+pub(crate) fn finish_chunks(chunks: &[MuxChunk]) -> Result<Vec<u8>, ContainerError> {
+    let mut chunks_size = 0_usize;
+    for chunk in chunks {
+        chunks_size = chunks_size
+            .checked_add(chunk_storage_len(chunk.payload().len())?)
+            .ok_or_else(size_overflow)?;
+    }
+    let capacity = riff_capacity(chunks_size)?;
+    let riff_size = u32::try_from(capacity - 8).map_err(|_| size_overflow())?;
+    let mut output = reserve(capacity)?;
+    output.extend_from_slice(b"RIFF");
+    output.extend_from_slice(&riff_size.to_le_bytes());
+    output.extend_from_slice(b"WEBP");
+    for chunk in chunks {
+        push_chunk(&mut output, &chunk.fourcc(), chunk.payload())?;
+    }
+    let options = DemuxOptions {
+        profile: CompatibilityProfile::SpecStrict,
+        limits: ContainerLimits {
+            max_input_bytes: usize::MAX,
+            max_width: MAX_WIRE_DIMENSION,
+            max_height: MAX_WIRE_DIMENSION,
+            max_pixels: u64::MAX,
+            max_frames: u32::MAX,
+            max_total_frame_pixels: u64::MAX,
+            max_metadata_bytes: usize::MAX,
+            max_chunks: u32::MAX,
+        },
+    };
+    crate::Demuxer::parse(&output, &options)?;
+    Ok(output)
+}
+
+pub(crate) fn set_metadata_chunk(
+    chunks: &mut Vec<MuxChunk>,
+    fourcc: FourCc,
+    payload: Vec<u8>,
+) -> Result<(), ContainerError> {
+    let flag = metadata_flag(fourcc).ok_or_else(|| {
+        error(
+            ContainerErrorKind::InvalidContainer,
+            "chunk is not editable metadata",
+        )
+    })?;
+    if let Some(index) = chunks.iter().position(|chunk| chunk.fourcc() == fourcc) {
+        set_vp8x_flag(chunks, flag, true)?;
+        chunks[index] = MuxChunk::new(fourcc, payload);
+        return Ok(());
+    }
+    chunks.try_reserve(1).map_err(|_| allocation_failed())?;
+    set_vp8x_flag(chunks, flag, true)?;
+    let index = if fourcc == ICCP {
+        chunks
+            .iter()
+            .position(|chunk| chunk.fourcc() == VP8X)
+            .expect("VP8X is required by set_vp8x_flag")
+            + 1
+    } else {
+        chunks.len()
+    };
+    chunks.insert(index, MuxChunk::new(fourcc, payload));
+    Ok(())
+}
+
+pub(crate) fn remove_metadata_chunk(
+    chunks: &mut Vec<MuxChunk>,
+    fourcc: FourCc,
+) -> Result<bool, ContainerError> {
+    let flag = metadata_flag(fourcc).ok_or_else(|| {
+        error(
+            ContainerErrorKind::InvalidContainer,
+            "chunk is not editable metadata",
+        )
+    })?;
+    let Some(index) = chunks.iter().position(|chunk| chunk.fourcc() == fourcc) else {
+        return Ok(false);
+    };
+    chunks.remove(index);
+    set_vp8x_flag(chunks, flag, false)?;
+    Ok(true)
+}
+
+fn metadata_flag(fourcc: FourCc) -> Option<u8> {
+    match fourcc {
+        ICCP => Some(1 << 5),
+        EXIF => Some(1 << 3),
+        XMP => Some(1 << 2),
+        _ => None,
+    }
+}
+
+pub(crate) fn set_vp8x_flag(
+    chunks: &mut [MuxChunk],
+    flag: u8,
+    enabled: bool,
+) -> Result<(), ContainerError> {
+    let vp8x = chunks
+        .iter()
+        .position(|chunk| chunk.fourcc() == VP8X)
+        .ok_or_else(|| {
+            error(
+                ContainerErrorKind::InvalidContainer,
+                "metadata and alpha require a VP8X chunk",
+            )
+        })?;
+    let mut payload = chunks[vp8x].payload().to_vec();
+    if payload.len() != 10 {
+        return Err(error(
+            ContainerErrorKind::InvalidContainer,
+            "VP8X payload must be exactly 10 bytes",
+        ));
+    }
+    if enabled {
+        payload[0] |= flag;
+    } else {
+        payload[0] &= !flag;
+    }
+    chunks[vp8x] = MuxChunk::new(VP8X, payload);
+    Ok(())
+}
+
+pub(crate) fn serialize_animation_frame_input(
+    frame: AnimationFrameInput<'_>,
+) -> Result<Vec<u8>, ContainerError> {
+    if !dimensions_fit_u24_minus_one(frame.width, frame.height)
+        || frame.x & 1 != 0
+        || frame.y & 1 != 0
+        || frame.x > 0x01ff_fffe
+        || frame.y > 0x01ff_fffe
+        || frame.duration_ms > MAX_ANIMATION_DURATION_MS
+        || matches!(frame.payload, FramePayload::Vp8l(_)) && frame.alpha.is_some()
+    {
+        return Err(error(
+            ContainerErrorKind::InvalidAnimation,
+            "invalid ANMF wire fields",
+        ));
+    }
+    let (fourcc, bitstream) = match frame.payload {
+        FramePayload::Vp8(payload) => (VP8, payload),
+        FramePayload::Vp8l(payload) => (VP8L, payload),
+    };
+    let mut nested_size = chunk_storage_len(bitstream.len())?;
+    if let Some(alpha) = frame.alpha {
+        nested_size = nested_size
+            .checked_add(chunk_storage_len(alpha.len())?)
+            .ok_or_else(size_overflow)?;
+    }
+    let payload_len = 16_usize
+        .checked_add(nested_size)
+        .ok_or_else(size_overflow)?;
+    let mut output = reserve(payload_len)?;
+    output.extend_from_slice(&(frame.x / 2).to_le_bytes()[..3]);
+    output.extend_from_slice(&(frame.y / 2).to_le_bytes()[..3]);
+    output.extend_from_slice(&(frame.width - 1).to_le_bytes()[..3]);
+    output.extend_from_slice(&(frame.height - 1).to_le_bytes()[..3]);
+    output.extend_from_slice(&frame.duration_ms.to_le_bytes()[..3]);
+    output.push(u8::from(frame.dispose_to_background) | if frame.blend { 0 } else { 1 << 1 });
+    if let Some(alpha) = frame.alpha {
+        push_chunk(&mut output, &ALPH, alpha)?;
+    }
+    push_chunk(&mut output, &fourcc, bitstream)?;
+    Ok(output)
+}
+
 fn riff_capacity(chunks_size: usize) -> Result<usize, ContainerError> {
     let riff_size = 4_usize.checked_add(chunks_size).ok_or_else(size_overflow)?;
     u32::try_from(riff_size).map_err(|_| size_overflow())?;
@@ -279,6 +600,13 @@ fn reserve(capacity: usize) -> Result<Vec<u8>, ContainerError> {
         )
     })?;
     Ok(output)
+}
+
+pub(crate) fn allocation_failed() -> ContainerError {
+    error(
+        ContainerErrorKind::AllocationFailed,
+        "WebP container allocation failed",
+    )
 }
 
 fn chunk_storage_len(payload_len: usize) -> Result<usize, ContainerError> {
