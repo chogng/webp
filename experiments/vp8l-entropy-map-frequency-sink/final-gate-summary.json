@@ -1,0 +1,9 @@
+{
+  "decision": "reject",
+  "reason": "LowLatency recovery gate failed",
+  "release_route": "retained_A",
+  "product_phase_a": "prohibited",
+  "product_screen": "prohibited",
+  "formal_102x5": "prohibited",
+  "main_integration": "prohibited"
+}

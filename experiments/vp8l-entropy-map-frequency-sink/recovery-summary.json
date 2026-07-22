@@ -1,0 +1,19 @@
+{
+  "task": "P25",
+  "decision": "reject",
+  "release_route": "retained_A",
+  "recovery_gate": false,
+  "identity": "82/82",
+  "stderr_bytes": 0,
+  "compact": {
+    "improvement_percent": 2.166413835528704,
+    "per_image_regressions": 3
+  },
+  "low_latency": {
+    "improvement_percent": 2.1568894549944644,
+    "per_image_regressions": 4,
+    "failure": "improvement_below_5_percent_and_nonzero_regressions"
+  },
+  "external_evidence": "/private/tmp/vp8l-entropy-map-frequency-sink-p25-recovery-1ba75483",
+  "external_sha256sums_sha256": "c12a0c6fb3bfa0697697a247c16f0c86e9c9327e1c08c675c27afc838bce7b61"
+}
