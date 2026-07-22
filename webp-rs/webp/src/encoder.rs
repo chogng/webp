@@ -8,6 +8,8 @@ use crate::LosslessEncodeProfile;
 use crate::LossyEncodeOptions;
 use crate::Metadata;
 #[cfg(test)]
+use crate::vp8l::header::MAX_DIMENSION;
+#[cfg(test)]
 use crate::vp8l::image_writer::COLOR_TRANSFORM_BLOCK_BITS;
 #[cfg(test)]
 use crate::vp8l::image_writer::EntropyToken;
@@ -25,8 +27,6 @@ use crate::vp8l::image_writer::spatial_writer;
 #[cfg(test)]
 use crate::vp8l::image_writer::try_make_palette_plan;
 use crate::vp8l::image_writer::validate_input;
-#[cfg(test)]
-use webp_vp8l::MAX_DIMENSION;
 
 const MAX_ANIMATION_DIMENSION: u32 = 1 << 24;
 const MAX_ANIMATION_DURATION_MS: u32 = (1 << 24) - 1;

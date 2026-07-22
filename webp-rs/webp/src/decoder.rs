@@ -18,7 +18,7 @@ pub(crate) fn decode(data: &[u8], options: &DecodeOptions) -> Result<Image, Deco
         .iter()
         .find(|chunk| chunk.fourcc == webp_container::VP8L)
     {
-        let decoded = webp_vp8l_literal::decode_vp8l(chunk.payload, &options.limits)?;
+        let decoded = crate::vp8l::image_reader::decode_vp8l(chunk.payload, &options.limits)?;
         if let Some(vp8x) = container.vp8x()
             && (vp8x.canvas_width != decoded.header.width
                 || vp8x.canvas_height != decoded.header.height)
@@ -169,7 +169,7 @@ fn decode_animation_frame(
 ) -> Result<Vec<u8>, DecodeError> {
     let mut rgba = match frame.bitstream {
         FrameBitstream::Vp8l(payload) => {
-            let decoded = webp_vp8l_literal::decode_vp8l(payload, &options.limits)?;
+            let decoded = crate::vp8l::image_reader::decode_vp8l(payload, &options.limits)?;
             if (decoded.header.width, decoded.header.height) != (frame.width, frame.height) {
                 return Err(DecodeError::new(
                     DecodeErrorKind::InvalidContainer,

@@ -7,9 +7,9 @@
 //! indexing.
 
 use crate::EncodeError;
+use crate::vp8l::header::MAX_DIMENSION;
+use crate::vp8l::header::SIGNATURE;
 use webp_core::BitWriter;
-use webp_vp8l::MAX_DIMENSION;
-use webp_vp8l::SIGNATURE;
 
 const GREEN_ALPHABET_SIZE: usize = 256 + 24;
 const CHANNEL_ALPHABET_SIZE: usize = 256;

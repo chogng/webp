@@ -17,7 +17,7 @@ pub fn read_info(data: &[u8], limits: &DecodeLimits) -> Result<ImageInfo, Decode
         let canvas = container
             .vp8x()
             .map(|header| (header.canvas_width, header.canvas_height));
-        let header = webp_vp8l::parse_riff_payload(chunk.payload, canvas, limits)?;
+        let header = crate::vp8l::header::parse_riff_payload(chunk.payload, canvas, limits)?;
         return Ok(ImageInfo {
             width: header.width,
             height: header.height,

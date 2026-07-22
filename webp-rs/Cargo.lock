@@ -153,8 +153,6 @@ dependencies = [
  "webp-container",
  "webp-core",
  "webp-vp8",
- "webp-vp8l",
- "webp-vp8l-literal",
 ]
 
 [[package]]

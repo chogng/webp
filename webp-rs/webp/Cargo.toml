@@ -19,5 +19,3 @@ webp-animation = { path = "../animation" }
 webp-core = { path = "../core" }
 webp-container = { path = "../container" }
 webp-vp8 = { path = "../vp8" }
-webp-vp8l = { path = "../vp8l" }
-webp-vp8l-literal = { path = "../vp8l-literal" }
