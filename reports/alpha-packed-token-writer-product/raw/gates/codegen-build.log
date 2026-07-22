@@ -1,0 +1,11 @@
+   Compiling webp-core v0.1.0 (/Users/lance/.codex/worktrees/6821/webp/webp-rs/core)
+   Compiling webp-vp8l-transform v0.1.0 (/Users/lance/.codex/worktrees/6821/webp/webp-rs/vp8l-transform)
+   Compiling webp-vp8l-color-transform v0.1.0 (/Users/lance/.codex/worktrees/6821/webp/webp-rs/vp8l-color-transform)
+   Compiling webp-vp8l-indexing v0.1.0 (/Users/lance/.codex/worktrees/6821/webp/webp-rs/vp8l-indexing)
+   Compiling webp-vp8l-entropy v0.1.0 (/Users/lance/.codex/worktrees/6821/webp/webp-rs/vp8l-entropy)
+   Compiling webp-vp8l-huffman v0.1.0 (/Users/lance/.codex/worktrees/6821/webp/webp-rs/vp8l-huffman)
+   Compiling webp-vp8l v0.1.0 (/Users/lance/.codex/worktrees/6821/webp/webp-rs/vp8l)
+   Compiling webp-vp8l-color-cache v0.1.0 (/Users/lance/.codex/worktrees/6821/webp/webp-rs/vp8l-color-cache)
+   Compiling webp-vp8l-literal v0.1.0 (/Users/lance/.codex/worktrees/6821/webp/webp-rs/vp8l-literal)
+   Compiling webp-alpha v0.1.0 (/Users/lance/.codex/worktrees/6821/webp/webp-rs/alpha)
+    Finished `release` profile [optimized] target(s) in 1.33s

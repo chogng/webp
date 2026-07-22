@@ -1,0 +1,12 @@
+{
+  "binary": "/Users/lance/.codex/worktrees/6821/webp/webp-rs/target/release/examples/alpha_encode_bench",
+  "binary_sha256": "6cddb10469cafe6f3e0fec7eb9a6cf8ebd9a6a509108373ff6d2b02b55224c03",
+  "iterations": 10,
+  "lock": "/private/tmp/webp-alpha-packed-token-writer.lock",
+  "rounds": 3,
+  "variants": [
+    "reference",
+    "packet-reference",
+    "packed"
+  ]
+}

@@ -1,0 +1,170 @@
+{
+  "real": {
+    "alpha-only-lossless-fast": {
+      "packed_per_file_max": -1.915093076201957,
+      "packed_per_file_median": -3.850161754150638,
+      "packed_per_file_min": -4.364190339636165,
+      "packed_regressions": 0,
+      "variants": {
+        "packed": {
+          "change_percent": -3.274498582242913,
+          "median_ms": 148.72899999999998,
+          "rounds_ms": [
+            148.54399999999998,
+            148.72899999999998,
+            148.588,
+            148.75,
+            148.963
+          ]
+        },
+        "packet-reference": {
+          "change_percent": -0.7023750682864538,
+          "median_ms": 152.684,
+          "rounds_ms": [
+            152.684,
+            152.626,
+            153.15800000000002,
+            152.511,
+            152.879
+          ]
+        },
+        "reference": {
+          "change_percent": 0.0,
+          "median_ms": 153.76399999999998,
+          "rounds_ms": [
+            153.76399999999998,
+            157.496,
+            153.612,
+            153.683,
+            154.687
+          ]
+        }
+      }
+    },
+    "vp8-q75-alpha-lossless-fast": {
+      "packed_per_file_max": 0.18923624252515925,
+      "packed_per_file_median": -0.23575916951247833,
+      "packed_per_file_min": -1.6817919907807677,
+      "packed_regressions": 1,
+      "variants": {
+        "packed": {
+          "change_percent": -0.07930784448174633,
+          "median_ms": 1014.2270000000001,
+          "rounds_ms": [
+            1014.2270000000001,
+            1012.556,
+            1015.6790000000001,
+            1012.6320000000001,
+            1020.9459999999999
+          ]
+        },
+        "packet-reference": {
+          "change_percent": -0.10137611425058424,
+          "median_ms": 1014.003,
+          "rounds_ms": [
+            1021.011,
+            1013.491,
+            1014.003,
+            1012.0110000000001,
+            1014.2389999999999
+          ]
+        },
+        "reference": {
+          "change_percent": 0.0,
+          "median_ms": 1015.032,
+          "rounds_ms": [
+            1015.31,
+            1013.7230000000001,
+            1015.664,
+            1015.032,
+            1014.817
+          ]
+        }
+      }
+    }
+  },
+  "synthetic": {
+    "alpha-only-lossless-fast": {
+      "packed_per_file_max": -1.0607265977194413,
+      "packed_per_file_median": -4.435361792310022,
+      "packed_per_file_min": -20.699274184812044,
+      "packed_regressions": 0,
+      "variants": {
+        "packed": {
+          "change_percent": -10.13797709103832,
+          "median_ms": 230.09799999999998,
+          "rounds_ms": [
+            230.172,
+            230.09799999999998,
+            230.249,
+            229.89399999999998,
+            229.44700000000003
+          ]
+        },
+        "packet-reference": {
+          "change_percent": 0.20815677759249418,
+          "median_ms": 256.59,
+          "rounds_ms": [
+            257.663,
+            256.16900000000004,
+            256.59,
+            256.76500000000004,
+            256.49399999999997
+          ]
+        },
+        "reference": {
+          "change_percent": 0.0,
+          "median_ms": 256.05699999999996,
+          "rounds_ms": [
+            256.90400000000005,
+            258.431,
+            256.05699999999996,
+            255.998,
+            255.488
+          ]
+        }
+      }
+    },
+    "vp8-q75-alpha-lossless-fast": {
+      "packed_per_file_max": 0.4322417025030223,
+      "packed_per_file_median": 0.0,
+      "packed_per_file_min": -2.797885605553896,
+      "packed_regressions": 5,
+      "variants": {
+        "packed": {
+          "change_percent": -0.4920574881256634,
+          "median_ms": 3564.6780000000003,
+          "rounds_ms": [
+            3568.2200000000003,
+            3559.37,
+            3558.6040000000003,
+            3564.6780000000003,
+            3565.7879999999996
+          ]
+        },
+        "packet-reference": {
+          "change_percent": 0.1763389772785784,
+          "median_ms": 3588.622,
+          "rounds_ms": [
+            3586.186,
+            3588.622,
+            3596.9359999999997,
+            3596.8720000000003,
+            3573.741
+          ]
+        },
+        "reference": {
+          "change_percent": 0.0,
+          "median_ms": 3582.3050000000003,
+          "rounds_ms": [
+            3582.3050000000003,
+            3580.046,
+            3588.7859999999996,
+            3581.315,
+            3587.3249999999994
+          ]
+        }
+      }
+    }
+  }
+}

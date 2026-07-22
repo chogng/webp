@@ -1,0 +1,167 @@
+[
+  {
+    "cpu_seconds": 6.019868000000001,
+    "max_rss": 99778560,
+    "rotation": 1,
+    "sequence": 1,
+    "stderr": "measurements/01-r1-reference.stderr",
+    "stdout": "measurements/01-r1-reference.log",
+    "system_seconds": 0.08653999999999999,
+    "user_seconds": 5.933328,
+    "variant": "reference"
+  },
+  {
+    "cpu_seconds": 6.023934,
+    "max_rss": 100139008,
+    "rotation": 1,
+    "sequence": 2,
+    "stderr": "measurements/02-r1-packet-reference.stderr",
+    "stdout": "measurements/02-r1-packet-reference.log",
+    "system_seconds": 0.090538,
+    "user_seconds": 5.933396,
+    "variant": "packet-reference"
+  },
+  {
+    "cpu_seconds": 5.963553,
+    "max_rss": 99860480,
+    "rotation": 1,
+    "sequence": 3,
+    "stderr": "measurements/03-r1-packed.stderr",
+    "stdout": "measurements/03-r1-packed.log",
+    "system_seconds": 0.09131299999999999,
+    "user_seconds": 5.87224,
+    "variant": "packed"
+  },
+  {
+    "cpu_seconds": 5.957215,
+    "max_rss": 99565568,
+    "rotation": 2,
+    "sequence": 4,
+    "stderr": "measurements/04-r2-packed.stderr",
+    "stdout": "measurements/04-r2-packed.log",
+    "system_seconds": 0.090114,
+    "user_seconds": 5.867101,
+    "variant": "packed"
+  },
+  {
+    "cpu_seconds": 6.01719,
+    "max_rss": 99385344,
+    "rotation": 2,
+    "sequence": 5,
+    "stderr": "measurements/05-r2-packet-reference.stderr",
+    "stdout": "measurements/05-r2-packet-reference.log",
+    "system_seconds": 0.089127,
+    "user_seconds": 5.928063,
+    "variant": "packet-reference"
+  },
+  {
+    "cpu_seconds": 6.018693,
+    "max_rss": 97091584,
+    "rotation": 2,
+    "sequence": 6,
+    "stderr": "measurements/06-r2-reference.stderr",
+    "stdout": "measurements/06-r2-reference.log",
+    "system_seconds": 0.09006299999999999,
+    "user_seconds": 5.92863,
+    "variant": "reference"
+  },
+  {
+    "cpu_seconds": 6.022736,
+    "max_rss": 92717056,
+    "rotation": 3,
+    "sequence": 7,
+    "stderr": "measurements/07-r3-reference.stderr",
+    "stdout": "measurements/07-r3-reference.log",
+    "system_seconds": 0.087561,
+    "user_seconds": 5.935175,
+    "variant": "reference"
+  },
+  {
+    "cpu_seconds": 6.029438,
+    "max_rss": 97763328,
+    "rotation": 3,
+    "sequence": 8,
+    "stderr": "measurements/08-r3-packet-reference.stderr",
+    "stdout": "measurements/08-r3-packet-reference.log",
+    "system_seconds": 0.08909199999999999,
+    "user_seconds": 5.940346,
+    "variant": "packet-reference"
+  },
+  {
+    "cpu_seconds": 5.961079,
+    "max_rss": 99893248,
+    "rotation": 3,
+    "sequence": 9,
+    "stderr": "measurements/09-r3-packed.stderr",
+    "stdout": "measurements/09-r3-packed.log",
+    "system_seconds": 0.08319,
+    "user_seconds": 5.877889,
+    "variant": "packed"
+  },
+  {
+    "cpu_seconds": 5.955806,
+    "max_rss": 99860480,
+    "rotation": 4,
+    "sequence": 10,
+    "stderr": "measurements/10-r4-packed.stderr",
+    "stdout": "measurements/10-r4-packed.log",
+    "system_seconds": 0.08533199999999999,
+    "user_seconds": 5.870474,
+    "variant": "packed"
+  },
+  {
+    "cpu_seconds": 6.025580000000001,
+    "max_rss": 99647488,
+    "rotation": 4,
+    "sequence": 11,
+    "stderr": "measurements/11-r4-packet-reference.stderr",
+    "stdout": "measurements/11-r4-packet-reference.log",
+    "system_seconds": 0.087404,
+    "user_seconds": 5.938176,
+    "variant": "packet-reference"
+  },
+  {
+    "cpu_seconds": 6.011126,
+    "max_rss": 99368960,
+    "rotation": 4,
+    "sequence": 12,
+    "stderr": "measurements/12-r4-reference.stderr",
+    "stdout": "measurements/12-r4-reference.log",
+    "system_seconds": 0.085798,
+    "user_seconds": 5.925328,
+    "variant": "reference"
+  },
+  {
+    "cpu_seconds": 6.017469999999999,
+    "max_rss": 99942400,
+    "rotation": 5,
+    "sequence": 13,
+    "stderr": "measurements/13-r5-reference.stderr",
+    "stdout": "measurements/13-r5-reference.log",
+    "system_seconds": 0.089708,
+    "user_seconds": 5.9277619999999995,
+    "variant": "reference"
+  },
+  {
+    "cpu_seconds": 6.003074,
+    "max_rss": 94994432,
+    "rotation": 5,
+    "sequence": 14,
+    "stderr": "measurements/14-r5-packet-reference.stderr",
+    "stdout": "measurements/14-r5-packet-reference.log",
+    "system_seconds": 0.069807,
+    "user_seconds": 5.933267,
+    "variant": "packet-reference"
+  },
+  {
+    "cpu_seconds": 5.96974,
+    "max_rss": 96813056,
+    "rotation": 5,
+    "sequence": 15,
+    "stderr": "measurements/15-r5-packed.stderr",
+    "stdout": "measurements/15-r5-packed.log",
+    "system_seconds": 0.090416,
+    "user_seconds": 5.8793239999999996,
+    "variant": "packed"
+  }
+]

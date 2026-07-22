@@ -1,0 +1,101 @@
+[
+  {
+    "cpu_seconds": 8.654335,
+    "max_rss": 111542272,
+    "rotation": 1,
+    "sequence": 1,
+    "stderr": "measurements/01-r1-reference.stderr",
+    "stdout": "measurements/01-r1-reference.log",
+    "system_seconds": 0.14667,
+    "user_seconds": 8.507665,
+    "variant": "reference"
+  },
+  {
+    "cpu_seconds": 8.702897,
+    "max_rss": 110968832,
+    "rotation": 1,
+    "sequence": 2,
+    "stderr": "measurements/02-r1-packet-reference.stderr",
+    "stdout": "measurements/02-r1-packet-reference.log",
+    "system_seconds": 0.13844199999999998,
+    "user_seconds": 8.564455,
+    "variant": "packet-reference"
+  },
+  {
+    "cpu_seconds": 8.273200000000001,
+    "max_rss": 107118592,
+    "rotation": 1,
+    "sequence": 3,
+    "stderr": "measurements/03-r1-packed.stderr",
+    "stdout": "measurements/03-r1-packed.log",
+    "system_seconds": 0.13952499999999998,
+    "user_seconds": 8.133675,
+    "variant": "packed"
+  },
+  {
+    "cpu_seconds": 8.256677999999999,
+    "max_rss": 106807296,
+    "rotation": 2,
+    "sequence": 4,
+    "stderr": "measurements/04-r2-packed.stderr",
+    "stdout": "measurements/04-r2-packed.log",
+    "system_seconds": 0.11791599999999999,
+    "user_seconds": 8.138762,
+    "variant": "packed"
+  },
+  {
+    "cpu_seconds": 8.82483,
+    "max_rss": 111099904,
+    "rotation": 2,
+    "sequence": 5,
+    "stderr": "measurements/05-r2-packet-reference.stderr",
+    "stdout": "measurements/05-r2-packet-reference.log",
+    "system_seconds": 0.114841,
+    "user_seconds": 8.709989,
+    "variant": "packet-reference"
+  },
+  {
+    "cpu_seconds": 8.90742,
+    "max_rss": 110837760,
+    "rotation": 2,
+    "sequence": 6,
+    "stderr": "measurements/06-r2-reference.stderr",
+    "stdout": "measurements/06-r2-reference.log",
+    "system_seconds": 0.102139,
+    "user_seconds": 8.805281,
+    "variant": "reference"
+  },
+  {
+    "cpu_seconds": 8.867755,
+    "max_rss": 111542272,
+    "rotation": 3,
+    "sequence": 7,
+    "stderr": "measurements/07-r3-reference.stderr",
+    "stdout": "measurements/07-r3-reference.log",
+    "system_seconds": 0.103975,
+    "user_seconds": 8.76378,
+    "variant": "reference"
+  },
+  {
+    "cpu_seconds": 8.915226,
+    "max_rss": 110788608,
+    "rotation": 3,
+    "sequence": 8,
+    "stderr": "measurements/08-r3-packet-reference.stderr",
+    "stdout": "measurements/08-r3-packet-reference.log",
+    "system_seconds": 0.113172,
+    "user_seconds": 8.802054,
+    "variant": "packet-reference"
+  },
+  {
+    "cpu_seconds": 8.253375,
+    "max_rss": 107102208,
+    "rotation": 3,
+    "sequence": 9,
+    "stderr": "measurements/09-r3-packed.stderr",
+    "stdout": "measurements/09-r3-packed.log",
+    "system_seconds": 0.13299,
+    "user_seconds": 8.120385,
+    "variant": "packed"
+  }
+]

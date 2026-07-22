@@ -1,0 +1,17 @@
+Computing main repo mapping:
+Loading:
+Loading: 0 packages loaded
+Analyzing: 3 targets (0 packages loaded, 0 targets configured)
+Analyzing: 3 targets (0 packages loaded, 0 targets configured)
+
+INFO: Analyzed 3 targets (0 packages loaded, 0 targets configured).
+INFO: Found 3 test targets...
+INFO: Elapsed time: 0.764s, Critical Path: 0.00s
+INFO: 1 process: 9 action cache hit, 1 internal.
+INFO: Build completed successfully, 1 total action
+//webp-rs/alpha:unit_tests                                      (cached) PASSED in 1.0s
+//webp-rs/webp:alpha_encoder_oracle_test                        (cached) PASSED in 0.5s
+//webp-rs/webp:unit_tests                                       (cached) PASSED in 3.9s
+
+Executed 0 out of 3 tests: 3 tests pass.
+There were tests whose specified size is too big. Use the --test_verbose_timeout_warnings command line option to see which ones these are.
