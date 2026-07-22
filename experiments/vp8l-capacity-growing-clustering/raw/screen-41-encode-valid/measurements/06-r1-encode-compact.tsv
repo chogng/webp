@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	encode	1	compact	clic-validation-000	215558834	12192768	7154224	63029034b22d35b6
+measurement	encode	1	compact	clic-validation-001	201126917	9437184	5742976	cfcd536023489f71
+measurement	encode	1	compact	clic-validation-002	195656250	9437184	5222122	c0fa268acccaa876
+measurement	encode	1	compact	clic-validation-003	207409708	9437184	5499602	edafd8cd4efcf311
+measurement	encode	1	compact	clic-validation-004	189029875	9437184	4349880	8a76797a2b816cc0
+measurement	encode	1	compact	clic-validation-005	195774750	9437184	4594352	f3231b28ac04583c
+measurement	encode	1	compact	clic-validation-006	153858125	9437184	4397490	ee9e676b7bca9745
+measurement	encode	1	compact	clic-validation-007	217647042	12192768	7410878	f3387c1f0476b84b
+measurement	encode	1	compact	clic-validation-008	182887666	7902720	3828644	6affb49a9fedc6c1
+measurement	encode	1	compact	clic-validation-009	218224916	7902720	4367806	799440ed508de8a2
+measurement	encode	1	compact	clic-validation-010	187458250	6441528	3575270	45b248d8199756a8
+measurement	encode	1	compact	clic-validation-011	77251875	3011904	1899184	72996042767528f6
+measurement	encode	1	compact	clic-validation-012	173255958	7990272	4515024	099949ffbed7ca21
+measurement	encode	1	compact	clic-validation-013	211102541	7990272	4725038	1fa9d64c87367877
+measurement	encode	1	compact	clic-validation-014	190427416	7990272	4789538	7c7a3e84a989c4b0
+measurement	encode	1	compact	clic-validation-015	231801916	7990272	5383376	cda3bcc8ff67d102
+measurement	encode	1	compact	clic-validation-016	164273166	7990272	4086062	28d6936ae1a448d4
+measurement	encode	1	compact	clic-validation-017	235036750	12192768	5668512	5f2b19180a7c46d9
+measurement	encode	1	compact	clic-validation-018	194445000	7990272	4400018	1a19e47cd2a68012
+measurement	encode	1	compact	clic-validation-019	186708709	7990272	4355574	4f839a376a23024f
+measurement	encode	1	compact	clic-validation-020	218217958	9445376	5936846	85670f200146d35a
+measurement	encode	1	compact	clic-validation-021	171302750	7834368	3989238	78d41f42ac6e605d
+measurement	encode	1	compact	clic-validation-022	204144875	9445376	4570508	2024ec242051ec40
+measurement	encode	1	compact	clic-validation-023	189990125	9445376	5247178	6eb58ceeb19cc1f6
+measurement	encode	1	compact	clic-validation-024	222065542	12192768	6380474	6901923ee7227499
+measurement	encode	1	compact	clic-validation-025	252924791	12192768	7120954	ff4a86c1f6a55393
+measurement	encode	1	compact	clic-validation-026	251597875	12451840	7544152	46134c56ac954d92
+measurement	encode	1	compact	clic-validation-027	226508459	11968000	5360814	6dd8aca3803f0753
+measurement	encode	1	compact	clic-validation-028	273486000	11968000	5436346	e23f055644a28f91
+measurement	encode	1	compact	clic-validation-029	231867583	12192768	5206834	f551f5aed91476bf
+measurement	encode	1	compact	clic-validation-030	272882333	11968000	7505802	0883bf04dbb31651
+measurement	encode	1	compact	clic-validation-031	216116000	12192768	6395906	40bcbd8b2ce35f2d
+measurement	encode	1	compact	clic-validation-032	231962708	12192768	5958892	b1d48653acbd86a3
+measurement	encode	1	compact	clic-validation-033	305811584	12192768	6957460	dc2a07e719f59396
+measurement	encode	1	compact	clic-validation-034	112146958	12289728	7023692	8b9481992d407ab2
+measurement	encode	1	compact	clic-validation-035	157895292	12289728	6549464	cb9e26c093d09941
+measurement	encode	1	compact	clic-validation-036	191023334	12289728	6347950	66a1618ecf4456d3
+measurement	encode	1	compact	clic-validation-037	242610958	12289728	6289434	392a7b8b3bbba0c1
+measurement	encode	1	compact	clic-validation-038	258460334	12192768	6791098	c4ee5fb08dcffd0c
+measurement	encode	1	compact	clic-validation-039	232800500	12192768	6399432	ca087285cc2ed22a
+measurement	encode	1	compact	clic-validation-040	262131375	12192768	5876846	a8068fb61ff7155f
+aggregate	encode	1	compact	41	8832647709	417812344	224854890	cd05ed2f42f60e5c
+test vp8l::image_writer::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 282 filtered out; finished in 11.04s
+

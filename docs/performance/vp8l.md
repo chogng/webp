@@ -111,7 +111,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 
 ## 与本任务关联的工作树索引
 
-根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 40 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断或通过实验 gate 后另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
+根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 42 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断或通过实验 gate 后另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
 
 | ID | 实验 | 分支 / HEAD | 实验 base | 当前工作树与结果 | 决定 |
 | --- | --- | --- | --- | --- | --- |
@@ -155,17 +155,16 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 | E38 | 流式 tokenization + spatial sufficient statistics | `codex/vp8l-streaming-spatial-plan@d2207f45`；S+C `daadb6f1`；F `f5e5bee5`；修正 `815df546`；诊断 `292c1d74`；证据 `a2295c3d` | `cec68762` | [report](../../experiments/vp8l-streaming-spatial-plan/REPORT.md)；[raw/reproducer](../../experiments/vp8l-streaming-spatial-plan)；[25a6](</Users/lance/.codex/worktrees/25a6/webp>)；task `019f8915-45d9-7a90-a843-4d0062ade22b` | **拒绝，不迁移代码**：修正版 S+C+F 两档 -2.658%/-3.191%，最强 materialized C+F -5.899%/-3.520%，均未过双档 10%/零回退 gate；306/306 byte identity、918/918 pinned C exact；完整负证据归档 main |
 | E39 | frequency-owned spatial clustering | `codex/vp8l-frequency-owned-clustering@3468fcff`；E `c38e98aa`；对称 A/B `6703a163`；B `2d529c33`；报告 `bb7002e9`；checksum `3468fcff` | `3474599d` | [report](../../experiments/vp8l-frequency-owned-clustering/REPORT.md)；[raw/reproducer](../../experiments/vp8l-frequency-owned-clustering)；[6d5d](</Users/lance/.codex/worktrees/6d5d/webp>)；task `019f8960-1a51-75a3-aec4-f99a1e7fb5de` | **拒绝，不迁移代码**：E 两档 encode -34.540%/-36.188% 但 aggregate bytes +0.423%/+0.388%、各 8/41 超 +2%；B 的 102 图 rate 仍 +0.389%/+0.419%；918/918 双 decoder exact，未过 rate gate，故不跑 formal |
 | E40 | exact-cost multi-proposal + one-pass entropy-aware refinement | `codex/vp8l-entropy-aware-spatial-clustering@76762d10`；实现 `eacad8bf`；Phase A `f78ca14e`；fair screen `7d14b835`；证据 `a52a3cce`；复现 `76762d10` | `0e91e379` | [report](../../experiments/vp8l-entropy-aware-spatial-clustering/REPORT.md)；[raw/reproducer](../../experiments/vp8l-entropy-aware-spatial-clustering)；[3cd9](</Users/lance/.codex/worktrees/3cd9/webp>)；task `019f899d-1871-7453-8450-630ffe00ecd1` | **拒绝，不迁移代码**：screen encode -26.605%/-29.481%，aggregate bytes -3.482%/-1.738%，但 LowLatency 图 008 稳定 +4.338% 超过 +2% 硬门；formal 按规则未跑，完整负证据归档 main |
+| E41 | capacity-growing exact-cost split/refine clustering | `codex/vp8l-capacity-growing-clustering@13c0f2a1`；规则 `7641d33a`；实现 `31595aa3`；Phase A `0ba25f17`；共享准备 `58327b09`；screen `e1b6c851`；checksum `13c0f2a1` | `ec7fbaf6` | [report](../../experiments/vp8l-capacity-growing-clustering/REPORT.md)；[raw/reproducer](../../experiments/vp8l-capacity-growing-clustering)；[5d9b](</Users/lance/.codex/worktrees/5d9b/webp>)；task `019f89e8-4f41-7b12-b14d-4da149d07b3a` | **拒绝整套双档方案，不迁移代码**：Phase A 两档 rate -11.410%/-3.825%、0/102 超 +2%；screen Compact +79.086%、40/41 回退而失败，LowLatency -47.145%、0/41 回退并单档全过；246/246 双 decoder exact，formal 未跑 |
+| E42 | multi-resolution exact-cost spatial portfolio | `codex/vp8l-multires-spatial-portfolio@9a8b7d23`；实现 `41c24db5`；归因修正 `bdb709ea`；Phase A `c151f06b`；checksum `9a8b7d23` | `ec7fbaf6` | [report](../../experiments/vp8l-multires-spatial-portfolio/REPORT.md)；[raw/reproducer](../../experiments/vp8l-multires-spatial-portfolio)；[dfbc](</Users/lance/.codex/worktrees/dfbc/webp>)；task `019f89e8-dcd1-7a43-ba7b-a8406d10740e` | **Phase A 拒绝，不迁移代码**：Compact 精确复现 E40；LowLatency aggregate -4.182%，但图 074 +4.993% 超 +2%；99/102 选择 128，产品区分度弱，screen/formal 未跑 |
 
 ### latest-main 迁移链
 
-E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08，最终作为 E33 线性迁入 main。P09/E34 又从创建时最新 `main@5362912a23a39175758796e07f45af3ee79143b1` 独立建树；通过 25% gate 后，没有直接把研究树合入，而是从届时最新 `main@130aa1f347ae1193463f35205b5bd98b4031bc7c` 新建 E35，重新理解并迁移最小产品实现。E35 最终作为 `97d6f1f4`/`00f02468`/`61aa5899` 线性进入 main。P11/E36 则从创建时最新 `main@7eca2b83c2b9338ab4f15a58755e6e0acc970bf0` 独立建树；研究树已证明 packed token writer 的端到端收益和 wire identity，但没有把 census/phase instrumentation 带进产品。P12/E37 随后从创建时最新 `main@0ee428dc0bee9c035f051b4ccaa846dabe394ca8` 新建独立产品树，重建最小 packet sink；产品代码、完整证据和 raw whitespace policy 已分别作为 `b3b96fdc`/`80113c1e`/`fabcbf9c` 线性迁入 main。P13/E38 从创建时最新 `main@cec68762e5ab6184bce275aeff5720ba3e6f96c7` 独立建树；它通过完整 screen 和复现证明“只融合 pass”不足以过 10% gate，因此没有 rebase、没有产品迁移，只把报告、raw 与复现器归档进 main。P14/E39 从创建时最新 `main@3474599d89804cb91357788e967826544903011c` 独立建树；后续 main 前进时保留原 base 和完整实验链。它证明 exact-frequency ownership 可删除主导 census 成本，但 E/B 都未过 rate gate，因此同样不 rebase、不迁移研究代码，只把报告、raw、失效运行和复现器归档进 main。P15/E40 从创建时最新 `main@0e91e379aef2cfac1189472a3dd0627060f892b8` 独立建树；后续登记提交 `cef04c68` 没有倒灌或 rebase 到研究树。它证明一次 exact-cost reassignment 可同时保留约 27–30% screen encode 收益并改善 aggregate rate，但 LowLatency 的稳定单图长尾仍违反产品门槛，因此不迁移任何代码，只归档 `76762d10` 的报告、raw、失效运行与一键复现器。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
+E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08，最终作为 E33 线性迁入 main。P09/E34 又从创建时最新 `main@5362912a23a39175758796e07f45af3ee79143b1` 独立建树；通过 25% gate 后，没有直接把研究树合入，而是从届时最新 `main@130aa1f347ae1193463f35205b5bd98b4031bc7c` 新建 E35，重新理解并迁移最小产品实现。E35 最终作为 `97d6f1f4`/`00f02468`/`61aa5899` 线性进入 main。P11/E36 则从创建时最新 `main@7eca2b83c2b9338ab4f15a58755e6e0acc970bf0` 独立建树；研究树已证明 packed token writer 的端到端收益和 wire identity，但没有把 census/phase instrumentation 带进产品。P12/E37 随后从创建时最新 `main@0ee428dc0bee9c035f051b4ccaa846dabe394ca8` 新建独立产品树，重建最小 packet sink；产品代码、完整证据和 raw whitespace policy 已分别作为 `b3b96fdc`/`80113c1e`/`fabcbf9c` 线性迁入 main。P13/E38 从创建时最新 `main@cec68762e5ab6184bce275aeff5720ba3e6f96c7` 独立建树；它通过完整 screen 和复现证明“只融合 pass”不足以过 10% gate，因此没有 rebase、没有产品迁移，只把报告、raw 与复现器归档进 main。P14/E39 从创建时最新 `main@3474599d89804cb91357788e967826544903011c` 独立建树；后续 main 前进时保留原 base 和完整实验链。它证明 exact-frequency ownership 可删除主导 census 成本，但 E/B 都未过 rate gate，因此同样不 rebase、不迁移研究代码，只把报告、raw、失效运行和复现器归档进 main。P15/E40 从创建时最新 `main@0e91e379aef2cfac1189472a3dd0627060f892b8` 独立建树；后续登记提交 `cef04c68` 没有倒灌或 rebase 到研究树。它证明一次 exact-cost reassignment 可同时保留约 27–30% screen encode 收益并改善 aggregate rate，但 LowLatency 的稳定单图长尾仍违反产品门槛，因此不迁移任何代码，只归档 `76762d10` 的报告、raw、失效运行与一键复现器。P16/E41 与 P17/E42 都从创建时最新的 `main@ec7fbaf69f423bfd7251a121d2e629cfa776cb79` 独立建树；登记提交 `cb89e317` 只作为 post-creation provenance，两棵研究树均未 rebase/merge。E41 证明容量增长对 LowLatency 同时具备大幅速度、rate 与 tail 收益，但 Compact 的近四千次 split 搜索不适用；E42 证明简单 128/256 exact portfolio 无法消除 074 长尾且几乎退化成 Compact。两项都只归档最终 HEAD 的报告、raw、失效运行和复现器，不迁移研究代码。基线始终以创建瞬间的本地 committed `main` 为准，不以可能落后的 `origin/main` 替代。
 
 ### 进行中的 latest-main 编码优化
 
-| 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
-| --- | --- | --- | --- | --- |
-| P16 | capacity-growing exact-cost split/refine clustering | `codex/vp8l-capacity-growing-clustering`；`ec7fbaf69f423bfd7251a121d2e629cfa776cb79` | [5d9b](</Users/lance/.codex/worktrees/5d9b/webp>)；task `019f89e8-4f41-7b12-b14d-4da149d07b3a`；结果目录 `experiments/vp8l-capacity-growing-clustering` | 创建时 worktree HEAD/local main/merge-base 已精确相等；先以 support-safe combined-histogram cost 做 deterministic split，完整 RIFF cost 单调验收；Phase A 必须修复 E40 三个 LowLatency 长尾才可进 screen |
-| P17 | multi-resolution exact-cost spatial portfolio | `codex/vp8l-multires-spatial-portfolio`；`ec7fbaf69f423bfd7251a121d2e629cfa776cb79` | [dfbc](</Users/lance/.codex/worktrees/dfbc/webp>)；task `019f89e8-dcd1-7a43-ba7b-a8406d10740e`；结果目录 `experiments/vp8l-multires-spatial-portfolio` | 创建时 worktree HEAD/local main/merge-base 已精确相等；LowLatency 精确比较 128/256 两个完整计划，只写较小者；Phase A 同样要求双档 aggregate 不劣于 E40 且所有图不超过 E37 +2% |
+P16/P17 已收口为 E41/E42。下一棵研究树必须从包含本次归档的最新本地 `main` 创建，并在开始 headline 测量前登记于此。
 
 ## 每次优化的结果与结论
 
@@ -523,18 +522,40 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 - 三个 LowLatency 长尾样本的 refined group 数仅为 11/7/5，而 profile 上限为 16；当前算法只能在已有组间移动，无法补回 proposal 过早折叠掉的 entropy capacity。这是下一架构要验证的机制性解释，不把它伪装成 P15 已证明的因果结论。
 - 分支 `codex/vp8l-entropy-aware-spatial-clustering`：base `0e91e379`，实现 `eacad8bf`，Phase A `f78ca14e`，最终 same-binary control `7d14b835`，失败证据 `a52a3cce`，复现/最终 HEAD `76762d10`；工作树 [3cd9](</Users/lance/.codex/worktrees/3cd9/webp>)，task `019f899d-1871-7453-8450-630ffe00ecd1`，[完整报告与复现器](../../experiments/vp8l-entropy-aware-spatial-clustering/REPORT.md)。产品决定是拒绝，不迁移研究代码，顶部纪录表不变。
 
+### E41：capacity-growing exact-cost split/refine clustering
+
+优化点：从 E40 的 E/B/refined 完整 RIFF 胜者出发，用 support-safe 的 exact combined-histogram merge penalty 选择第二 seed；固定拆分最大 coding-regret group，分区后做一次全局 code-length reassignment。每个候选完整计入 nested group-map、五张 Huffman header、payload、extra bits、padding 与 RIFF，只接受严格减小的候选，首个不改善即停止。
+
+- 锁定 102 图 Phase A 中，Compact 从 E37 的 617,958,802 B 降到 **547,448,078 B**（-11.410263%，相对 E40 -8.667026%）；LowLatency 从 625,321,072 B 降到 **601,400,998 B**（-3.825247%，相对 E40 -2.535708%）。两档最差逐图为 -1.468297%/+1.483745%，都是 0/102 超 +2%。Compact 102/102 由 split 胜出；LowLatency 的 E/B/refined/split/single 为 1/2/20/79/0。
+- E40 的三个 LowLatency tail 都被容量增长修复：008 为 11→16 groups、-2.019478% vs E37；066 为 7→16、-3.129497%；074 为 5→16、-10.793940%。这支持“现有容量不足”机制，但仍不把 group 数写成一般因果规律。
+- 全部 816 个 E/B/refined/split plan 和 204 个 single plan 的 predicted bits/bytes/RIFF 与 writer 一致；204/204 E/B selector、final selector 与 public output 都精确。每个已接受 split 严格降低完整 RIFF bytes。
+- 最终 same-binary 41 图 screen 给出截然不同的 profile 结论：Compact 4.939605→8.846161 s，**+79.086400%** 且 40/41 回退；LowLatency 4.843859→2.560232 s，**-47.144794%** 且 0/41 回退。对应 aggregate rate 为 -13.092110%/-5.093032%，最差逐图 -3.169255%/-1.128722%。Rust decode +0.482386%/-1.444946%，pinned C +0.682189%/-0.830949%，RSS -35.476%/-35.638%；两套 decoder 都是 246/246 RGBA exact。
+- Compact 执行 3,978 次 growth attempt、接受 3,967 次，扣除共享 counter update 后的增长归因约 15.34 s/102；LowLatency 336/336，约 0.49 s/102。差异来自 profile group cap 下的搜索规模，不是并发。16384² 的 counter/self-cost 加四个最大 plan 保守低于 40 MiB；release rlib +231,240 B/+11.000%，test binary +101,696 B/+4.800%。
+- 因为预声明要求两档同时过 screen，完整 P16 方案在 Compact 硬失败后拒绝，102×5 formal 明确未跑。端到端复现再次得到 Compact +81.41%、LowLatency -48.00%，结论方向稳定；feature 278 tests、default 273 tests、两套 Clippy、fmt 与 215 项相对 SHA-256 均通过。失效的旧 test filter、缺 control 流、旧 binary、公平性修正、pinned 静态库路径与测试隔离运行全部保留。
+- 分支 `codex/vp8l-capacity-growing-clustering`：base `ec7fbaf6`，预声明 `7641d33a`，实现 `31595aa3`，Phase A `0ba25f17`，scalar trace `cea589b5`，共享 E37 prepare `58327b09`，screen/证据 `e1b6c851`，最终 checksum/HEAD `13c0f2a1`；工作树 [5d9b](</Users/lance/.codex/worktrees/5d9b/webp>)，task `019f89e8-4f41-7b12-b14d-4da149d07b3a`，[完整报告与复现器](../../experiments/vp8l-capacity-growing-clustering/REPORT.md)。只归档负结果，不迁移研究代码；顶部纪录表不变。
+
+### E42：multi-resolution exact-cost spatial portfolio
+
+优化点：Compact 只构建 P15 的 128-block exact winner；LowLatency 从同一 prepared tokens 顺序构建 128/256 两个 exact winner、释放大 counter 后再建下一分辨率，并按完整 RIFF bytes 只写较小者。tie 固定选 256，single 在完整 RIFF tie 时仍严格胜出；没有 classifier、第三 block size、第二次 refinement 或参数搜索。
+
+- 204 个 resolution row 的 planned/written bits、payload bytes 与 RIFF bytes 全一致；E/B/refined/winner 共 816 次逐流核验通过，102/102 resolution selector、102/102 Compact public output 与 102/102 LowLatency public output 都精确。
+- Compact 精确复现 E40：599,398,064 B，较 E37 -3.003556%，0/102 超 +2%。LowLatency portfolio 为 **599,169,200 B**，较 E37 -4.182151%、较 E40 -2.897398%，但图 074 仍为 **+4.992654%**，因此 1/102 超 +2% 并在 Phase A 硬失败。
+- LowLatency 仅 005/040/068 三图选择 256，99/102 选择 128；这 99 个输出与 Compact 逐字节一致。方案不是别名，但 97.1% 的选择退化为 Compact，同时仍支付两次 resolution plan 成本，缺乏稳定的 LowLatency 产品区分度。
+- 共享 prepare 为 1.580540 s；128/256 exact counter update 为 0.609374/0.603181 s。顺序 counter ownership 把 16384² 保守峰值维持在 40 MiB 内；release rlib +176,976 B/+8.175%，test binary +99,952 B/+4.721%。由于 Phase A rate tail 失败，41 图 screen、双 decoder 性能与 102×5 formal 都未运行，不对速度作 headline 声明。
+- 被错误 attribution、错误完整 SHA、跨 target-path binary identity 假设和缺 candidate rlib 影响的运行均具名保留。一键复现 exit 0，复现了两个 aggregate、074 失败、全部 exactness denominator 与 99/3 选择分布；最终 42 项相对 checksum 全部通过。
+- 分支 `codex/vp8l-multires-spatial-portfolio`：base `ec7fbaf6`，实现 `41c24db5`，归因修正 `bdb709ea`，Phase A/报告 `c151f06b`，最终 checksum/HEAD `9a8b7d23`；工作树 [dfbc](</Users/lance/.codex/worktrees/dfbc/webp>)，task `019f89e8-dcd1-7a43-ba7b-a8406d10740e`，[完整报告与复现器](../../experiments/vp8l-multires-spatial-portfolio/REPORT.md)。产品决定是拒绝，不迁移研究代码，顶部纪录表不变。
+
 ## 下一阶段：优先寻找更强且更通用的新架构
 
 标准 VP8L 的局部优化已经给出一致信号：Huffman、predictor、LZ77、PGO、单个 copy kernel 各自只有个位数收益或以明显 rate/latency 回退换取收益。后续优先级应从“继续打磨一个旧循环”转向能够同时改变表示、依赖图和输出流水线的架构方案。
 
-### 第一优先：capacity-growing exact-cost split/refine clustering
+### 第一优先：profile-specialized exact-cost hybrid
 
-- E40 证明 exact-cost assignment 能修复 aggregate rate，却也暴露了仅做 reassignment 的结构上限：proposal 一旦只留下 5–11 个组，Lloyd 步无法创建新的 group model。下一架构保留 exact counters、精确 `SpatialCostPlan` 与 selected-only writer，不再增加另一种颜色签名，而让 entropy objective 自己决定是否增生容量。
-- 从 E40 精确胜出的 plan 开始，计算每个 block 在当前 group code lengths 下的编码成本，并用该 block 自身可达的 Huffman 成本形成 coding regret。固定选择 regret 最大的 block 作为新中心；把旧 groups 加上该 singleton model 做一次确定性全 block 重分配和 rebuild，完整计入 nested group-map、五张 table header、payload extra bits、padding 与 RIFF bytes。
-- 每次 split 候选只在完整 RIFF bytes 严格下降时接受；相等或变差立即保留上一个 plan。候选 plan 之间仍保留 exact E/B/refined/single fallback，因此新增阶段对 E40 自身是码率单调的。按 profile 的既有 maximum groups 给出硬上界，不允许语料特调、随机采样、图 ID 规则或参数扫描。
-- Phase A 必须先单独报告三个 E40 tail 的 group 演化、每次 exact cost、aggregate/tail rate、split/reassignment/rebuild 时间和最大内存，并再次证明 planner/writer/selector 逐位一致。关键问题是它能否让 LowLatency 的 `008`、`066`、`074` 全部回到 +2% 内，同时让两档 aggregate 不劣于 E40；失败即归档，不用 classifier 掩盖。
-- 通过 Phase A 后沿用 E40 的 41 图 same-binary gate：两档 encode 至少改善 E37 10%且 0/41 回退；aggregate bytes 不大于 E37、任一图不劣于 +2%；Rust 与 pinned C decode 各不回退超过 1%；额外 RSS 不超过 64 MiB/5%。全部通过才跑 102 图五轮，并要求绝对中位不高于 7.1/6.9 s、0/102 回退。
-- 本地 pinned libwebp 的 `HistogramCombineEntropyBin`、greedy merge 与 `HistogramRemap` 只作为“exact histograms 驱动 cluster capacity”的机制参考。新实验采用可复现的 deterministic regret split 与完整 wire-cost 验收，不移植随机流程；保持 safe、单线程、无新依赖以及 Default/API/兼容性不变。通过研究 gate 后仍须从届时最新 main 新建最小产品迁移树。
+- E41 已经给出清晰的机制边界：Compact 的近四千次 capacity-growth 搜索换来很强 rate，却使 screen 慢 79%；LowLatency 只需 336 次增长，反而快 47%、0/41 回退，并修复全部 rate tail。E40 则已证明 Compact 的一次 exact-cost refinement 能在 0/41 编码回退下快 26.6%，Phase A 0/102 超 +2%。两个公开 profile 本来就拥有不同 block size、group cap 与产品目标，因此按 profile 选择不同 planner 是架构职责分工，不是按图 classifier。
+- 固定混合规则：Compact 只使用 E40/P15 的 exact E/B + 一次 reassignment；LowLatency 只使用 E41/P16 的 deterministic capacity growth。两档共享一次 prepare/tokenization、exact block-frequency 所有权、`SpatialCostPlan`、strict single fallback 与 selected-only packed writer；Compact 不构建 split state，LowLatency 不构建无用的第二 resolution portfolio。
+- 不允许图 ID、语料阈值、runtime classifier、第三种 signature、参数扫描或并发。预声明的 Phase A 目标是精确复现 Compact 599,398,064 B、LowLatency 601,400,998 B，双档 0/102 超 E37 +2%，并再次证明 planner/writer/selector 逐位一致；若 latest-main 的合法 wire/control 基线变化，则以同 binary control 重新计算，不能沿用旧数字掩盖差异。
+- E40 与 E41 来自不同研究 binary，已有 screen 数字不能直接拼成产品结论。新树必须在同一 latest-main binary 内重新跑 41 图预载、warmup+3 交错 screen：两档 encode 各至少改善 E37/latest-main control 10%且 0/41 回退；aggregate rate 不劣于 control、任一图不超过 +2%；Rust 与 pinned C decode 各不回退超过 1%；RSS 增量不超过 64 MiB/5%，所有流完整 RGBA exact。
+- screen 全过才跑锁定 102 图五轮 formal，要求绝对中位不高于 7.1/6.9 s、0/102 逐图回退，并完成 Default byte identity、102 图双 decoder、stable workspace/Clippy/fmt/docs 与资源审计。研究通过后仍不直接合入；必须从届时最新本地 main 新建独立产品迁移树，重建最小模块并删除研究 feature、trace 与宽泛 harness。
 
 ### 第二优先：统一的 Fast Representation v2
 

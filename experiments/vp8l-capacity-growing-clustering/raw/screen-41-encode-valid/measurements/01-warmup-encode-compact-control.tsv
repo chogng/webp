@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	encode	warmup	compact-control	clic-validation-000	143483208	12192768	8130642	0f02a28355405c35
+measurement	encode	warmup	compact-control	clic-validation-001	103253625	9437184	6257982	8cdded93ea38d0c4
+measurement	encode	warmup	compact-control	clic-validation-002	99222625	9437184	5799410	44ed3741c525c80c
+measurement	encode	warmup	compact-control	clic-validation-003	105777584	9437184	6050450	e907a2e37937e785
+measurement	encode	warmup	compact-control	clic-validation-004	108209292	9437184	5328258	06ddd8677593609e
+measurement	encode	warmup	compact-control	clic-validation-005	101752875	9437184	5539552	38ab4fcd4b83074a
+measurement	encode	warmup	compact-control	clic-validation-006	109734416	9437184	5188746	dc82c3867cd27ef5
+measurement	encode	warmup	compact-control	clic-validation-007	141312958	12192768	7922454	cab5aafc5dbe6bc5
+measurement	encode	warmup	compact-control	clic-validation-008	87310208	7902720	4327522	41057fcac4692baf
+measurement	encode	warmup	compact-control	clic-validation-009	87724208	7902720	5063414	5cec33e99360af39
+measurement	encode	warmup	compact-control	clic-validation-010	75868917	6441528	3997470	e39fa39b81d063c4
+measurement	encode	warmup	compact-control	clic-validation-011	33674834	3011904	1961344	9e7fedd69fae81d4
+measurement	encode	warmup	compact-control	clic-validation-012	91260583	7990272	4891824	c7ca321d2e5ff1ef
+measurement	encode	warmup	compact-control	clic-validation-013	90851291	7990272	5058144	018d6fc3bf5a4998
+measurement	encode	warmup	compact-control	clic-validation-014	89585792	7990272	5293592	6839d747d9b3ecd3
+measurement	encode	warmup	compact-control	clic-validation-015	89698000	7990272	5656200	e1e43c8a3678dc0d
+measurement	encode	warmup	compact-control	clic-validation-016	93551125	7990272	4555750	d74e0485d62c6a97
+measurement	encode	warmup	compact-control	clic-validation-017	142634875	12192768	6691500	ec0a33bc3dd53d6d
+measurement	encode	warmup	compact-control	clic-validation-018	91279500	7990272	5115144	61a83d9e32466dda
+measurement	encode	warmup	compact-control	clic-validation-019	89196292	7990272	5039696	b07bddc8d312f434
+measurement	encode	warmup	compact-control	clic-validation-020	100302291	9445376	6358216	466e96893e179b35
+measurement	encode	warmup	compact-control	clic-validation-021	92437166	7834368	4565070	e6ea7751bb0fa96c
+measurement	encode	warmup	compact-control	clic-validation-022	100778667	9445376	5628196	52980d6296da50c6
+measurement	encode	warmup	compact-control	clic-validation-023	104587250	9445376	5856188	14a3cbdb5772f655
+measurement	encode	warmup	compact-control	clic-validation-024	134424834	12192768	7349344	fabb08f2175b9ae9
+measurement	encode	warmup	compact-control	clic-validation-025	132763625	12192768	7869586	8e2bafa718f19a77
+measurement	encode	warmup	compact-control	clic-validation-026	140433708	12451840	8259084	f45a79434b11b0a8
+measurement	encode	warmup	compact-control	clic-validation-027	134263542	11968000	6933844	bb6c90c7c8ce176a
+measurement	encode	warmup	compact-control	clic-validation-028	132097250	11968000	7265392	06e5e235e1a82103
+measurement	encode	warmup	compact-control	clic-validation-029	126781167	12192768	6107890	f3e390306bdceba2
+measurement	encode	warmup	compact-control	clic-validation-030	130584000	11968000	8257108	b05bd6d94c5eec76
+measurement	encode	warmup	compact-control	clic-validation-031	136577542	12192768	7174330	25794fd98a943f36
+measurement	encode	warmup	compact-control	clic-validation-032	133768042	12192768	6915788	e12aaa37425a5e15
+measurement	encode	warmup	compact-control	clic-validation-033	133331750	12192768	8462362	b152258efbfb45be
+measurement	encode	warmup	compact-control	clic-validation-034	140500292	12289728	8425850	c60a77ee228fbe0f
+measurement	encode	warmup	compact-control	clic-validation-035	139593833	12289728	8124282	0935beeb6715c7da
+measurement	encode	warmup	compact-control	clic-validation-036	140087750	12289728	7281758	dbba36b7f776979d
+measurement	encode	warmup	compact-control	clic-validation-037	138443375	12289728	7772372	5d2756e807704ab1
+measurement	encode	warmup	compact-control	clic-validation-038	132864792	12192768	8140256	16c4160b4af1b939
+measurement	encode	warmup	compact-control	clic-validation-039	135684834	12192768	7163302	71b90b977929d8ff
+measurement	encode	warmup	compact-control	clic-validation-040	134616917	12192768	6948508	4ebc4f813c05112a
+aggregate	encode	warmup	compact-control	41	4987060917	417812344	258727820	89dd34c8a37272b5
+test vp8l::image_writer::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 282 filtered out; finished in 7.21s
+

@@ -1,0 +1,6 @@
+name	status	result	log
+test-feature	0	278 passed; 4 ignored	test-feature.log
+test-default	0	273 passed; 4 ignored	test-default.log
+clippy-feature	0	-D warnings	clippy-feature.log
+clippy-default	0	-D warnings	clippy-default.log
+fmt	0	stable rustfmt check (repository nightly-only config warning)	fmt.log

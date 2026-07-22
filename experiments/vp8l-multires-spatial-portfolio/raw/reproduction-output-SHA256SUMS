@@ -1,0 +1,13 @@
+9c2841b3403772b95ece689f18dd3aaaddd066b2eb4313812ebd52dbc2fb5d06  ./phase-a-summary.json
+e88eec821f5efeb4b0a9e6056f6f95a672b5836aa6ee0365b8be528225a3f898  ./raw/base-build-release.log
+c9fe102e70e51b621f60021377bcf587ecfc3403deb4f3615ce4bc3222c55a46  ./raw/base-test-no-run.log
+e9edff1af092e527f48d22301cfcefb771527230a65191ba8ea50eedb00e8939  ./raw/binary-artifacts.tsv
+632daa9c9f6f55867eedfe08e6058843f65ce2db258f945748b057d21720310f  ./raw/binary-context.tsv
+d6cbbaae816eb612c4dd9f3807690a9a9afc57f9d246dd92699d635d47d1a380  ./raw/candidate-build-release.log
+988b9ab9c384eddcbbc5fa6148cb7418615ca56c0e7b56453af3be7922cacd54  ./raw/candidate-test-no-run.log
+9feb09f469753c43864011aa6f00cfc5ee1bd48da5aac8f9b16d105890e14f86  ./raw/corpus-manifest-102.tsv
+6b7085da7e38b8f610f7cc26bea19f9863125e5c1324677a2bfd04debfa1ac62  ./raw/formal-102x5-not-run.txt
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./raw/phase-a-102/phase-a.stderr
+e18d18729c342f4809325b530d54326bf1748ecfd78fc31a1cd086da47050ca6  ./raw/phase-a-102/phase-a.tsv
+4c2e82f93bfe47823d4a7e659564b93b3fa207a12782a418cb37808b471dcf3d  ./raw/screen-41-not-run.txt
+ed4dd7dcb326e34eb07d677a5e2d3a3bea9851cd46a318bbfe304011c6c363cb  ./reproduction-status.txt

@@ -1,0 +1,3 @@
+   Compiling webp v0.1.0 (/private/tmp/p17-reproduce.xUq8xg/candidate/webp-rs/webp)
+    Finished `release` profile [optimized] target(s) in 3.86s
+  Executable unittests src/lib.rs (/private/tmp/p17-reproduce.xUq8xg/candidate-target/release/deps/webp-9646535ff1a0159d)

@@ -1,0 +1,1 @@
+Invalidated before Phase A: an isolated scratch CARGO_TARGET_DIR produced a path-dependent release test binary hash different from the in-worktree audit binary. The portable reproducer now records, but does not gate on, the scratch binary hash. Partial output remains at /private/tmp/vp8l-multires-spatial-portfolio-reproduction.

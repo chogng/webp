@@ -1,0 +1,1 @@
+Invalidated before any build or Phase A execution: the reproducer used an incorrectly expanded full SHA for short commit bdb709ea. The binary hash row was otherwise valid but carried the same wrong commit label. Both are replaced after correcting the SHA.

@@ -1,0 +1,1 @@
+Superseded: selection timing included diagnostic output cloning, and the selected-128/Compact field encoded an implication rather than the requested selected-128 count. Rate and exactness results were valid and unchanged; the final Phase A reruns with corrected attribution semantics.
