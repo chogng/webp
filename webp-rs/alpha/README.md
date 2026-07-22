@@ -47,7 +47,7 @@ API is the comparison boundary.
 | A02 | 在可追溯真实透明图与分层 synthetic 语料上验证 A01 泛化、长尾和资源成本 | `codex/alpha-row-parser-generalization@12444f0`；candidate `b6eb728 -> 142c242`；harness `24fabe0` | 创建于 `e72ed3b`；正式测量前重放到 `0e2ebb4db884893568470317cb922280baa2254f` | [`8cdc` worktree](</Users/lance/.codex/worktrees/8cdc/webp>)；task `019f877a-a92f-7f12-bd00-9c853e7a76d8` | 4 real + 11 synthetic，5 x 5 交错：real ALPH aggregate **+438.98%**、WebP **+224.88%**；23/24 平面直接 RowRLE、0 次 Compare；Metal/icon/shadow 最坏 `+579.69% / +1347.48% / +2232.03%`；30/30 pinned-dwebp exact；报告 `12444f0:tools/alpha-generalization/REPORT.md` | **reject / generalization failure**；不合并候选代码 | 顶部表不变；manifest、runner、raw timing/RSS、逐文件/分类汇总和失败结论固化于 `12444f0` |
 | A03 | fallback-safe guarded planner：探针只生成候选，greedy 永远保底；RowRLE 仅凭最终字节成本获胜 | `codex/alpha-guarded-row-planner@4f99d8d`；代码 `21e0d15` | 创建于 `0e2ebb4`；正式测量前重放到 `ea346ff50fbc03f821eecfe8cce905419c75d070` | [`84c4` worktree](</Users/lance/.codex/worktrees/84c4/webp>)；task `019f8789-204c-7c41-8dda-e591b37c8ab8` | structured ALPH **-12.351%** 且三个 A01 反例 0% 回退；但 v3 ALPH-only **+15.153%**，4-real ALPH 仅 -3.414% 且 ALPH-only p50 **+39.089%**；全门禁通过；报告 `4f99d8d:reports/alpha-guarded-row-planner/README.md` | **reject / 安全但 CPU 成本过高** | 不进入顶部表；保留 exact-selection 不变量、全部 3 x 10 / 5 x 5 / RSS / oracle raw evidence，供 A04 降低候选执行数 |
 | A04 | filter-first exact portfolio：先完成全部 greedy/filter baseline，只对 top-1/top-k shortlist 运行 RowRLE | `codex/alpha-filter-first-portfolio@15e4673`；oracle tooling `fa955f5` | 创建于 `ea346ff`；headline evidence 前重放到 `6627800d4786262651dd06e81022c7df2c3c84ab` | [`a11f` worktree](</Users/lance/.codex/worktrees/a11f/webp>)；task `019f87a6-663b-79a0-b644-c30407d4c28d` | top-1 完整保留 structured **-12.351%** 且零膨胀，但 41-file RowRLE 尝试只少 45.0%，real -50.0%、synthetic -33.33%、三集合合计 -41.86%；greedy token state 无安全 skip predicate；报告 `15e4673:reports/alpha-filter-first-portfolio/README.md` | **phase-A reject / 不实现**；未过额外解析数至少减半的 gate | 顶部表不变；保留全部 oracle candidate/rank/token ownership CSV、probe、输入哈希和 staged-check 失败记录 |
-| A05 | fused / compact RowRLE exact candidate：直接降低每次必要 RowRLE walk、histogram、token-cache 和 prepare 成本 | `codex/alpha-fused-row-plan`；进行中 | 创建并核验于 `11f6f669215479848628c1bdcd438c2a891e96fb`；`main` 后续含 `fb17a98c` VP8L correctness fix，headline 前必须重放最新 `main` | [`ff4d` worktree](</Users/lance/.codex/worktrees/ff4d/webp>)；task `019f87bf-7827-7ca1-8487-1d4b4436b2e9` | **旧-base diagnostic**：RowRLE construction 占 A03 新增 CPU 的 99%–136%；safe 32-byte walk 实测 1.489x–1.739x，结合 top-1 后预测 A03-relative v3/real/synthetic `-8.92% / -18.19% / -9.37%`，v3/synthetic 未过 10%；因 main 前进，所有 timing 已作废并等待完整重跑 | 未决；旧数据倾向 phase-A reject，但只能由最新-main 重跑裁决 | 已登记；保留 runner 路径/time-l 失败，最终回填最新 base、phase CSV/micro、代码/证据 HEAD 和决定 |
+| A05 | fused / compact RowRLE exact candidate：直接降低每次必要 RowRLE walk、histogram、token-cache 和 prepare 成本 | `codex/alpha-fused-row-plan@3cfc2bff`；测量代码 `867df167` | 创建于 `11f6f669`；两次 main 前进后最终完整重放到 `8e3c29824151bae5697405f83ee81c2fe8335b7f` | [`ff4d` worktree](</Users/lance/.codex/worktrees/ff4d/webp>)；task `019f87bf-7827-7ca1-8487-1d4b4436b2e9` | RowRLE construction 占新增 CPU `111.0% / 99.89% / 132.52%`；safe chunks 实测 `1.735x / 1.504x / 1.617x`，结合 top-1 后 A03-relative 上限仅 `8.953% / 18.401% / 9.503%`；structured -12.350644%、最坏膨胀 0；报告 `3cfc2bff:reports/alpha-fused-row-plan/README.md` | **phase-A reject / 不实现**；v3、synthetic 未过 10% 现实上限 | 不进入顶部表；301 个 evidence 文件含最新 headline、两套 stale diagnostic、失败/中断日志、phase/micro CSV 与 SHA-256 |
 
 ### A01 / A02 已完成结果明细
 
@@ -113,6 +113,30 @@ coverage 计数无法安全区分 RowRLE winner/loser；任何计数或比例 cu
 语料拟合阈值。证明另一种 segmentation 不可能获胜仍需实际 walking 和 pricing，
 正是 A04 试图消除的工作。因此没有实现代码，也没有冒充 A04 的 3 x 10 / 5 x 5
 性能结果；这些指标明确为未测。
+
+### A05 阶段 A 结果明细
+
+A05 证明热点归因成立，但现实可实现上限不成立。下面均来自最终
+`main@8e3c2982` 的五轮同二进制 Phase A；两套旧-main 完整数据只留在 diagnostic
+目录，不进入 headline。
+
+| Set | Baseline ALPH-only p50 | A03 p50 | A03 delta | Row construction share | Safe-chunk walk speedup | Top-1 + chunks A05/A03 ceiling |
+|---|---:|---:|---:|---:|---:|---:|
+| v3 41 | 413.797 ms | 480.231 ms | +15.198% | **111.000%** | **1.735x** | **8.953%** |
+| real 4 | 165.627 ms | 228.817 ms | +38.377% | **99.890%** | **1.504x** | **18.401%** |
+| synthetic 11 | 263.711 ms | 304.092 ms | +15.407% | **132.524%** | **1.617x** | **9.503%** |
+
+| A05 preserved output | Baseline | Exact-safe result | Delta / bound |
+|---|---:|---:|---:|
+| v3 structured ALPH | 138,762 bytes | 121,624 bytes | **-12.350644%** |
+| v3 all-41 ALPH | 4,118,622 bytes | 4,101,484 bytes | -0.416110% |
+| real ALPH | 105,175 bytes | 101,584 bytes | -3.414309% |
+| synthetic ALPH | 1,269,394 bytes | 1,184,957 bytes | -6.651757% |
+| worst per-file expansion | 0 bytes | 0 bytes | exact fallback retained |
+
+Workspace tests、feature tests、clippy、fmt 和 fuzz check 通过。Phase A 已拒绝，
+所以 production compact/span/scratch/filter-fusion、专门 release oracle、Bazel 与
+Phase C 3 x 10 / 5 x 5 均明确未运行；不得引用 A03 的门禁冒充 A05 新结果。
 
 ### 总账更新规则
 
@@ -329,6 +353,15 @@ different RowRLE segmentation will lose. A04 therefore stopped before runtime
 implementation; the next distinct question is the cost of constructing one
 required RowRLE candidate, not another shortlist threshold.
 
+A05 measured that cost directly. Row construction owns essentially all of
+A03's positive CPU delta, but safe 32-byte slice equality speeds the complete
+walk by only 1.50x to 1.74x on real encoder planes. Even when combined with
+A04 top-1 scheduling, the projected A03-relative gain is 8.95% on v3 and 9.50%
+on synthetic, below the 10% gate. Compact spans, scratch reuse, and filter
+fusion were therefore not implemented after the ceiling failed. The A03-A05
+line now defines a measured Pareto bound: exact RowRLE closes the structured
+gap but does not meet this project's CPU/materiality policy.
+
 ## Rejected and non-material experiments
 
 Diagnostic probes below used the same code base and corpus stated in each row,
@@ -350,6 +383,7 @@ primary headline measurements.
 | bounded planner on 4 real + 11 synthetic | A02 formal 5 x 5 | real ALPH **+438.98%**, real WebP **+224.88%**, worst synthetic ALPH **+2232.03%** | reject and do not merge; direct RowRLE selector is unsafe |
 | exact guarded planner (`21e0d15`) | A03 formal v3 3 x 10 + generalization 5 x 5 | structured **-12.35%**, zero size regressions; v3 ALPH-only **+15.15%**, real p50 **+39.09%** | reject promotion; retain exact-selection boundary as A04 input |
 | filter-first top-1 portfolio | A04 exact oracle over 41 + 4 real + 11 synthetic | retains structured **-12.35%** and zero expansion, but parse count only -45.0% on 41 / -41.86% combined | reject at phase A; do not implement or claim runtime speed |
+| fused/compact RowRLE ceiling | A05 five-round phase attribution + real-plane micro | Row owns 99.89%–132.52% of added CPU, but top-1 + safe chunks reaches only 8.95% v3 / 9.50% synthetic | reject at phase A; do not implement multi-surface production candidate |
 
 ## Research basis and next architecture targets
 
@@ -380,8 +414,11 @@ The next accepted architecture should target at least one measurable 10% gap:
    sampling may open a candidate set, but actual Huffman-table, prefix, length,
    and distance costs must govern the winner, with greedy fallback on ties or
    incomplete evidence. A04 shows that top-1 scheduling alone removes only 45%
-   of 41-file RowRLE walks, so the next parser experiment must reduce the cost
-   of each required exact candidate rather than relax the evidence boundary.
+   of 41-file RowRLE walks, and A05 shows that realistic per-walk acceleration
+   still misses 10%. Further work should switch to an independent standard
+   density mechanism such as spatial entropy groups or a demonstrated color
+   cache owner, rather than relaxing the evidence boundary or retuning this
+   RowRLE portfolio.
 2. **Real-image evidence:** add a pinned, licensed translucent PNG/WebP corpus
    with PSNR/SSIM or exact-alpha gates, alpha-cardinality buckets, p50/p95
    latency, and peak RSS. No architecture should be tuned only to conformance
