@@ -53,3 +53,11 @@ Reproduce the complete encode, size, distortion, and pinned-libwebp comparison:
 ```sh
 bash tools/benchmark-vp8-encode.sh 5
 ```
+
+For the conversion stage alone, run the Rust-only direct benchmark. It decodes
+the fixed `reference-v1` inputs once, then times only the private RGBA-to-YUV
+path and hashes visible planes to make every run auditable:
+
+```sh
+bash tools/benchmark-sharp-yuv.sh 20
+```

@@ -38,6 +38,42 @@ throughput is not an automatic requirement, but any material gap must have an
 owner and a remediation plan. A milestone with an unprofiled material gap is
 **performance pending**, not complete.
 
+## Container and direct-SharpYUV baselines
+
+Container demuxing and mux/editor work have dedicated Rust-only release
+benchmarks. They deliberately do not compile or link a C harness: the
+benchmarks are regression gates for this repository's public API boundaries,
+while interoperability and algorithm conformance remain covered by the pinned
+fixtures and oracle tests.
+
+```sh
+bash tools/benchmark-demux.sh 10000
+bash tools/benchmark-mux-editor.sh 1000
+bash tools/benchmark-sharp-yuv.sh 20
+```
+
+The demux runner strictly parses and queries all 39 `MustAccept` files from
+`reference-v1` and `animation-v1`. It times 390,000 parses over 2,971,380,000
+preloaded input bytes; file I/O and corpus selection are outside the interval.
+Three runs measured 27.631, 26.313, and 31.479 ms, for a 27.631 ms median and
+checksum `8020000`.
+
+The mux/editor runner uses those same 39 files. Its generic-mux measurement
+rebuilds each file from owned raw chunks; its editor measurement strictly
+parses and finishes an unchanged file, rejecting any byte change. Across
+39,000 operations, the three runs measured generic muxing at 21.467, 17.569,
+and 21.773 ms, and editor round trips at 34.337, 28.074, and 31.106 ms. The
+medians are 21.467 and 31.106 ms respectively; each path produced 297,138,000
+bytes and checksum `300336000`.
+
+The direct SharpYUV runner decodes the 36 static `reference-v1` inputs before
+timing, then converts their retained RGBA pixels through the private VP8 path.
+It hashes only the visible Y, U, and V planes, excluding padded storage and
+decode/file I/O. Twenty iterations cover 720 conversions and 47,185,920 RGBA
+bytes. Three runs measured 329.111, 343.824, and 331.715 ms, for a 331.715 ms
+median and checksum `8846700267572315064`. The byte-exact pinned SharpYUV test
+remains the correctness oracle; this runner is its independent speed gate.
+
 ## VP8L M1 baseline
 
 Run the VP8L comparison after fetching the pinned corpus and oracle:
@@ -566,6 +602,9 @@ within the same run to reduce host and load sensitivity.
 | VP8 static encode | `bash tools/benchmark-vp8-encode.sh 5` | Rust median <= 501.847 ms, output <= 1.42x pinned libwebp, and PSNR floors 25.810/37.339/48.227 dB at quality 0/75/100 |
 | VP8/ALPH static encode | `bash tools/benchmark-alpha-encode.sh 10` | Rust median <= 7.40 s and <= 0.75x pinned-libwebp time, whole output <= 1.03x libwebp, all-file ALPH <= 1.01x libwebp, structured ALPH <= 1.17x libwebp, and exact pinned-`dwebp` alpha oracle on all 41 files |
 | VP8L-frame animation encode | `bash tools/benchmark-animation-encode.sh 5` | Rust median <= 95.409 ms, output <= 406,862 bytes per six-frame animation, and locked `webpmux`/`dwebp` acceptance |
+| Container demux | `bash tools/benchmark-demux.sh 10000` | Rust median <= 29.013 ms over 390,000 strict parses, checksum `8020000` |
+| Container generic mux / unchanged editor | `bash tools/benchmark-mux-editor.sh 1000` | Rust median <= 22.540 / 32.662 ms over 39,000 operations, 297,138,000 output bytes, and checksum `300336000` for both paths |
+| Direct VP8 SharpYUV | `bash tools/benchmark-sharp-yuv.sh 20` | Rust median <= 348.301 ms over 720 conversions, checksum `8846700267572315064` |
 
 The CLIC decoder's measured 0.975x ratio is explicitly accepted for M9 because
 it is reproducible, stays inside the 1.03x threshold, and retains profiled
