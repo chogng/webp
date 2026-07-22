@@ -9,6 +9,8 @@
 use crate::AnimationEncodeFrame;
 use crate::AnimationEncodeOptions;
 use crate::EncodeError;
+use crate::LosslessEncodeOptions;
+use crate::LosslessEncodeProfile;
 use crate::LossyEncodeOptions;
 use crate::Metadata;
 use webp_core::BitWriter;
@@ -79,6 +81,21 @@ struct ColorTransformPlan {
     red_to_blue: i8,
 }
 
+#[path = "encoder/spatial_cluster.rs"]
+mod spatial_cluster;
+#[path = "encoder/spatial_plan.rs"]
+mod spatial_plan;
+#[path = "encoder/spatial_writer.rs"]
+mod spatial_writer;
+
+#[cfg(test)]
+#[path = "encoder/coarse_spatial_tests.rs"]
+mod coarse_spatial_tests;
+
+#[cfg(test)]
+#[path = "encoder/product_benchmark_tests.rs"]
+mod product_benchmark_tests;
+
 /// Encodes a static RGBA8 image as a lossless WebP file.
 ///
 /// The input is straight/unpremultiplied RGBA in row-major order. This first
@@ -94,6 +111,54 @@ struct ColorTransformPlan {
 pub fn encode_lossless_rgba(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, EncodeError> {
     let (payload, _) = encode_vp8l_payload(width, height, rgba)?;
     wrap_vp8l(payload)
+}
+
+/// Encodes a static RGBA8 image with an explicit lossless profile.
+///
+/// [`LosslessEncodeProfile::Default`] is byte-for-byte equivalent to
+/// [`encode_lossless_rgba`]. Fast-decode profiles emit standard VP8L and use a
+/// deterministic complete-file fallback when spatial Huffman groups do not
+/// make the file strictly smaller than the corresponding fast-no-cache
+/// single-group stream. They can be larger than the default profile and
+/// currently cost more to encode because both complete files are serialized.
+///
+/// ```
+/// use webp::{
+///     LosslessEncodeOptions, LosslessEncodeProfile, encode_lossless_rgba_with_options,
+/// };
+///
+/// let rgba = [10, 20, 30, 255];
+/// let mut options = LosslessEncodeOptions::default();
+/// options.profile = LosslessEncodeProfile::FastDecodeLowLatency;
+/// let encoded = encode_lossless_rgba_with_options(1, 1, &rgba, options)?;
+/// assert_eq!(&encoded[..4], b"RIFF");
+/// # Ok::<(), webp::EncodeError>(())
+/// ```
+///
+/// # Errors
+///
+/// Returns the same errors as [`encode_lossless_rgba`].
+pub fn encode_lossless_rgba_with_options(
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+    options: LosslessEncodeOptions,
+) -> Result<Vec<u8>, EncodeError> {
+    match options.profile {
+        LosslessEncodeProfile::Default => encode_lossless_rgba(width, height, rgba),
+        LosslessEncodeProfile::FastDecodeCompact => spatial_writer::encode_profile(
+            width,
+            height,
+            rgba,
+            spatial_plan::SpatialProfile::Compact,
+        ),
+        LosslessEncodeProfile::FastDecodeLowLatency => spatial_writer::encode_profile(
+            width,
+            height,
+            rgba,
+            spatial_plan::SpatialProfile::LowLatency,
+        ),
+    }
 }
 
 /// Encodes an opaque RGBA8 image as a lossy VP8 WebP file.
@@ -175,7 +240,36 @@ pub fn encode_lossless_rgba_with_metadata(
     wrap_vp8l_with_metadata(payload, width, height, has_alpha, metadata)
 }
 
+/// Encodes static RGBA8 with raw metadata and an explicit lossless profile.
+///
+/// Metadata payloads and feature flags have the same semantics as
+/// [`encode_lossless_rgba_with_metadata`]. The default options are
+/// byte-for-byte equivalent to that existing entry point. Profile selection
+/// never drops or rewrites ICCP, EXIF, or XMP payload bytes.
+///
+/// # Errors
+///
+/// Returns the same errors as [`encode_lossless_rgba_with_metadata`].
+pub fn encode_lossless_rgba_with_metadata_and_options(
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+    metadata: &Metadata,
+    options: LosslessEncodeOptions,
+) -> Result<Vec<u8>, EncodeError> {
+    if options.profile == LosslessEncodeProfile::Default {
+        return encode_lossless_rgba_with_metadata(width, height, rgba, metadata);
+    }
+    let has_alpha = rgba.chunks_exact(4).any(|pixel| pixel[3] != u8::MAX);
+    let riff = encode_lossless_rgba_with_options(width, height, rgba, options)?;
+    let payload = copy_vp8l_payload(&riff)?;
+    wrap_vp8l_with_metadata(payload, width, height, has_alpha, metadata)
+}
+
 /// Encodes VP8L frame rectangles as a lossless WebP animation.
+///
+/// Animation frames continue to use [`LosslessEncodeProfile::Default`]; the
+/// static lossless profile options do not alter this API.
 ///
 /// Frame offsets must be even because WebP stores them in two-pixel units.
 /// The supplied rectangles are encoded independently; blend and disposal are
@@ -207,6 +301,7 @@ pub fn encode_lossless_animation(
 ///
 /// ICCP, EXIF, and XMP payloads are copied byte-for-byte into the extended
 /// animation container and declared through `VP8X` feature flags.
+/// Animation frames always use [`LosslessEncodeProfile::Default`].
 ///
 /// # Errors
 ///
@@ -1151,6 +1246,30 @@ fn make_anmf_payload(
 
 fn wrap_vp8l(payload: Vec<u8>) -> Result<Vec<u8>, EncodeError> {
     wrap_vp8l_with_metadata(payload, 0, 0, false, &Metadata::default())
+}
+
+fn copy_vp8l_payload(riff: &[u8]) -> Result<Vec<u8>, EncodeError> {
+    if riff.len() < 20 || &riff[..4] != b"RIFF" || &riff[8..16] != b"WEBPVP8L" {
+        return Err(EncodeError::output_size_overflow());
+    }
+    let payload_len = u32::from_le_bytes(
+        riff[16..20]
+            .try_into()
+            .map_err(|_| EncodeError::output_size_overflow())?,
+    );
+    let payload_len =
+        usize::try_from(payload_len).map_err(|_| EncodeError::output_size_overflow())?;
+    let payload_end = 20_usize
+        .checked_add(payload_len)
+        .ok_or_else(EncodeError::output_size_overflow)?;
+    let payload = riff
+        .get(20..payload_end)
+        .ok_or_else(EncodeError::output_size_overflow)?;
+    let mut copy = Vec::new();
+    copy.try_reserve_exact(payload.len())
+        .map_err(|_| EncodeError::allocation_failed())?;
+    copy.extend_from_slice(payload);
+    Ok(copy)
 }
 
 fn wrap_vp8(

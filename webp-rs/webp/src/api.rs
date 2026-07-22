@@ -82,6 +82,46 @@ impl Default for LossyEncodeOptions {
     }
 }
 
+/// Stable size/decoding-latency tradeoffs for static lossless encoding.
+///
+/// Every profile emits an ordinary VP8L bitstream. The fast-decode profiles
+/// use coarse spatial Huffman groups and are never selected implicitly. Their
+/// names describe the tradeoff relative to each profile's fast-no-cache
+/// single-group stream; they can be larger than [`Self::Default`] and are
+/// currently substantially more expensive to encode because both complete
+/// candidate files are serialized before selection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub enum LosslessEncodeProfile {
+    /// Preserve the encoder's established output and behavior.
+    #[default]
+    Default,
+    /// Prefer the more compact validated fast-decode tradeoff.
+    ///
+    /// This profile uses 128-pixel spatial blocks and at most 64 entropy
+    /// groups, then falls back byte-for-byte to its single-group stream unless
+    /// the complete coarse WebP file is strictly smaller.
+    FastDecodeCompact,
+    /// Prefer fewer entropy groups for lower decoding latency.
+    ///
+    /// This profile uses 256-pixel spatial blocks and at most 16 entropy
+    /// groups, then falls back byte-for-byte to its single-group stream unless
+    /// the complete coarse WebP file is strictly smaller.
+    FastDecodeLowLatency,
+}
+
+/// Options for static lossless WebP encoding.
+///
+/// This type is non-exhaustive so future encoder controls can be added without
+/// making source-compatible callers construct new fields. Start from
+/// [`Self::default`] and update the desired fields.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[non_exhaustive]
+pub struct LosslessEncodeOptions {
+    /// Selects the encoder's lossless size/decoding-latency tradeoff.
+    pub profile: LosslessEncodeProfile,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DecodeOptions {
     pub limits: DecodeLimits,
