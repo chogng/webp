@@ -67,6 +67,7 @@ boundary.
 | A14 | A13 packed token writer 产品化：从 latest main 手工迁移 persistent sink，把 syntax/token-output 依赖改成单向并让 `encode.rs` 回到模块行数目标内 | `codex/alpha-packed-token-writer-product@759417c6`；code `77842c1c`；evidence `ec05d41e` | intake `26e7ae82`；登记后精确产品/测量基线 `1c16ebe826ea57adaf2293bf44bdc36175401a8b` | [`6821` worktree](</Users/lance/.codex/worktrees/6821/webp>)；task `019f8962-85b6-7f11-97fa-8fa053c9687f` | 41×10×5 ALPH `816.001 -> 659.907 ms`（**-19.129%**），whole -2.388%、CPU -3.985%、RSS -3.665%、0/41 ALPH regressions；224/224 exact；报告 `759417c6:reports/alpha-packed-token-writer-product/README.md` | **已推广**；15-file 仅 -8.063%、real4 -3.825%，rlib +15.121%，限制明确保留 | code/evidence/audit 已 fast-forward 到 `main@759417c6`；本提交刷新顶部表、迭代日志、反优化和研究目标 |
 | A15 | compiled token codebook：把 I5 每 token 的 Huffman/prefix/extra 解释式组包改成每 entropy stream 一次编译的 literal/length packet codebook 与 O(1) distance prefix | `codex/alpha-compiled-token-codebook@5a840d36`；code `960c67bb`；measured tip `c21fd4e9`；evidence `b2cf1103` | 创建于 `14ef4ab05ff216057c718c5f8a2bafbf29f2c744`；架构迁移后最终完整重放到 `9ff743874ed50588b2a66c517cc07307fbdbb248` | [`a9e6` worktree](</Users/lance/.codex/worktrees/a9e6/webp>)；task `019f8998-567f-7531-b323-88de59d1a876` | 41×10×3 same-binary：prefix -0.684%、compiled +3.353%、combined **+30.743%**；setup-free 乐观 ceiling 5.879%，setup 7.153%，0 mismatch；报告 `5a840d36:reports/alpha-compiled-token-codebook/README.md` | **Phase-A reject / 不产品化、不合并实验代码**；固定 setup 导致 combined per-file p50 +323.567%，36/41 regressions | 顶部表不变；回填 latest-main 负结果、owner 上限、未运行门禁、无效数据与最终 provenance |
 | A16 | exact-sized cursor token sink：由 frequencies × Huffman widths + copy extras 预知精确 token bits，一次构造定长输出并用 cursor direct-store；隔离 `u128` 与 `u64` flush | `codex/alpha-exact-sized-token-sink@84ddaaa0`；measured code `d3794de4`；evidence/audit `d7d64166` / `4897f4f1` | 创建于 `12c6fbc9e0d15cc86a5dda8b5466e7c700563110`；多次主线前进后最终完整重放到 `65fc54e1d411cb673e24066dbb36c87765b1f0db` | [`bdf4` worktree](</Users/lance/.codex/worktrees/bdf4/webp>)；task `019f89d3-fb8d-7120-bdb8-21fc64d25e57` | 41×10×3 same-binary：exact-u128 +0.625%、exact-u64 +11.843%、combined **+9.854%**；combined 41/41 ALPH regressions，0 byte/hash mismatch；报告 `84ddaaa0:reports/alpha-exact-sized-token-sink/README.md` | **Phase-A reject / 不产品化、不合并实验代码**；current sink ceiling 仅 10.197%，combined owner +104.970%；预留字节 -70.406% 仅作内存诊断 | 顶部表不变；回填 latest-main 负结果、owner/内存边界、停止门禁、全部 invalidated runs 与 283 项 checksum |
+| A17 | scoped parallel dual-filter portfolio：`Fast` 的 `None` 与 estimated filter 各自完成 filter/LZ77/Huffman/token output，再按原顺序归并，保持严格 `<` tie-break 与 payload bytes | `codex/alpha-parallel-filter-portfolio`；HEAD 尚等于 base | 精确创建并完成 intake 于 `8c944b9258caa40c05985d9cd536de67ccdaa79c` | [`116d` worktree](</Users/lance/.codex/worktrees/116d/webp>)；task `019f8a1e-d1f1-7353-afad-7027ae3796e3` | **已登记 / Phase A 待放行**；先量 dual-candidate 覆盖率、per-candidate owner 与零调度 ideal ceiling；`<12.5%` 不写 screen candidate；计划报告 `reports/alpha-parallel-filter-portfolio/` | 待定；多核 wall-time 必须单独于单线程算法收益陈述 | 本提交固定 base、branch/worktree/task、pins、架构不变量与 screen 停止门槛；后续成功或失败均回填 raw/HEAD/决定 |
 
 ### A01 / A02 已完成结果明细
 
@@ -576,6 +577,40 @@ focused 39/39、default/feature Clippy `-D warnings`、fmt 和 release build 通
 41×10×5、gen15、224-case byte/project/`dwebp`、CPU/RSS、artifact/codegen、libwebp
 whole boundary、Bazel 与 fuzz 均按早停规则明确未运行，不借用 A14/A15。Root 独立复验
 283/283 SHA-256、两份 analyzer 与最终 git ancestry；实验代码不合并，顶部表不变。
+
+### A17 parallel dual-filter portfolio 登记
+
+A17 独立任务 `019f8a1e-d1f1-7353-afad-7027ae3796e3` 已从创建时最新本地
+`main@8c944b9258caa40c05985d9cd536de67ccdaa79c` 精确建立；worktree、分支 HEAD、
+local main 与 merge-base 四者一致，worktree 干净。唯一分支为
+`codex/alpha-parallel-filter-portfolio`，隔离目录为
+`/Users/lance/.codex/worktrees/116d/webp`。Intake 后任务已停止，尚未修改代码、创建报告
+或运行 headline benchmark。Corpus / pinned libwebp 分别固定为
+`06ddd96e276c2c638a72d39d3c0f340afd61978c` /
+`733c91e461c18cf1127c9ed0a80dccbcfed599d3`。
+
+当前 `AlphaFilterSelection::Fast` 在 estimate 为 `None` 时只有一个候选，否则顺序返回
+`[None, estimated]`；每个候选独立完成 filter、palette/plain、LZ77、frequency/Huffman、
+token output、raw fallback 与 payload 构造。选择规则是严格 `<`，所以候选并行执行后仍须
+按原顺序归并，相同长度保留 `None`；单候选路径不得创建线程。Pinned libwebp 的
+`ApplyFiltersAndEncode()` 同样顺序执行 filter trials；其 thread level 能并行 whole
+ALPH 与 lossy RGB，但没有 alpha-filter trial portfolio，因此只作为 worker/归并机制参考，
+不是性能证据。
+
+Phase A 先在 feature-private same-binary control 中量 candidate/owner census。零调度理想
+上限定义为 `sum(eligible min(t_none, t_estimated)) / aggregate serial ALPH wall`；低于
+10% 立即拒绝，10%–12.5% 只保留边界负结果，至少 12.5% 才允许实现固定阈值的一个 scoped
+worker screen。阈值只由独立 spawn/join break-even micro 冻结为二次幂像素数，不能按文件
+或 corpus 调参。
+
+Screen 固定为 41×10、至少三轮 rotation：aggregate ALPH wall 必须不差于 **-10%**；
+ALPH payload、完整 WebP、winner 与 tie-break 零 mismatch；process CPU median 与 peak RSS
+median 均不得增加超过 10%，任一有效轮 RSS 不得超过 +15%；调度/同步不得超过 baseline
+ALPH wall 的 2% 或 gross saving 的 20%；单候选 aggregate 不得回退超过 2%；逐文件 p95 /
+worst 不得高于 +2% / +5%，超过 +2% 的文件不多于 4/41。任一项失败即 reject，不进入 formal、
+q-matrix 或 production。若通过，才运行 5-rotation、CPU/RSS、56-file q-matrix、real/synthetic、
+workspace/Clippy/fmt/Bazel 与 libwebp paired boundary。每次有效 headline 前重读 committed local
+main；main 前进则 rebase、重建并把旧数据标入 `raw/invalidated/` 后完整重跑。
 
 ### 总账更新规则
 
