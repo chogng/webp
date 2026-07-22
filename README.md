@@ -54,6 +54,9 @@ tools/benchmark-alpha-encode.sh 50
 Codec milestones also require the conformance, robustness, performance, and
 resource gates in [`docs/quality-gates.md`](docs/quality-gates.md); passing
 the test suite alone does not mark a decoder milestone complete.
+The record-only VP8L performance scoreboard, complete experiment/worktree
+index, and architecture-first follow-up policy are maintained in
+[`webp-rs/vp8l/README.md`](webp-rs/vp8l/README.md).
 M3's functional exit record is in
 [`docs/m3-alpha-animation.md`](docs/m3-alpha-animation.md); M4's completed
 static VP8L encoding scope and exit criteria are in
