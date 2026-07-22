@@ -1,0 +1,55 @@
+{
+  "binary_sha256": "9aa8fa08fb2288335a98ff4a3d5f64a5a7922372f7c4c1b1212ed98b9b1a29f8",
+  "exactness": {
+    "compact_spatial_planner_writer": "306/306",
+    "eb_selectors": "204/204",
+    "final_selectors": "204/204",
+    "low_latency_spatial_planner_writer": "408/408",
+    "p18_candidate_identity": "204/204",
+    "public_selected_streams": "204/204",
+    "single_planner_writer": "204/204",
+    "strict_single_fallbacks": "204/204"
+  },
+  "gate": true,
+  "manifest_sha256": "9feb09f469753c43864011aa6f00cfc5ee1bd48da5aac8f9b16d105890e14f86",
+  "output": "/private/tmp/vp8l-profile-hybrid-product-p20-phase-a-final-9ad4afbe",
+  "profiles": {
+    "compact": {
+      "aggregate_rate_delta_pct": -3.0035558907695603,
+      "control_bytes": 617958802,
+      "final_distribution": {
+        "B": 1,
+        "R": 101
+      },
+      "growth": "0/0",
+      "growth_state_rows": 0,
+      "images_over_control_plus_2pct": 0,
+      "p18_byte_identity": "102/102",
+      "public_bytes": 599398064,
+      "worst_image": {
+        "delta_pct": 1.4905309333190786,
+        "id": "clic-validation-002"
+      }
+    },
+    "low-latency": {
+      "aggregate_rate_delta_pct": -3.8252467525994427,
+      "control_bytes": 625321072,
+      "final_distribution": {
+        "B": 2,
+        "E": 1,
+        "R": 20,
+        "Split": 79
+      },
+      "growth": "336/336",
+      "growth_state_rows": 102,
+      "images_over_control_plus_2pct": 0,
+      "p18_byte_identity": "102/102",
+      "public_bytes": 601400998,
+      "worst_image": {
+        "delta_pct": 1.483744746153759,
+        "id": "clic-validation-100"
+      }
+    }
+  },
+  "stderr_bytes": 0
+}

@@ -1,0 +1,49 @@
+{
+  "binary_sha256": "9aa8fa08fb2288335a98ff4a3d5f64a5a7922372f7c4c1b1212ed98b9b1a29f8",
+  "correctness": {
+    "pinned_c": "246/246",
+    "project": "246/246"
+  },
+  "gate": false,
+  "manifest_sha256": "474587feabe3178268b2eab6f7a166501d8ecc3d637a76bd412f4233dfa7b913",
+  "output": "/private/tmp/vp8l-profile-hybrid-product-p20-screen-filter-fixed",
+  "profiles": {
+    "compact": {
+      "aggregate_bytes_delta_pct": -3.482486730649992,
+      "candidate_bytes": 249717658,
+      "control_bytes": 258727820,
+      "encode_candidate_ns": [2485682625, 2488329334, 2503336667],
+      "encode_control_ns": [5079713375, 5025098208, 5018523750],
+      "encode_independent_delta_pct": -50.481976052954394,
+      "encode_per_image_regressions": 0,
+      "gate": true,
+      "images_over_control_plus_2pct": 0,
+      "pinned_c_decode_independent_delta_pct": -0.37972328518864895,
+      "rss_delta_bytes": -320487424,
+      "rss_delta_pct": -35.33098527950872,
+      "rust_decode_independent_delta_pct": -0.7693137388581128,
+      "worst_encode_image": ["clic-validation-019", -49.96594937770449],
+      "worst_rate_image": ["clic-validation-002", 1.4905309333190786]
+    },
+    "low-latency": {
+      "aggregate_bytes_delta_pct": -5.093031978600015,
+      "candidate_bytes": 248400928,
+      "control_bytes": 261730970,
+      "encode_candidate_ns": [2551721500, 2555451500, 2657632333],
+      "encode_control_ns": [4936958875, 4932338417, 4925644292],
+      "encode_independent_delta_pct": -48.1898587657271,
+      "encode_per_image_regressions": 0,
+      "failed_gate": "encode improvement 48.1898587657271% < 50%",
+      "gate": false,
+      "images_over_control_plus_2pct": 0,
+      "pinned_c_decode_independent_delta_pct": -1.0184412824676858,
+      "rss_delta_bytes": -323190784,
+      "rss_delta_pct": -35.60521280820187,
+      "rust_decode_independent_delta_pct": -0.02157813689481758,
+      "worst_encode_image": ["clic-validation-009", -43.42443250272245],
+      "worst_rate_image": ["clic-validation-031", -1.128721834515145]
+    }
+  },
+  "retained_all_samples": true,
+  "stderr_bytes": 0
+}
