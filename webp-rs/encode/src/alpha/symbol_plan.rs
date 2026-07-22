@@ -1,10 +1,10 @@
 //! Frequency-derived Huffman tables for headerless VP8L alpha streams.
 
-use webp_decode::encode_support::BitWriter;
-use webp_decode::encode_support::EncodingTable;
-use webp_decode::encode_support::canonical_table;
-use webp_decode::encode_support::write_simple_table;
-use webp_decode::encode_support::write_table_symbol;
+use crate::vp8l::huffman::EncodingTable;
+use crate::vp8l::huffman::canonical_table;
+use crate::vp8l::huffman::write_simple_table;
+use crate::vp8l::huffman::write_table_symbol;
+use webp_utils::BitWriter;
 
 use super::AlphaEncodeError;
 

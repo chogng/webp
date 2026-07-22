@@ -190,6 +190,7 @@ dependencies = [
  "webp-decode",
  "webp-demux",
  "webp-mux",
+ "webp-utils",
 ]
 
 [[package]]

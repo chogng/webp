@@ -6,12 +6,11 @@
 //! `ALPH` header fields shared by both directions.
 
 pub(crate) mod decode;
-mod wire;
 
 pub use decode::decode;
 pub use decode::decode_raw;
 pub use decode::parse_header;
-pub use wire::AlphaCompression;
-pub use wire::AlphaFilter;
-pub use wire::AlphaHeader;
-pub use wire::AlphaPreprocessing;
+pub use webp_container::AlphaCompression;
+pub use webp_container::AlphaFilter;
+pub use webp_container::AlphaHeader;
+pub use webp_container::AlphaPreprocessing;

@@ -45,17 +45,20 @@ facade split:
 - `decode` owns static and animated decoding, incremental decoding, inspection,
   decode limits, and the read side of `ALPH` payload handling.
 - `encode` owns the public static-image and animation encode orchestration,
-  lossless/lossy options, and the complete `ALPH` encoder (filters, level
-  reduction, palette planning, LZ77 planning, entropy planning, and packed
-  token output). Its codec-local tests live alongside those owners.
+  lossless/lossy options, VP8L entropy and spatial planning, and the complete
+  `ALPH` encoder (filters, level reduction, palette planning, LZ77 planning,
+  entropy planning, and packed token output). Its codec-local tests live
+  alongside those owners.
+- `container` also owns the shared `ALPH` header vocabulary used by both
+  direction-specific payload implementations.
 - `utils` owns the format-neutral least-significant-bit-first `BitWriter`.
   It returns its own small error type and does not depend on WebP codec errors.
-- The private VP8 and VP8L writer foundations are still physically in `decode`
-  while their shared reader/writer primitives are separated. `decode` exposes
-  a `#[doc(hidden)] webp_decode::encode_support` bridge for `encode` only.
-  This bridge is not a stable consumer API and must shrink as those writer
-  owners are moved; it prevents a reverse `decode <- encode` dependency during
-  the transition.
+- The private VP8 writer foundation is still physically in `decode` while its
+  reader/writer primitives are separated. `decode` exposes a narrowly scoped
+  `#[doc(hidden)] webp_decode::encode_support` bridge for that foundation
+  only. This is not a stable consumer API and must disappear when the VP8
+  writer moves; it prevents a reverse `decode <- encode` dependency during the
+  transition.
 
 The compatibility crate routes `decode` and `encode` features independently.
 In particular, `webp`'s `decode` feature forwards `webp-decode/decode`, so a

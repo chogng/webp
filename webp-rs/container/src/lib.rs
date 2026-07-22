@@ -1,11 +1,16 @@
 #![forbid(unsafe_code)]
 //! Shared WebP RIFF container vocabulary and wire models.
 
+mod alpha;
 mod error;
 mod fourcc;
 mod metadata;
 mod vp8x;
 
+pub use alpha::AlphaCompression;
+pub use alpha::AlphaFilter;
+pub use alpha::AlphaHeader;
+pub use alpha::AlphaPreprocessing;
 pub use error::ContainerError;
 pub use error::ContainerErrorKind;
 pub use fourcc::ALPH;

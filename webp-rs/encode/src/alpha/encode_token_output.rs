@@ -1,10 +1,10 @@
 //! Complete entropy-token output for headerless VP8L alpha payload writing.
 
-use webp_decode::encode_support::BitWriter;
-use webp_decode::encode_support::EncodingTable;
-use webp_decode::encode_support::table_wire_symbol;
+use crate::vp8l::huffman::EncodingTable;
+use crate::vp8l::huffman::table_wire_symbol;
 #[cfg(any(feature = "alpha-benchmark-internals", test))]
-use webp_decode::encode_support::write_table_symbol;
+use crate::vp8l::huffman::write_table_symbol;
+use webp_utils::BitWriter;
 
 use super::AlphaEncodeError;
 use super::backward_references as encode_lz77;

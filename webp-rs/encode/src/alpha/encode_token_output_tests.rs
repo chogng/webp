@@ -7,8 +7,8 @@ use super::{
     MAX_TOKEN_PACKET_BITS, PackedTokenSink, TokenPacket, WriterVariant, append_packet_reference,
     packet_for_token, write_tokens_with_variant,
 };
-use webp_decode::encode_support::BitWriter;
-use webp_decode::encode_support::table_from_codes_for_test;
+use crate::vp8l::huffman::table_from_codes_for_test;
+use webp_utils::BitWriter;
 
 fn packet(bits: u64, width: u8) -> TokenPacket {
     TokenPacket { bits, width }

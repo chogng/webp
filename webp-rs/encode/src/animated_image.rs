@@ -4,7 +4,7 @@ use crate::AnimationEncodeFrame;
 use crate::AnimationEncodeOptions;
 use crate::EncodeError;
 use crate::Metadata;
-use webp_decode::encode_support;
+use crate::vp8l;
 
 const MAX_ANIMATION_DIMENSION: u32 = 1 << 24;
 const MAX_ANIMATION_DURATION_MS: u32 = (1 << 24) - 1;
@@ -54,7 +54,7 @@ pub fn encode_lossless_animation_with_metadata(
     for frame in frames {
         validate_animation_frame(canvas_width, canvas_height, frame)?;
         let (payload, frame_has_alpha) =
-            encode_support::encode_vp8l_payload(frame.width, frame.height, frame.rgba)?;
+            vp8l::encode_vp8l_payload(frame.width, frame.height, frame.rgba)?;
         has_alpha |= frame_has_alpha;
         encoded_frames.push(EncodedAnimationFrame {
             anmf_payload: make_anmf_payload(frame, &payload)?,
@@ -83,7 +83,7 @@ fn validate_animation_frame(
     {
         return Err(EncodeError::invalid_animation());
     }
-    encode_support::validate_vp8l_input(frame.width, frame.height, frame.rgba)?;
+    vp8l::validate_input(frame.width, frame.height, frame.rgba)?;
     let right = frame
         .x
         .checked_add(frame.width)

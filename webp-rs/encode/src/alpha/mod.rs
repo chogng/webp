@@ -13,19 +13,19 @@ pub use encode_token_output::BenchmarkWriterVariant;
 pub use encode_token_output::set_benchmark_writer_variant;
 pub use filters::AlphaFilterSelection;
 
+use crate::vp8l::huffman::WireWriteError;
+use crate::vp8l::huffman::write_simple_table;
 use std::borrow::Cow;
-use webp_decode::encode_support::BitWriter;
-use webp_decode::encode_support::WireWriteError;
-use webp_decode::encode_support::write_simple_table;
+use webp_utils::BitWriter;
 
 use self::backward_references as encode_lz77;
 use self::backward_references::Token;
 use self::filters as encode_filter;
 use self::palette_plan as encode_palette;
 use self::symbol_plan::write_adaptive_table;
-use webp_decode::encode_support::AlphaCompression;
-use webp_decode::encode_support::AlphaHeader;
-use webp_decode::encode_support::AlphaPreprocessing;
+use webp_container::AlphaCompression;
+use webp_container::AlphaHeader;
+use webp_container::AlphaPreprocessing;
 
 const MAX_LOSSLESS_DIMENSION: u32 = 1 << 14;
 /// Configuration for encoding one complete `ALPH` payload.

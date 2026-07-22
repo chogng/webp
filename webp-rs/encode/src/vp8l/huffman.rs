@@ -1,6 +1,6 @@
-//! Shared VP8L canonical-symbol wire writing.
+//! VP8L canonical-symbol wire writing.
 
-use crate::BitWriter;
+use webp_utils::BitWriter;
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum WireWriteError {
@@ -69,6 +69,7 @@ pub fn table_wire_symbol(
 }
 
 #[doc(hidden)]
+#[cfg(test)]
 pub fn table_from_codes_for_test(codes: Vec<(u32, u8)>) -> EncodingTable {
     EncodingTable { codes }
 }

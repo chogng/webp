@@ -11,9 +11,6 @@ use crate::DecodeError;
 use crate::DecodeErrorKind;
 use crate::ShiftedBitReader;
 
-#[cfg(feature = "encode")]
-pub mod symbol_writer;
-
 /// The longest code allowed by the VP8L format.
 pub const MAX_CODE_LENGTH: u8 = 15;
 

@@ -4,16 +4,16 @@
 //! reversible spatial filter. Both raw alpha (method 0) and headerless VP8L
 //! alpha (method 1) are recovered into a straight alpha plane.
 
-use super::wire::AlphaCompression;
-use super::wire::AlphaFilter;
-use super::wire::AlphaHeader;
-use super::wire::AlphaPreprocessing;
 use crate::BitWriter;
 use crate::CompatibilityProfile;
 use crate::DecodeError;
 use crate::DecodeErrorKind;
 use crate::DecodeLimits;
 use crate::checked_image_bytes;
+use webp_container::AlphaCompression;
+use webp_container::AlphaFilter;
+use webp_container::AlphaHeader;
+use webp_container::AlphaPreprocessing;
 
 /// Parses an `ALPH` header according to the selected compatibility profile.
 pub fn parse_header(

@@ -1,7 +1,7 @@
 //! Color-indexing plans for low-cardinality alpha planes.
 
-use webp_decode::encode_support::BitWriter;
-use webp_decode::encode_support::write_table_symbol;
+use crate::vp8l::huffman::write_table_symbol;
+use webp_utils::BitWriter;
 
 use super::AlphaEncodeError;
 use super::symbol_plan::write_adaptive_table;

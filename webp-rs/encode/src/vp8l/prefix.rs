@@ -1,6 +1,6 @@
-//! Shared VP8L length and distance prefix mapping.
+//! VP8L length and distance prefix mapping.
 
-use crate::vp8l::huffman::symbol_writer::WireWriteError;
+use super::huffman::WireWriteError;
 
 pub(crate) fn encode_prefix(
     value: usize,

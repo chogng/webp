@@ -10,10 +10,9 @@ backwards-compatible product profile:
 | `encode` | static-image encoder orchestration and public encode APIs | `decode` |
 
 Animation encoding is available only when both `animation` and `encode` are
-selected. `encode` intentionally implies `decode`: the bounded VP8 and VP8L
-wire primitives are shared implementation details, not a public encoder-only
-dependency. This keeps dependencies directional and avoids duplicating codec
-state merely to produce an artificial feature boundary.
+selected. `encode` temporarily implies `decode` only for the bounded VP8
+writer foundation. VP8L and ALPH writing live with the encoder; the remaining
+bridge is an implementation detail, not a public encoder-only dependency.
 
 ## Decoder-only verification
 

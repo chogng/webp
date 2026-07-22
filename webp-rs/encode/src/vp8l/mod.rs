@@ -1,4 +1,4 @@
-//! Minimal static VP8L lossless encoding.
+//! VP8L lossless encoding and spatial entropy planning.
 //!
 //! This M6 slice writes a single entropy group with reversible color,
 //! subtract-green, and predictor transforms, a bounded color cache, and
@@ -6,17 +6,18 @@
 //! frequency-ranked balanced Huffman codes. Small palette images use color
 //! indexing.
 
-use crate::BitWriter;
 use crate::EncodeError;
-use crate::vp8l::backward_references::prefix::encode_prefix as vp8l_prefix;
-use crate::vp8l::color_cache::hash_color;
-use crate::vp8l::header::MAX_DIMENSION;
-use crate::vp8l::header::SIGNATURE;
-use crate::vp8l::huffman::symbol_writer::EncodingTable;
-use crate::vp8l::huffman::symbol_writer::canonical_table;
-use crate::vp8l::huffman::symbol_writer::write_canonical_symbol;
-use crate::vp8l::huffman::symbol_writer::write_simple_table;
-use crate::vp8l::huffman::symbol_writer::write_table_symbol;
+use webp_utils::BitWriter;
+
+use self::huffman::EncodingTable;
+use self::huffman::canonical_table;
+use self::huffman::write_canonical_symbol;
+use self::huffman::write_simple_table;
+use self::huffman::write_table_symbol;
+use self::prefix::encode_prefix as vp8l_prefix;
+
+pub(crate) const MAX_DIMENSION: u32 = 1 << 14;
+const SIGNATURE: u8 = 0x2f;
 
 const GREEN_ALPHABET_SIZE: usize = 256 + 24;
 const CHANNEL_ALPHABET_SIZE: usize = 256;
@@ -33,6 +34,9 @@ const CODE_LENGTH_CODE_ORDER: [usize; 19] = [
 const MAX_ENCODER_PALETTE_SIZE: usize = 16;
 pub const COLOR_TRANSFORM_BLOCK_BITS: u8 = 7;
 const MIN_COLOR_TRANSFORM_PIXELS: usize = 256;
+
+pub(crate) mod huffman;
+mod prefix;
 
 #[derive(Clone, Copy)]
 pub enum EntropyToken {
@@ -82,14 +86,13 @@ pub(crate) mod spatial_plan;
 #[path = "spatial_writer.rs"]
 pub(crate) mod spatial_writer;
 
-#[cfg(all(test, not(feature = "decode")))]
+#[cfg(test)]
 #[path = "coarse_spatial_tests.rs"]
 mod coarse_spatial_tests;
-// The product reproducer lives with static-image orchestration but is attached
-// here so its control writer can inspect image-writer invariants.
+// The product reproducer is coupled to writer invariants and is intentionally
+// compiled within the VP8L writer module.
 #[cfg(test)]
-#[cfg(not(feature = "decode"))]
-#[path = "../../static_image/product_benchmark_tests.rs"]
+#[path = "product_benchmark_tests.rs"]
 mod product_benchmark_tests;
 
 pub fn encode_vp8l_payload(
@@ -850,6 +853,11 @@ const fn color_cache_size(bits: u8) -> usize {
 fn color_cache_index(color: u32, bits: u8) -> usize {
     debug_assert!(bits != 0 && bits <= MAX_ENCODER_COLOR_CACHE_BITS);
     hash_color(color, bits)
+}
+
+const fn hash_color(color: u32, bits: u8) -> usize {
+    let shift = u32::BITS - bits as u32;
+    (color.wrapping_mul(0x1e35_a7bd) >> shift) as usize
 }
 
 fn update_color_cache(cache: &mut [u32; MAX_COLOR_CACHE_SIZE], bits: u8, color: u32) {

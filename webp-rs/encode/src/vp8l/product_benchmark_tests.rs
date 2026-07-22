@@ -7,9 +7,10 @@ use std::time::Instant;
 
 use super::*;
 use crate::{
-    DecodeOptions, LosslessEncodeOptions, LosslessEncodeProfile, decode, encode_lossless_rgba,
+    LosslessEncodeOptions, LosslessEncodeProfile, encode_lossless_rgba,
     encode_lossless_rgba_with_options,
 };
+use webp_decode::{DecodeOptions, decode};
 
 struct Source {
     id: String,

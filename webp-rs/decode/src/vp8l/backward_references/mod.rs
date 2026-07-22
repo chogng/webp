@@ -12,9 +12,6 @@ use crate::DecodeErrorKind;
 use crate::ShiftedBitReader;
 use crate::WorkBudget;
 
-#[cfg(feature = "encode")]
-pub(crate) mod prefix;
-
 pub const LENGTH_PREFIX_COUNT: u8 = 24;
 pub const DISTANCE_PREFIX_COUNT: u8 = 40;
 pub const MAX_BACKWARD_REFERENCE_LENGTH: usize = 4096;

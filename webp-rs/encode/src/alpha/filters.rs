@@ -1,7 +1,7 @@
 //! Forward ALPH filters and payload-writing filter selection.
 
 use super::AlphaEncodeError;
-use webp_decode::encode_support::AlphaFilter;
+use webp_container::AlphaFilter;
 
 /// Policy used to select the spatial filter written into an `ALPH` header.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]

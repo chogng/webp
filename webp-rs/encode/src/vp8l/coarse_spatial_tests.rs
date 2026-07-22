@@ -2,11 +2,11 @@ use super::*;
 use crate::static_image::copy_vp8l_payload;
 use crate::static_image::wrap_vp8l_with_metadata;
 use crate::{
-    DecodeLimits, DecodeOptions, LosslessEncodeOptions, LosslessEncodeProfile, Metadata, decode,
-    encode_lossless_rgba, encode_lossless_rgba_with_metadata,
-    encode_lossless_rgba_with_metadata_and_options, encode_lossless_rgba_with_options,
-    read_metadata,
+    LosslessEncodeOptions, LosslessEncodeProfile, encode_lossless_rgba,
+    encode_lossless_rgba_with_metadata, encode_lossless_rgba_with_metadata_and_options,
+    encode_lossless_rgba_with_options,
 };
+use webp_decode::{DecodeLimits, DecodeOptions, Metadata, decode, read_metadata};
 
 fn options(profile: LosslessEncodeProfile) -> LosslessEncodeOptions {
     LosslessEncodeOptions { profile }

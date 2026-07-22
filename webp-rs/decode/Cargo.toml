@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Safe WebP pixel decoding and shared codec foundations"
+description = "Safe WebP pixel decoding"
 
 [lints]
 workspace = true

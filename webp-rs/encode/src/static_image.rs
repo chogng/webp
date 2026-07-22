@@ -5,23 +5,24 @@ use crate::LosslessEncodeOptions;
 use crate::LosslessEncodeProfile;
 use crate::LossyEncodeOptions;
 use crate::Metadata;
+use crate::vp8l;
+#[cfg(test)]
+use crate::vp8l::COLOR_TRANSFORM_BLOCK_BITS;
+#[cfg(test)]
+use crate::vp8l::EntropyToken;
+#[cfg(test)]
+use crate::vp8l::MAX_DIMENSION;
+#[cfg(test)]
+use crate::vp8l::collect_entropy_tokens;
+#[cfg(test)]
+use crate::vp8l::select_color_cache_bits;
+#[cfg(test)]
+use crate::vp8l::select_color_transform;
+#[cfg(test)]
+use crate::vp8l::select_left_predictor;
+#[cfg(test)]
+use crate::vp8l::try_make_palette_plan;
 use webp_decode::encode_support;
-#[cfg(test)]
-use webp_decode::encode_support::COLOR_TRANSFORM_BLOCK_BITS;
-#[cfg(test)]
-use webp_decode::encode_support::EntropyToken;
-#[cfg(test)]
-use webp_decode::encode_support::MAX_VP8L_DIMENSION as MAX_DIMENSION;
-#[cfg(test)]
-use webp_decode::encode_support::collect_entropy_tokens;
-#[cfg(test)]
-use webp_decode::encode_support::select_color_cache_bits;
-#[cfg(test)]
-use webp_decode::encode_support::select_color_transform;
-#[cfg(test)]
-use webp_decode::encode_support::select_left_predictor;
-#[cfg(test)]
-use webp_decode::encode_support::try_make_palette_plan;
 
 /// Encodes a static RGBA8 image as a lossless WebP file.
 ///
@@ -36,7 +37,7 @@ use webp_decode::encode_support::try_make_palette_plan;
 /// range, the byte slice does not exactly contain `width * height * 4` bytes,
 /// or output allocation fails.
 pub fn encode_lossless_rgba(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, EncodeError> {
-    let (payload, _) = encode_support::encode_vp8l_payload(width, height, rgba)?;
+    let (payload, _) = vp8l::encode_vp8l_payload(width, height, rgba)?;
     wrap_vp8l(payload)
 }
 
@@ -74,17 +75,17 @@ pub fn encode_lossless_rgba_with_options(
 ) -> Result<Vec<u8>, EncodeError> {
     match options.profile {
         LosslessEncodeProfile::Default => encode_lossless_rgba(width, height, rgba),
-        LosslessEncodeProfile::FastDecodeCompact => encode_support::encode_vp8l_spatial(
+        LosslessEncodeProfile::FastDecodeCompact => vp8l::spatial_writer::encode_profile(
             width,
             height,
             rgba,
-            encode_support::Vp8lSpatialProfile::Compact,
+            vp8l::spatial_plan::SpatialProfile::Compact,
         ),
-        LosslessEncodeProfile::FastDecodeLowLatency => encode_support::encode_vp8l_spatial(
+        LosslessEncodeProfile::FastDecodeLowLatency => vp8l::spatial_writer::encode_profile(
             width,
             height,
             rgba,
-            encode_support::Vp8lSpatialProfile::LowLatency,
+            vp8l::spatial_plan::SpatialProfile::LowLatency,
         ),
     }
 }
@@ -127,7 +128,7 @@ pub fn encode_lossy_rgba_with_alpha_options(
     if options.quality > 100 {
         return Err(EncodeError::invalid_quality());
     }
-    encode_support::validate_vp8l_input(width, height, rgba)?;
+    vp8l::validate_input(width, height, rgba)?;
     let has_alpha = rgba.chunks_exact(4).any(|pixel| pixel[3] != u8::MAX);
     let alpha = if has_alpha {
         let mut alpha = Vec::new();
@@ -165,7 +166,7 @@ pub fn encode_lossless_rgba_with_metadata(
     rgba: &[u8],
     metadata: &Metadata,
 ) -> Result<Vec<u8>, EncodeError> {
-    let (payload, has_alpha) = encode_support::encode_vp8l_payload(width, height, rgba)?;
+    let (payload, has_alpha) = vp8l::encode_vp8l_payload(width, height, rgba)?;
     wrap_vp8l_with_metadata(payload, width, height, has_alpha, metadata)
 }
 
