@@ -166,7 +166,11 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 
 ### 进行中的 latest-main 编码优化
 
-P18 已作为 E43 收口并通过全部研究 gate；首次产品树 P19 因创建期间 main 前进而作为 E44 零修改失效。下一步从当前最新 committed `main` 创建 P20；在新 worktree 完成身份核验并挂上明确分支前，不预填尚不存在的产品 HEAD。
+P18 已作为 E43 收口并通过全部研究 gate；首次产品树 P19 因创建期间 main 前进而作为 E44 零修改失效。P20 已从随后最新的 committed `main` 独立建树并通过身份核验；登记提交只记录 provenance，不会 merge/rebase 到产品树。
+
+| 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
+| --- | --- | --- | --- | --- |
+| P20 | E43 profile hybrid 最小产品迁移 | `codex/vp8l-profile-hybrid-product`；`66c15f11c0cd63a7e5ad80ffbe7553e6f68ec569` | [5020](</Users/lance/.codex/worktrees/5020/webp>)；task `019f8a85-c530-79d2-af1f-2b54105574be`；结果目录 `experiments/vp8l-profile-hybrid-product` | 创建时 HEAD/local main/merge-base 精确相等，工作树干净且已挂分支；正在冻结最小生产模块边界，随后手工复建并以同一最终 binary 执行 102 图 identity/rate、双档 ≥50% screen 与 formal 全门槛 |
 
 ## 每次优化的结果与结论
 
