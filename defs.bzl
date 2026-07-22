@@ -14,6 +14,7 @@ def webp_rust_crate(
         test_deps_extra = None,
         test_data = None,
         test_compile_data = None,
+        rustc_flags = None,
         visibility = None):
     """Defines a conventional workspace Rust library and its unit-test target.
 
@@ -32,6 +33,8 @@ def webp_rust_crate(
         test_data = []
     if test_compile_data == None:
         test_compile_data = []
+    if rustc_flags == None:
+        rustc_flags = []
     if visibility == None:
         visibility = ["//visibility:public"]
 
@@ -44,6 +47,7 @@ def webp_rust_crate(
         edition = "2024",
         deps = all_crate_deps(normal = True) + deps_extra,
         proc_macro_deps = proc_macro_deps_extra,
+        rustc_flags = rustc_flags,
         visibility = visibility,
     )
 
@@ -53,4 +57,5 @@ def webp_rust_crate(
         compile_data = test_compile_data,
         data = test_data,
         deps = all_crate_deps(normal_dev = True) + test_deps_extra,
+        rustc_flags = rustc_flags,
     )

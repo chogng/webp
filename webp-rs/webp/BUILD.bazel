@@ -4,6 +4,13 @@ load("@rules_rs//rs:rust_test.bzl", "rust_test")
 webp_rust_crate(
     name = "webp",
     crate_name = "webp",
+    # Keep Bazel's direct rustc invocation aligned with Cargo's default
+    # product profile. Bazel does not apply Cargo feature defaults itself.
+    rustc_flags = [
+        '--cfg=feature="decode"',
+        '--cfg=feature="encode"',
+        '--cfg=feature="animation"',
+    ],
     test_compile_data = ["//:test_data"],
     test_data = ["//:test_data"],
 )

@@ -11,8 +11,15 @@ description = "Public safe-Rust WebP API"
 workspace = true
 
 [features]
-default = []
-fuzzing = []
+default = ["decode", "encode", "animation"]
+# Static image decode, inspection, and incremental decode APIs.
+decode = []
+# Static image encode APIs. Encoder orchestration reuses bounded decode-side
+# wire primitives, so this feature includes `decode`.
+encode = ["decode"]
+# Animated decode APIs. Animated encode APIs require both this and `encode`.
+animation = ["decode"]
+fuzzing = ["decode", "encode", "animation"]
 alpha-benchmark-internals = ["fuzzing"]
 
 [dependencies]
@@ -21,3 +28,23 @@ webp-container = { path = "../container" }
 [[example]]
 name = "alpha_encode_bench"
 required-features = ["fuzzing"]
+
+[[example]]
+name = "animation_encode_bench"
+required-features = ["animation", "encode"]
+
+[[example]]
+name = "decode_bench"
+required-features = ["decode"]
+
+[[example]]
+name = "encode_bench"
+required-features = ["encode"]
+
+[[example]]
+name = "vp8_encode_bench"
+required-features = ["encode"]
+
+[[example]]
+name = "vp8l_color_transform_reproducer"
+required-features = ["encode"]

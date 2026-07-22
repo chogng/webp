@@ -1,3 +1,4 @@
+#![cfg(all(feature = "animation", feature = "encode"))]
 //! Optional animation-encoder container oracle tests against locked libwebp.
 
 use std::fs;

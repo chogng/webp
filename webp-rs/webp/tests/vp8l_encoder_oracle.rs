@@ -1,3 +1,4 @@
+#![cfg(feature = "encode")]
 //! Optional VP8L encoder oracle tests against the locked local libwebp build.
 
 use std::fs;

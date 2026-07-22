@@ -1,3 +1,4 @@
+#![cfg(feature = "decode")]
 //! Optional pixel-level VP8 differential test against a local libwebp build.
 
 use std::fs;

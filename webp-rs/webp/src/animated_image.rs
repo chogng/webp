@@ -1,5 +1,6 @@
 //! Animated WebP decode orchestration.
 
+#[cfg(feature = "encode")]
 mod writer;
 
 use crate::Animation;
@@ -12,7 +13,9 @@ use crate::animation::DecodedFrame;
 use crate::checked_image_bytes;
 use webp_container::FrameBitstream;
 
+#[cfg(feature = "encode")]
 pub use writer::encode_lossless_animation;
+#[cfg(feature = "encode")]
 pub use writer::encode_lossless_animation_with_metadata;
 
 pub(crate) fn decode_animation(

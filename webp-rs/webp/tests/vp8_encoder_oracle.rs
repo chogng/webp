@@ -1,3 +1,4 @@
+#![cfg(feature = "encode")]
 //! Locked-libwebp validation for the first emitted VP8 key-frame slice.
 
 use std::fs;

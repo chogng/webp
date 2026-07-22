@@ -1,3 +1,5 @@
+#![cfg(all(feature = "animation", feature = "encode"))]
+
 use webp::AnimationEncodeFrame;
 use webp::AnimationEncodeOptions;
 use webp::DecodeLimits;

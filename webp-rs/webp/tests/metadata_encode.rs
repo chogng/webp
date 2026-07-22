@@ -1,3 +1,5 @@
+#![cfg(feature = "encode")]
+
 use webp::DecodeLimits;
 use webp::DecodeOptions;
 use webp::Metadata;

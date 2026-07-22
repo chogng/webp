@@ -12,6 +12,7 @@ use crate::DecodeErrorKind;
 use crate::ShiftedBitReader;
 use crate::WorkBudget;
 
+#[cfg(feature = "encode")]
 pub(crate) mod prefix;
 
 pub const LENGTH_PREFIX_COUNT: u8 = 24;

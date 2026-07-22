@@ -66,6 +66,7 @@ impl fmt::Display for DecodeError {
 impl std::error::Error for DecodeError {}
 
 /// Stable reason a WebP encoding operation failed.
+#[cfg(feature = "encode")]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EncodeError {
     InvalidDimensions,
@@ -77,6 +78,7 @@ pub enum EncodeError {
     UnsupportedLossyProfile,
 }
 
+#[cfg(feature = "encode")]
 impl EncodeError {
     pub(crate) const fn invalid_dimensions() -> Self {
         Self::InvalidDimensions
@@ -104,6 +106,7 @@ impl EncodeError {
     }
 }
 
+#[cfg(feature = "encode")]
 impl fmt::Display for EncodeError {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
@@ -122,6 +125,7 @@ impl fmt::Display for EncodeError {
     }
 }
 
+#[cfg(feature = "encode")]
 impl std::error::Error for EncodeError {}
 
 #[cfg(test)]

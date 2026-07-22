@@ -1,3 +1,4 @@
+#![cfg(feature = "encode")]
 //! Pinned-libwebp oracle coverage for emitted `ALPH` payloads.
 
 use std::fs;

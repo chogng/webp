@@ -14,6 +14,7 @@ pub(crate) mod huffman;
 #[allow(dead_code)] // Alternate bounded entry points remain available to fuzzing.
 pub(crate) mod image_reader;
 mod image_stream;
+#[cfg(feature = "encode")]
 pub(crate) mod image_writer;
 mod pixel;
 mod transforms;

@@ -1,5 +1,6 @@
 //! Public animation models.
 
+#[cfg(feature = "animation")]
 /// A fully composed frame in display order.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnimationFrame {
@@ -9,6 +10,7 @@ pub struct AnimationFrame {
     pub rgba: Vec<u8>,
 }
 
+#[cfg(feature = "animation")]
 /// A decoded WebP animation with display-ready canvas frames.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Animation {
@@ -19,6 +21,7 @@ pub struct Animation {
     pub frames: Vec<AnimationFrame>,
 }
 
+#[cfg(all(feature = "animation", feature = "encode"))]
 /// Global settings for a lossless WebP animation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub struct AnimationEncodeOptions {
@@ -28,6 +31,7 @@ pub struct AnimationEncodeOptions {
     pub loop_count: u16,
 }
 
+#[cfg(all(feature = "animation", feature = "encode"))]
 /// One rectangle of a lossless WebP animation.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct AnimationEncodeFrame<'a> {

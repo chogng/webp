@@ -1,17 +1,25 @@
 //! Internal static-image decode dispatch.
 
+#[cfg(feature = "encode")]
 mod writer;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "encode"))]
 pub(crate) use writer::copy_vp8l_payload;
+#[cfg(feature = "encode")]
 pub use writer::encode_lossless_rgba;
+#[cfg(feature = "encode")]
 pub use writer::encode_lossless_rgba_with_metadata;
+#[cfg(feature = "encode")]
 pub use writer::encode_lossless_rgba_with_metadata_and_options;
+#[cfg(feature = "encode")]
 pub use writer::encode_lossless_rgba_with_options;
+#[cfg(feature = "encode")]
 pub use writer::encode_lossy_rgba;
+#[cfg(feature = "encode")]
 pub use writer::encode_lossy_rgba_with_alpha_options;
+#[cfg(feature = "encode")]
 pub use writer::encode_lossy_rgba_with_options;
-#[cfg(test)]
+#[cfg(all(test, feature = "encode"))]
 pub(crate) use writer::wrap_vp8l_with_metadata;
 
 use crate::DecodeError;

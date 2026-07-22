@@ -132,6 +132,7 @@ pub fn checked_image_bytes(width: u32, height: u32, channels: usize) -> Result<u
 }
 
 /// Ensures a rectangle end is representable and contained in `limit`.
+#[cfg(feature = "animation")]
 pub fn checked_rect_end(origin: u32, extent: u32, limit: u32) -> Result<u32, DecodeError> {
     let end = origin.checked_add(extent).ok_or_else(|| {
         DecodeError::new(
@@ -196,8 +197,11 @@ mod tests {
         assert_eq!(checked_image_bytes(0, u32::MAX, 4), Ok(0));
         assert_eq!(checked_image_bytes(1, 1, 4), Ok(4));
         assert_eq!(checked_image_bytes(2, 3, 4), Ok(24));
+        #[cfg(feature = "animation")]
         assert_eq!(checked_rect_end(3, 4, 7), Ok(7));
+        #[cfg(feature = "animation")]
         assert!(checked_rect_end(u32::MAX, 1, u32::MAX).is_err());
+        #[cfg(feature = "animation")]
         assert!(checked_rect_end(7, 1, 7).is_err());
     }
 

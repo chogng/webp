@@ -1,3 +1,5 @@
+#![cfg(feature = "animation")]
+
 use std::path::PathBuf;
 
 use webp::DecodeLimits;
