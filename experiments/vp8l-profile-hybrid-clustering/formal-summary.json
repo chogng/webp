@@ -1,0 +1,2211 @@
+{
+  "binary_bytes": 2230912,
+  "binary_sha256": "05b8421c86f3286667c5cffef35ffc2bff77f68d944063a954793e2b870e64c9",
+  "formal_gate": true,
+  "profiles": {
+    "compact": {
+      "absolute_limit_ns": 7100000000,
+      "aggregate_candidate_ns": {
+        "mad": 14778166,
+        "median": 5721840458,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          5729041750,
+          5704736125,
+          5743691375,
+          5721840458,
+          5707062292
+        ]
+      },
+      "aggregate_control_ns": {
+        "mad": 6417833,
+        "median": 12017532042,
+        "outlier_3mad": [
+          true,
+          true,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          12045375083,
+          12117027042,
+          12011114209,
+          12017532042,
+          12011141208
+        ]
+      },
+      "candidate": "compact",
+      "candidate_bytes": 599398064,
+      "candidate_cpu_ns": {
+        "mad": 30834000,
+        "median": 10939471000,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          10966762000,
+          10970305000,
+          10939471000,
+          10889005999,
+          10864416999
+        ]
+      },
+      "candidate_process_wall_ns": {
+        "mad": 82215541,
+        "median": 11088560750,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          11105107208,
+          11193887750,
+          11088560750,
+          11006345209,
+          10978969542
+        ]
+      },
+      "candidate_rss_bytes": {
+        "mad": 1130496,
+        "median": 1202601984,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          1204518912,
+          1202012160,
+          1204158464,
+          1201471488,
+          1202601984
+        ]
+      },
+      "control": "compact-control",
+      "control_bytes": 617958802,
+      "control_cpu_ns": {
+        "mad": 38347999,
+        "median": 17182785999,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          17221133998,
+          17230656999,
+          17150963999,
+          17141219999,
+          17182785999
+        ]
+      },
+      "control_process_wall_ns": {
+        "mad": 51111209,
+        "median": 17362790417,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          17420794167,
+          17422222000,
+          17320502667,
+          17311679208,
+          17362790417
+        ]
+      },
+      "control_rss_bytes": {
+        "mad": 1245184,
+        "median": 1690583040,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          true,
+          false
+        ],
+        "samples": [
+          1689337856,
+          1690583040,
+          1690370048,
+          1695186944,
+          1692680192
+        ]
+      },
+      "formal_gate": true,
+      "gates": {
+        "absolute_candidate_median": true,
+        "zero_per_image_median_regressions": true
+      },
+      "images_rate_over_2pct": 0,
+      "max_image_rate_delta_pct": 1.4905309333190786,
+      "max_image_rate_id": "clic-validation-002",
+      "median_time_regressions": 0,
+      "paired_delta_pct": {
+        "mad": 0.050272072641334375,
+        "median": -52.43783020019386,
+        "outlier_3mad": [
+          false,
+          true,
+          true,
+          false,
+          false
+        ],
+        "samples": [
+          -52.43783020019386,
+          -52.91967158919212,
+          -52.18019515045309,
+          -52.38755812755252,
+          -52.485261865052244
+        ]
+      },
+      "per_image": [
+        {
+          "candidate_bytes": 7693316,
+          "candidate_median_ns": 68290625,
+          "control_bytes": 8130642,
+          "control_median_ns": 147062083,
+          "id": "clic-validation-000",
+          "rate_delta_pct": -5.3787388498964805,
+          "time_delta_pct": -53.563404239283074
+        },
+        {
+          "candidate_bytes": 6124594,
+          "candidate_median_ns": 48156333,
+          "control_bytes": 6257982,
+          "control_median_ns": 105752000,
+          "id": "clic-validation-001",
+          "rate_delta_pct": -2.1314858368081,
+          "time_delta_pct": -54.462957674559355
+        },
+        {
+          "candidate_bytes": 5885852,
+          "candidate_median_ns": 43979292,
+          "control_bytes": 5799410,
+          "control_median_ns": 100850375,
+          "id": "clic-validation-002",
+          "rate_delta_pct": 1.4905309333190786,
+          "time_delta_pct": -56.391543412704216
+        },
+        {
+          "candidate_bytes": 5946656,
+          "candidate_median_ns": 48304375,
+          "control_bytes": 6050450,
+          "control_median_ns": 105732958,
+          "id": "clic-validation-003",
+          "rate_delta_pct": -1.7154757084183792,
+          "time_delta_pct": -54.31474167212838
+        },
+        {
+          "candidate_bytes": 5198332,
+          "candidate_median_ns": 43037166,
+          "control_bytes": 5328258,
+          "control_median_ns": 110137459,
+          "id": "clic-validation-004",
+          "rate_delta_pct": -2.4384329737786703,
+          "time_delta_pct": -60.92413390434221
+        },
+        {
+          "candidate_bytes": 5337014,
+          "candidate_median_ns": 44542917,
+          "control_bytes": 5539552,
+          "control_median_ns": 101988375,
+          "id": "clic-validation-005",
+          "rate_delta_pct": -3.6562162427575373,
+          "time_delta_pct": -56.325495920490944
+        },
+        {
+          "candidate_bytes": 4973668,
+          "candidate_median_ns": 44997667,
+          "control_bytes": 5188746,
+          "control_median_ns": 110823375,
+          "id": "clic-validation-006",
+          "rate_delta_pct": -4.1450863079441564,
+          "time_delta_pct": -59.39695303450196
+        },
+        {
+          "candidate_bytes": 7843464,
+          "candidate_median_ns": 63823000,
+          "control_bytes": 7922454,
+          "control_median_ns": 140745042,
+          "id": "clic-validation-007",
+          "rate_delta_pct": -0.997039553653456,
+          "time_delta_pct": -54.653464809083644
+        },
+        {
+          "candidate_bytes": 4353944,
+          "candidate_median_ns": 38756208,
+          "control_bytes": 4327522,
+          "control_median_ns": 87464125,
+          "id": "clic-validation-008",
+          "rate_delta_pct": 0.6105572657978398,
+          "time_delta_pct": -55.68902335671911
+        },
+        {
+          "candidate_bytes": 4944864,
+          "candidate_median_ns": 40398125,
+          "control_bytes": 5063414,
+          "control_median_ns": 87428917,
+          "id": "clic-validation-009",
+          "rate_delta_pct": -2.3413056882174765,
+          "time_delta_pct": -53.79317691879908
+        },
+        {
+          "candidate_bytes": 3954474,
+          "candidate_median_ns": 31101500,
+          "control_bytes": 3997470,
+          "control_median_ns": 76467166,
+          "id": "clic-validation-010",
+          "rate_delta_pct": -1.0755803045426227,
+          "time_delta_pct": -59.32698748113667
+        },
+        {
+          "candidate_bytes": 1984944,
+          "candidate_median_ns": 16028292,
+          "control_bytes": 1961344,
+          "control_median_ns": 33669917,
+          "id": "clic-validation-011",
+          "rate_delta_pct": 1.2032565424525243,
+          "time_delta_pct": -52.39580780671362
+        },
+        {
+          "candidate_bytes": 4797792,
+          "candidate_median_ns": 41126458,
+          "control_bytes": 4891824,
+          "control_median_ns": 91041667,
+          "id": "clic-validation-012",
+          "rate_delta_pct": -1.9222277825203804,
+          "time_delta_pct": -54.82677398690426
+        },
+        {
+          "candidate_bytes": 5012244,
+          "candidate_median_ns": 40402666,
+          "control_bytes": 5058144,
+          "control_median_ns": 91218958,
+          "id": "clic-validation-013",
+          "rate_delta_pct": -0.9074474748049899,
+          "time_delta_pct": -55.70803823477133
+        },
+        {
+          "candidate_bytes": 5297732,
+          "candidate_median_ns": 40373708,
+          "control_bytes": 5293592,
+          "control_median_ns": 89666667,
+          "id": "clic-validation-014",
+          "rate_delta_pct": 0.07820776516209715,
+          "time_delta_pct": -54.97356001868565
+        },
+        {
+          "candidate_bytes": 5645960,
+          "candidate_median_ns": 39825375,
+          "control_bytes": 5656200,
+          "control_median_ns": 89986250,
+          "id": "clic-validation-015",
+          "rate_delta_pct": -0.18104027438916592,
+          "time_delta_pct": -55.74282182000027
+        },
+        {
+          "candidate_bytes": 4556150,
+          "candidate_median_ns": 39036000,
+          "control_bytes": 4555750,
+          "control_median_ns": 94763167,
+          "id": "clic-validation-016",
+          "rate_delta_pct": 0.0087801130439491,
+          "time_delta_pct": -58.80677985361127
+        },
+        {
+          "candidate_bytes": 6523274,
+          "candidate_median_ns": 63257291,
+          "control_bytes": 6691500,
+          "control_median_ns": 143551458,
+          "id": "clic-validation-017",
+          "rate_delta_pct": -2.5140252559216925,
+          "time_delta_pct": -55.93406581770838
+        },
+        {
+          "candidate_bytes": 4826202,
+          "candidate_median_ns": 40912167,
+          "control_bytes": 5115144,
+          "control_median_ns": 92445125,
+          "id": "clic-validation-018",
+          "rate_delta_pct": -5.648755929451843,
+          "time_delta_pct": -55.74437592030947
+        },
+        {
+          "candidate_bytes": 4783566,
+          "candidate_median_ns": 43285875,
+          "control_bytes": 5039696,
+          "control_median_ns": 89932584,
+          "id": "clic-validation-019",
+          "rate_delta_pct": -5.082250992917037,
+          "time_delta_pct": -51.86852965327895
+        },
+        {
+          "candidate_bytes": 6211508,
+          "candidate_median_ns": 48293708,
+          "control_bytes": 6358216,
+          "control_median_ns": 101354959,
+          "id": "clic-validation-020",
+          "rate_delta_pct": -2.3073767861928607,
+          "time_delta_pct": -52.351904162873765
+        },
+        {
+          "candidate_bytes": 4600432,
+          "candidate_median_ns": 39472459,
+          "control_bytes": 4565070,
+          "control_median_ns": 93473000,
+          "id": "clic-validation-021",
+          "rate_delta_pct": 0.7746211996749297,
+          "time_delta_pct": -57.771271918093994
+        },
+        {
+          "candidate_bytes": 5217358,
+          "candidate_median_ns": 46092500,
+          "control_bytes": 5628196,
+          "control_median_ns": 101798875,
+          "id": "clic-validation-022",
+          "rate_delta_pct": -7.2996391739022615,
+          "time_delta_pct": -54.72199471752512
+        },
+        {
+          "candidate_bytes": 5588180,
+          "candidate_median_ns": 49370084,
+          "control_bytes": 5856188,
+          "control_median_ns": 105468000,
+          "id": "clic-validation-023",
+          "rate_delta_pct": -4.576492421349865,
+          "time_delta_pct": -53.18951340691016
+        },
+        {
+          "candidate_bytes": 7152086,
+          "candidate_median_ns": 61695959,
+          "control_bytes": 7349344,
+          "control_median_ns": 135630250,
+          "id": "clic-validation-024",
+          "rate_delta_pct": -2.6840218664414106,
+          "time_delta_pct": -54.51165282081247
+        },
+        {
+          "candidate_bytes": 7633234,
+          "candidate_median_ns": 61025959,
+          "control_bytes": 7869586,
+          "control_median_ns": 134167459,
+          "id": "clic-validation-025",
+          "rate_delta_pct": -3.0033600242757363,
+          "time_delta_pct": -54.515081782982854
+        },
+        {
+          "candidate_bytes": 7872312,
+          "candidate_median_ns": 66624916,
+          "control_bytes": 8259084,
+          "control_median_ns": 142313875,
+          "id": "clic-validation-026",
+          "rate_delta_pct": -4.68298905786646,
+          "time_delta_pct": -53.184525402038275
+        },
+        {
+          "candidate_bytes": 6752220,
+          "candidate_median_ns": 56480625,
+          "control_bytes": 6933844,
+          "control_median_ns": 136720416,
+          "id": "clic-validation-027",
+          "rate_delta_pct": -2.619383995371105,
+          "time_delta_pct": -58.68896054265955
+        },
+        {
+          "candidate_bytes": 6804216,
+          "candidate_median_ns": 54826667,
+          "control_bytes": 7265392,
+          "control_median_ns": 133507875,
+          "id": "clic-validation-028",
+          "rate_delta_pct": -6.347572161281867,
+          "time_delta_pct": -58.933758027382275
+        },
+        {
+          "candidate_bytes": 5842508,
+          "candidate_median_ns": 59573042,
+          "control_bytes": 6107890,
+          "control_median_ns": 128191125,
+          "id": "clic-validation-029",
+          "rate_delta_pct": -4.344904705225538,
+          "time_delta_pct": -53.52795133048407
+        },
+        {
+          "candidate_bytes": 8152722,
+          "candidate_median_ns": 57760000,
+          "control_bytes": 8257108,
+          "control_median_ns": 132024209,
+          "id": "clic-validation-030",
+          "rate_delta_pct": -1.264195648161559,
+          "time_delta_pct": -56.25044797655254
+        },
+        {
+          "candidate_bytes": 7045876,
+          "candidate_median_ns": 61544708,
+          "control_bytes": 7174330,
+          "control_median_ns": 138140417,
+          "id": "clic-validation-031",
+          "rate_delta_pct": -1.7904668449876149,
+          "time_delta_pct": -55.44771809976511
+        },
+        {
+          "candidate_bytes": 6791602,
+          "candidate_median_ns": 57944958,
+          "control_bytes": 6915788,
+          "control_median_ns": 135583167,
+          "id": "clic-validation-032",
+          "rate_delta_pct": -1.7956883582897598,
+          "time_delta_pct": -57.26242476693291
+        },
+        {
+          "candidate_bytes": 7922090,
+          "candidate_median_ns": 61195291,
+          "control_bytes": 8462362,
+          "control_median_ns": 134979958,
+          "id": "clic-validation-033",
+          "rate_delta_pct": -6.384411349928065,
+          "time_delta_pct": -54.663424180351285
+        },
+        {
+          "candidate_bytes": 7712614,
+          "candidate_median_ns": 59421709,
+          "control_bytes": 8425850,
+          "control_median_ns": 140919292,
+          "id": "clic-validation-034",
+          "rate_delta_pct": -8.464855177815888,
+          "time_delta_pct": -57.83280759031915
+        },
+        {
+          "candidate_bytes": 7360522,
+          "candidate_median_ns": 59880375,
+          "control_bytes": 8124282,
+          "control_median_ns": 140247042,
+          "id": "clic-validation-035",
+          "rate_delta_pct": -9.400953831981706,
+          "time_delta_pct": -57.30364494960257
+        },
+        {
+          "candidate_bytes": 6943116,
+          "candidate_median_ns": 58984625,
+          "control_bytes": 7281758,
+          "control_median_ns": 140313958,
+          "id": "clic-validation-036",
+          "rate_delta_pct": -4.65055279233394,
+          "time_delta_pct": -57.96239672748737
+        },
+        {
+          "candidate_bytes": 7249538,
+          "candidate_median_ns": 60811000,
+          "control_bytes": 7772372,
+          "control_median_ns": 141173042,
+          "id": "clic-validation-037",
+          "rate_delta_pct": -6.7268267653684095,
+          "time_delta_pct": -56.92449554214465
+        },
+        {
+          "candidate_bytes": 7430188,
+          "candidate_median_ns": 62701375,
+          "control_bytes": 8140256,
+          "control_median_ns": 134681000,
+          "id": "clic-validation-038",
+          "rate_delta_pct": -8.722919770582148,
+          "time_delta_pct": -53.44452818140644
+        },
+        {
+          "candidate_bytes": 6913994,
+          "candidate_median_ns": 59176708,
+          "control_bytes": 7163302,
+          "control_median_ns": 137436750,
+          "id": "clic-validation-039",
+          "rate_delta_pct": -3.4803502630490812,
+          "time_delta_pct": -56.942587772193384
+        },
+        {
+          "candidate_bytes": 6837300,
+          "candidate_median_ns": 56903916,
+          "control_bytes": 6948508,
+          "control_median_ns": 136948708,
+          "id": "clic-validation-040",
+          "rate_delta_pct": -1.6004586883975658,
+          "time_delta_pct": -58.448738340780835
+        },
+        {
+          "candidate_bytes": 7769048,
+          "candidate_median_ns": 61433417,
+          "control_bytes": 8085038,
+          "control_median_ns": 139484125,
+          "id": "clic-validation-041",
+          "rate_delta_pct": -3.9083304246683825,
+          "time_delta_pct": -55.956696147321416
+        },
+        {
+          "candidate_bytes": 8336286,
+          "candidate_median_ns": 62200667,
+          "control_bytes": 8347186,
+          "control_median_ns": 139054625,
+          "id": "clic-validation-042",
+          "rate_delta_pct": -0.13058292938482596,
+          "time_delta_pct": -55.26889738475078
+        },
+        {
+          "candidate_bytes": 7730082,
+          "candidate_median_ns": 61595834,
+          "control_bytes": 7924562,
+          "control_median_ns": 142626042,
+          "id": "clic-validation-043",
+          "rate_delta_pct": -2.4541419450059165,
+          "time_delta_pct": -56.8130524157713
+        },
+        {
+          "candidate_bytes": 7508138,
+          "candidate_median_ns": 63476917,
+          "control_bytes": 7873888,
+          "control_median_ns": 141457333,
+          "id": "clic-validation-044",
+          "rate_delta_pct": -4.645100362108279,
+          "time_delta_pct": -55.1264571063276
+        },
+        {
+          "candidate_bytes": 7225630,
+          "candidate_median_ns": 60434292,
+          "control_bytes": 7900172,
+          "control_median_ns": 141672250,
+          "id": "clic-validation-045",
+          "rate_delta_pct": -8.53832043150453,
+          "time_delta_pct": -57.342180984631774
+        },
+        {
+          "candidate_bytes": 7490348,
+          "candidate_median_ns": 62541625,
+          "control_bytes": 7848400,
+          "control_median_ns": 141355666,
+          "id": "clic-validation-046",
+          "rate_delta_pct": -4.562101829672294,
+          "time_delta_pct": -55.755841438998274
+        },
+        {
+          "candidate_bytes": 7571726,
+          "candidate_median_ns": 65496375,
+          "control_bytes": 7957054,
+          "control_median_ns": 142209083,
+          "id": "clic-validation-047",
+          "rate_delta_pct": -4.842596267412535,
+          "time_delta_pct": -53.943606401006036
+        },
+        {
+          "candidate_bytes": 7563124,
+          "candidate_median_ns": 59844333,
+          "control_bytes": 7906474,
+          "control_median_ns": 134563083,
+          "id": "clic-validation-048",
+          "rate_delta_pct": -4.342643762567233,
+          "time_delta_pct": -55.526930815043826
+        },
+        {
+          "candidate_bytes": 7601698,
+          "candidate_median_ns": 62998500,
+          "control_bytes": 7822290,
+          "control_median_ns": 134569792,
+          "id": "clic-validation-049",
+          "rate_delta_pct": -2.820043746780032,
+          "time_delta_pct": -53.18525869461105
+        },
+        {
+          "candidate_bytes": 7272750,
+          "candidate_median_ns": 58757500,
+          "control_bytes": 7378716,
+          "control_median_ns": 128954000,
+          "id": "clic-validation-050",
+          "rate_delta_pct": -1.4361035171972958,
+          "time_delta_pct": -54.4353025109729
+        },
+        {
+          "candidate_bytes": 8469006,
+          "candidate_median_ns": 61140750,
+          "control_bytes": 8580442,
+          "control_median_ns": 130645208,
+          "id": "clic-validation-051",
+          "rate_delta_pct": -1.298720974980072,
+          "time_delta_pct": -53.20092413952145
+        },
+        {
+          "candidate_bytes": 7537404,
+          "candidate_median_ns": 58681833,
+          "control_bytes": 7718096,
+          "control_median_ns": 139884500,
+          "id": "clic-validation-052",
+          "rate_delta_pct": -2.341147350330963,
+          "time_delta_pct": -58.049796081767454
+        },
+        {
+          "candidate_bytes": 7334836,
+          "candidate_median_ns": 63078375,
+          "control_bytes": 7672802,
+          "control_median_ns": 142217125,
+          "id": "clic-validation-053",
+          "rate_delta_pct": -4.404727243059314,
+          "time_delta_pct": -55.64642795303308
+        },
+        {
+          "candidate_bytes": 6864966,
+          "candidate_median_ns": 61927167,
+          "control_bytes": 7105098,
+          "control_median_ns": 139197334,
+          "id": "clic-validation-054",
+          "rate_delta_pct": -3.3797141151325483,
+          "time_delta_pct": -55.511240610398474
+        },
+        {
+          "candidate_bytes": 7059444,
+          "candidate_median_ns": 59004834,
+          "control_bytes": 7806344,
+          "control_median_ns": 137690166,
+          "id": "clic-validation-055",
+          "rate_delta_pct": -9.567859166851989,
+          "time_delta_pct": -57.146660713590826
+        },
+        {
+          "candidate_bytes": 4968540,
+          "candidate_median_ns": 40132292,
+          "control_bytes": 5090268,
+          "control_median_ns": 89211666,
+          "id": "clic-validation-056",
+          "rate_delta_pct": -2.3913868582165043,
+          "time_delta_pct": -55.014524669901355
+        },
+        {
+          "candidate_bytes": 4981824,
+          "candidate_median_ns": 41471042,
+          "control_bytes": 5021628,
+          "control_median_ns": 95343583,
+          "id": "clic-validation-057",
+          "rate_delta_pct": -0.7926513075042552,
+          "time_delta_pct": -56.503583466125875
+        },
+        {
+          "candidate_bytes": 4806938,
+          "candidate_median_ns": 40105334,
+          "control_bytes": 4943622,
+          "control_median_ns": 90968542,
+          "id": "clic-validation-058",
+          "rate_delta_pct": -2.7648554035887063,
+          "time_delta_pct": -55.91296384633713
+        },
+        {
+          "candidate_bytes": 3519740,
+          "candidate_median_ns": 31957792,
+          "control_bytes": 3595402,
+          "control_median_ns": 73349166,
+          "id": "clic-validation-059",
+          "rate_delta_pct": -2.1044100214663075,
+          "time_delta_pct": -56.430599360870715
+        },
+        {
+          "candidate_bytes": 4466852,
+          "candidate_median_ns": 38243417,
+          "control_bytes": 4515910,
+          "control_median_ns": 89536334,
+          "id": "clic-validation-060",
+          "rate_delta_pct": -1.086336973057478,
+          "time_delta_pct": -57.28726507833122
+        },
+        {
+          "candidate_bytes": 7262646,
+          "candidate_median_ns": 53888750,
+          "control_bytes": 7438600,
+          "control_median_ns": 116300917,
+          "id": "clic-validation-061",
+          "rate_delta_pct": -2.365418223859328,
+          "time_delta_pct": -53.66438082341174
+        },
+        {
+          "candidate_bytes": 5828726,
+          "candidate_median_ns": 49764542,
+          "control_bytes": 6121602,
+          "control_median_ns": 111196167,
+          "id": "clic-validation-062",
+          "rate_delta_pct": -4.78430319383717,
+          "time_delta_pct": -55.24617139006239
+        },
+        {
+          "candidate_bytes": 6391512,
+          "candidate_median_ns": 49743500,
+          "control_bytes": 6445414,
+          "control_median_ns": 112326750,
+          "id": "clic-validation-063",
+          "rate_delta_pct": -0.836284527262332,
+          "time_delta_pct": -55.71535720565226
+        },
+        {
+          "candidate_bytes": 7684320,
+          "candidate_median_ns": 57836209,
+          "control_bytes": 7719328,
+          "control_median_ns": 117714959,
+          "id": "clic-validation-064",
+          "rate_delta_pct": -0.4535109791940384,
+          "time_delta_pct": -50.86757920036313
+        },
+        {
+          "candidate_bytes": 6780266,
+          "candidate_median_ns": 53187500,
+          "control_bytes": 6898214,
+          "control_median_ns": 124710333,
+          "id": "clic-validation-065",
+          "rate_delta_pct": -1.7098338787402079,
+          "time_delta_pct": -57.35116832700623
+        },
+        {
+          "candidate_bytes": 3431440,
+          "candidate_median_ns": 31651666,
+          "control_bytes": 3437954,
+          "control_median_ns": 67256958,
+          "id": "clic-validation-066",
+          "rate_delta_pct": -0.18947315758151007,
+          "time_delta_pct": -52.93919478189899
+        },
+        {
+          "candidate_bytes": 7013668,
+          "candidate_median_ns": 60193459,
+          "control_bytes": 7149540,
+          "control_median_ns": 124519959,
+          "id": "clic-validation-067",
+          "rate_delta_pct": -1.900429957731542,
+          "time_delta_pct": -51.65958976905862
+        },
+        {
+          "candidate_bytes": 7075158,
+          "candidate_median_ns": 56547875,
+          "control_bytes": 7005466,
+          "control_median_ns": 123452875,
+          "id": "clic-validation-068",
+          "rate_delta_pct": 0.9948231852099587,
+          "time_delta_pct": -54.19476865160087
+        },
+        {
+          "candidate_bytes": 6003540,
+          "candidate_median_ns": 50910292,
+          "control_bytes": 6211560,
+          "control_median_ns": 123424459,
+          "id": "clic-validation-069",
+          "rate_delta_pct": -3.3489171802252526,
+          "time_delta_pct": -58.75186133082422
+        },
+        {
+          "candidate_bytes": 7069736,
+          "candidate_median_ns": 54871042,
+          "control_bytes": 7163008,
+          "control_median_ns": 124665208,
+          "id": "clic-validation-070",
+          "rate_delta_pct": -1.3021345222565706,
+          "time_delta_pct": -55.98528019140674
+        },
+        {
+          "candidate_bytes": 3070002,
+          "candidate_median_ns": 25272625,
+          "control_bytes": 3221288,
+          "control_median_ns": 54940042,
+          "id": "clic-validation-071",
+          "rate_delta_pct": -4.696444403605016,
+          "time_delta_pct": -53.99962562824396
+        },
+        {
+          "candidate_bytes": 5563070,
+          "candidate_median_ns": 49041042,
+          "control_bytes": 5618140,
+          "control_median_ns": 116961417,
+          "id": "clic-validation-072",
+          "rate_delta_pct": -0.9802176521054973,
+          "time_delta_pct": -58.070752511488465
+        },
+        {
+          "candidate_bytes": 6894640,
+          "candidate_median_ns": 56012917,
+          "control_bytes": 7178514,
+          "control_median_ns": 126996250,
+          "id": "clic-validation-073",
+          "rate_delta_pct": -3.954495317554585,
+          "time_delta_pct": -55.894038603502075
+        },
+        {
+          "candidate_bytes": 5338236,
+          "candidate_median_ns": 36264209,
+          "control_bytes": 5322948,
+          "control_median_ns": 92292666,
+          "id": "clic-validation-074",
+          "rate_delta_pct": 0.2872092682475902,
+          "time_delta_pct": -60.70737733375261
+        },
+        {
+          "candidate_bytes": 7016480,
+          "candidate_median_ns": 51843833,
+          "control_bytes": 7194564,
+          "control_median_ns": 125165083,
+          "id": "clic-validation-075",
+          "rate_delta_pct": -2.475257708458778,
+          "time_delta_pct": -58.57963598362333
+        },
+        {
+          "candidate_bytes": 6130656,
+          "candidate_median_ns": 53972041,
+          "control_bytes": 6453086,
+          "control_median_ns": 126636875,
+          "id": "clic-validation-076",
+          "rate_delta_pct": -4.996524143642278,
+          "time_delta_pct": -57.38046994605639
+        },
+        {
+          "candidate_bytes": 5526782,
+          "candidate_median_ns": 53266584,
+          "control_bytes": 5599902,
+          "control_median_ns": 122373208,
+          "id": "clic-validation-077",
+          "rate_delta_pct": -1.3057371361141712,
+          "time_delta_pct": -56.472021228699006
+        },
+        {
+          "candidate_bytes": 5617762,
+          "candidate_median_ns": 47770458,
+          "control_bytes": 5704512,
+          "control_median_ns": 106913042,
+          "id": "clic-validation-078",
+          "rate_delta_pct": -1.5207260498356412,
+          "time_delta_pct": -55.318399788867666
+        },
+        {
+          "candidate_bytes": 4442506,
+          "candidate_median_ns": 36529542,
+          "control_bytes": 4473714,
+          "control_median_ns": 81826542,
+          "id": "clic-validation-079",
+          "rate_delta_pct": -0.6975859431336051,
+          "time_delta_pct": -55.35734358663231
+        },
+        {
+          "candidate_bytes": 6342634,
+          "candidate_median_ns": 56523750,
+          "control_bytes": 6574580,
+          "control_median_ns": 138392208,
+          "id": "clic-validation-080",
+          "rate_delta_pct": -3.5279211751929385,
+          "time_delta_pct": -59.15684067993192
+        },
+        {
+          "candidate_bytes": 5648376,
+          "candidate_median_ns": 49506375,
+          "control_bytes": 5779970,
+          "control_median_ns": 117057958,
+          "id": "clic-validation-081",
+          "rate_delta_pct": -2.276724619677961,
+          "time_delta_pct": -57.70780915211249
+        },
+        {
+          "candidate_bytes": 1511604,
+          "candidate_median_ns": 12361125,
+          "control_bytes": 1512228,
+          "control_median_ns": 26634084,
+          "id": "clic-validation-082",
+          "rate_delta_pct": -0.0412636189780935,
+          "time_delta_pct": -53.58907406014038
+        },
+        {
+          "candidate_bytes": 6706650,
+          "candidate_median_ns": 53441292,
+          "control_bytes": 6906868,
+          "control_median_ns": 125532167,
+          "id": "clic-validation-083",
+          "rate_delta_pct": -2.898824763988539,
+          "time_delta_pct": -57.42820881917859
+        },
+        {
+          "candidate_bytes": 5858638,
+          "candidate_median_ns": 52671250,
+          "control_bytes": 5985856,
+          "control_median_ns": 116250666,
+          "id": "clic-validation-084",
+          "rate_delta_pct": -2.1253100642581457,
+          "time_delta_pct": -54.69165742241855
+        },
+        {
+          "candidate_bytes": 1935688,
+          "candidate_median_ns": 18300875,
+          "control_bytes": 1935310,
+          "control_median_ns": 40800583,
+          "id": "clic-validation-085",
+          "rate_delta_pct": 0.01953175460263079,
+          "time_delta_pct": -55.145555150523215
+        },
+        {
+          "candidate_bytes": 6694018,
+          "candidate_median_ns": 54263875,
+          "control_bytes": 6780836,
+          "control_median_ns": 125473000,
+          "id": "clic-validation-086",
+          "rate_delta_pct": -1.280343603650047,
+          "time_delta_pct": -56.75254835701704
+        },
+        {
+          "candidate_bytes": 1211904,
+          "candidate_median_ns": 12181875,
+          "control_bytes": 1235750,
+          "control_median_ns": 25164167,
+          "id": "clic-validation-087",
+          "rate_delta_pct": -1.9296783329961542,
+          "time_delta_pct": -51.59039041506917
+        },
+        {
+          "candidate_bytes": 3134242,
+          "candidate_median_ns": 26279875,
+          "control_bytes": 3237528,
+          "control_median_ns": 55259417,
+          "id": "clic-validation-088",
+          "rate_delta_pct": -3.1902735667459825,
+          "time_delta_pct": -52.44272121075761
+        },
+        {
+          "candidate_bytes": 6386302,
+          "candidate_median_ns": 48431292,
+          "control_bytes": 6517422,
+          "control_median_ns": 107490875,
+          "id": "clic-validation-089",
+          "rate_delta_pct": -2.0118384232293063,
+          "time_delta_pct": -54.94381081184798
+        },
+        {
+          "candidate_bytes": 6217484,
+          "candidate_median_ns": 53653416,
+          "control_bytes": 6442454,
+          "control_median_ns": 125087292,
+          "id": "clic-validation-090",
+          "rate_delta_pct": -3.4919923370814954,
+          "time_delta_pct": -57.10722077187504
+        },
+        {
+          "candidate_bytes": 454858,
+          "candidate_median_ns": 4534083,
+          "control_bytes": 457864,
+          "control_median_ns": 9316917,
+          "id": "clic-validation-091",
+          "rate_delta_pct": -0.6565268289273618,
+          "time_delta_pct": -51.33494266397349
+        },
+        {
+          "candidate_bytes": 6590372,
+          "candidate_median_ns": 55036000,
+          "control_bytes": 6816046,
+          "control_median_ns": 130174333,
+          "id": "clic-validation-092",
+          "rate_delta_pct": -3.310922490839996,
+          "time_delta_pct": -57.72131208077709
+        },
+        {
+          "candidate_bytes": 3520250,
+          "candidate_median_ns": 31995375,
+          "control_bytes": 3572272,
+          "control_median_ns": 76220500,
+          "id": "clic-validation-093",
+          "rate_delta_pct": -1.456272086783983,
+          "time_delta_pct": -58.02261202694813
+        },
+        {
+          "candidate_bytes": 5865502,
+          "candidate_median_ns": 54904375,
+          "control_bytes": 5988924,
+          "control_median_ns": 119179958,
+          "id": "clic-validation-094",
+          "rate_delta_pct": -2.0608376396160644,
+          "time_delta_pct": -53.93153687803783
+        },
+        {
+          "candidate_bytes": 2675238,
+          "candidate_median_ns": 21645667,
+          "control_bytes": 2710854,
+          "control_median_ns": 44122375,
+          "id": "clic-validation-095",
+          "rate_delta_pct": -1.3138295164549674,
+          "time_delta_pct": -50.941745542935976
+        },
+        {
+          "candidate_bytes": 786112,
+          "candidate_median_ns": 6784833,
+          "control_bytes": 794174,
+          "control_median_ns": 14025333,
+          "id": "clic-validation-096",
+          "rate_delta_pct": -1.0151427772755128,
+          "time_delta_pct": -51.624442713766584
+        },
+        {
+          "candidate_bytes": 4520092,
+          "candidate_median_ns": 39368750,
+          "control_bytes": 4853630,
+          "control_median_ns": 98271375,
+          "id": "clic-validation-097",
+          "rate_delta_pct": -6.8719288450087905,
+          "time_delta_pct": -59.93874106269501
+        },
+        {
+          "candidate_bytes": 7424130,
+          "candidate_median_ns": 56505333,
+          "control_bytes": 7500734,
+          "control_median_ns": 117302917,
+          "id": "clic-validation-098",
+          "rate_delta_pct": -1.0212867167399886,
+          "time_delta_pct": -51.829558509614905
+        },
+        {
+          "candidate_bytes": 3892064,
+          "candidate_median_ns": 40175750,
+          "control_bytes": 3909204,
+          "control_median_ns": 82676125,
+          "id": "clic-validation-099",
+          "rate_delta_pct": -0.43845243174824855,
+          "time_delta_pct": -51.405862333291495
+        },
+        {
+          "candidate_bytes": 5612094,
+          "candidate_median_ns": 50866583,
+          "control_bytes": 5764820,
+          "control_median_ns": 110634833,
+          "id": "clic-validation-100",
+          "rate_delta_pct": -2.64927612657464,
+          "time_delta_pct": -54.02299472897474
+        },
+        {
+          "candidate_bytes": 6472628,
+          "candidate_median_ns": 54484292,
+          "control_bytes": 6502912,
+          "control_median_ns": 127149500,
+          "id": "clic-validation-101",
+          "rate_delta_pct": -0.46569905912919873,
+          "time_delta_pct": -57.149424889598464
+        }
+      ],
+      "rate_delta_pct": -3.0035558907695603,
+      "rss_delta_bytes": -487981056,
+      "rss_delta_pct": -28.864660561128076,
+      "speed_delta_pct": -52.38755812755252
+    },
+    "low-latency": {
+      "absolute_limit_ns": 6900000000,
+      "aggregate_candidate_ns": {
+        "mad": 28724583,
+        "median": 5821272083,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          5784304959,
+          5849996666,
+          5821272083,
+          5837145000,
+          5770485208
+        ]
+      },
+      "aggregate_control_ns": {
+        "mad": 188431875,
+        "median": 11978153667,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          11978153667,
+          12120934209,
+          12220682208,
+          11789721792,
+          11768870083
+        ]
+      },
+      "candidate": "low-latency",
+      "candidate_bytes": 601400998,
+      "candidate_cpu_ns": {
+        "mad": 19769000,
+        "median": 11000571000,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          true,
+          false
+        ],
+        "samples": [
+          11000571000,
+          11029661999,
+          11019908999,
+          10898457000,
+          10980802000
+        ]
+      },
+      "candidate_process_wall_ns": {
+        "mad": 35143292,
+        "median": 11149784542,
+        "outlier_3mad": [
+          false,
+          false,
+          true,
+          false,
+          false
+        ],
+        "samples": [
+          11149784542,
+          11161053250,
+          11302403917,
+          11063403875,
+          11114641250
+        ]
+      },
+      "candidate_rss_bytes": {
+        "mad": 229376,
+        "median": 1196965888,
+        "outlier_3mad": [
+          true,
+          false,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          1197686784,
+          1197195264,
+          1196818432,
+          1196965888,
+          1196736512
+        ]
+      },
+      "control": "low-latency-control",
+      "control_bytes": 625321072,
+      "control_cpu_ns": {
+        "mad": 111442000,
+        "median": 17097254999,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          17097254999,
+          17235695999,
+          17191202000,
+          16985812999,
+          16911867999
+        ]
+      },
+      "control_process_wall_ns": {
+        "mad": 225263333,
+        "median": 17310637125,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          17310637125,
+          17617511541,
+          17535900458,
+          17263698333,
+          17080033875
+        ]
+      },
+      "control_rss_bytes": {
+        "mad": 3325952,
+        "median": 1694498816,
+        "outlier_3mad": [
+          true,
+          false,
+          true,
+          false,
+          false
+        ],
+        "samples": [
+          1229832192,
+          1697824768,
+          1531510784,
+          1695088640,
+          1694498816
+        ]
+      },
+      "formal_gate": true,
+      "gates": {
+        "absolute_candidate_median": true,
+        "zero_per_image_median_regressions": true
+      },
+      "images_rate_over_2pct": 0,
+      "max_image_rate_delta_pct": 1.483744746153759,
+      "max_image_rate_id": "clic-validation-100",
+      "median_time_regressions": 0,
+      "paired_delta_pct": {
+        "mad": 0.6558636551930448,
+        "median": -51.70954456081282,
+        "outlier_3mad": [
+          false,
+          false,
+          false,
+          false,
+          false
+        ],
+        "samples": [
+          -51.70954456081282,
+          -51.736420929862994,
+          -52.36540821600587,
+          -50.489544172612824,
+          -50.96823087260177
+        ]
+      },
+      "per_image": [
+        {
+          "candidate_bytes": 7813322,
+          "candidate_median_ns": 62898917,
+          "control_bytes": 8259942,
+          "control_median_ns": 144280708,
+          "id": "clic-validation-000",
+          "rate_delta_pct": -5.407059759015254,
+          "time_delta_pct": -56.405178577305016
+        },
+        {
+          "candidate_bytes": 6169356,
+          "candidate_median_ns": 49039334,
+          "control_bytes": 6309214,
+          "control_median_ns": 103302083,
+          "id": "clic-validation-001",
+          "rate_delta_pct": -2.2167262039296864,
+          "time_delta_pct": -52.52822346283181
+        },
+        {
+          "candidate_bytes": 5768924,
+          "candidate_median_ns": 46205833,
+          "control_bytes": 5942826,
+          "control_median_ns": 100021208,
+          "id": "clic-validation-002",
+          "rate_delta_pct": -2.926250911603334,
+          "time_delta_pct": -53.80396425526075
+        },
+        {
+          "candidate_bytes": 6032326,
+          "candidate_median_ns": 46222833,
+          "control_bytes": 6126922,
+          "control_median_ns": 103961959,
+          "id": "clic-validation-003",
+          "rate_delta_pct": -1.5439400077232879,
+          "time_delta_pct": -55.538705268145236
+        },
+        {
+          "candidate_bytes": 4821434,
+          "candidate_median_ns": 50808875,
+          "control_bytes": 5437070,
+          "control_median_ns": 110370333,
+          "id": "clic-validation-004",
+          "rate_delta_pct": -11.322936802358619,
+          "time_delta_pct": -53.965097668048166
+        },
+        {
+          "candidate_bytes": 5021542,
+          "candidate_median_ns": 51527125,
+          "control_bytes": 5390698,
+          "control_median_ns": 100377667,
+          "id": "clic-validation-005",
+          "rate_delta_pct": -6.848018568281877,
+          "time_delta_pct": -48.66674376881065
+        },
+        {
+          "candidate_bytes": 4967180,
+          "candidate_median_ns": 45873500,
+          "control_bytes": 5209140,
+          "control_median_ns": 108857917,
+          "id": "clic-validation-006",
+          "rate_delta_pct": -4.644912595937145,
+          "time_delta_pct": -57.85928918702348
+        },
+        {
+          "candidate_bytes": 7996552,
+          "candidate_median_ns": 61652333,
+          "control_bytes": 8112576,
+          "control_median_ns": 139603125,
+          "id": "clic-validation-007",
+          "rate_delta_pct": -1.4301745832643098,
+          "time_delta_pct": -55.83742627537887
+        },
+        {
+          "candidate_bytes": 4302942,
+          "candidate_median_ns": 41842625,
+          "control_bytes": 4391630,
+          "control_median_ns": 86982292,
+          "id": "clic-validation-008",
+          "rate_delta_pct": -2.019477961485827,
+          "time_delta_pct": -51.89523748121054
+        },
+        {
+          "candidate_bytes": 4864354,
+          "candidate_median_ns": 46342500,
+          "control_bytes": 5114026,
+          "control_median_ns": 86520625,
+          "id": "clic-validation-009",
+          "rate_delta_pct": -4.882102672141286,
+          "time_delta_pct": -46.43762686642636
+        },
+        {
+          "candidate_bytes": 3840458,
+          "candidate_median_ns": 36766500,
+          "control_bytes": 4032212,
+          "control_median_ns": 73952458,
+          "id": "clic-validation-010",
+          "rate_delta_pct": -4.755553527443501,
+          "time_delta_pct": -50.2835997689218
+        },
+        {
+          "candidate_bytes": 1992132,
+          "candidate_median_ns": 17591333,
+          "control_bytes": 2023660,
+          "control_median_ns": 32358750,
+          "id": "clic-validation-011",
+          "rate_delta_pct": -1.5579692240791476,
+          "time_delta_pct": -45.63654961950013
+        },
+        {
+          "candidate_bytes": 4944876,
+          "candidate_median_ns": 38143125,
+          "control_bytes": 5008486,
+          "control_median_ns": 90810958,
+          "id": "clic-validation-012",
+          "rate_delta_pct": -1.2700444805076816,
+          "time_delta_pct": -57.99722209735966
+        },
+        {
+          "candidate_bytes": 5076218,
+          "candidate_median_ns": 37907792,
+          "control_bytes": 5153972,
+          "control_median_ns": 90826958,
+          "id": "clic-validation-013",
+          "rate_delta_pct": -1.508622864074538,
+          "time_delta_pct": -58.263721658497026
+        },
+        {
+          "candidate_bytes": 5260000,
+          "candidate_median_ns": 38674500,
+          "control_bytes": 5386808,
+          "control_median_ns": 89531458,
+          "id": "clic-validation-014",
+          "rate_delta_pct": -2.354047146287741,
+          "time_delta_pct": -56.803451140045105
+        },
+        {
+          "candidate_bytes": 5593238,
+          "candidate_median_ns": 47433292,
+          "control_bytes": 5684412,
+          "control_median_ns": 88350375,
+          "id": "clic-validation-015",
+          "rate_delta_pct": -1.6039301866226485,
+          "time_delta_pct": -46.312291260789785
+        },
+        {
+          "candidate_bytes": 4638596,
+          "candidate_median_ns": 39845542,
+          "control_bytes": 4701704,
+          "control_median_ns": 93794666,
+          "id": "clic-validation-016",
+          "rate_delta_pct": -1.3422367720298811,
+          "time_delta_pct": -57.51832838767186
+        },
+        {
+          "candidate_bytes": 6437214,
+          "candidate_median_ns": 62175666,
+          "control_bytes": 6719656,
+          "control_median_ns": 142799959,
+          "id": "clic-validation-017",
+          "rate_delta_pct": -4.203221117271482,
+          "time_delta_pct": -56.459605145965064
+        },
+        {
+          "candidate_bytes": 4831808,
+          "candidate_median_ns": 42701250,
+          "control_bytes": 5118420,
+          "control_median_ns": 90137875,
+          "id": "clic-validation-018",
+          "rate_delta_pct": -5.599618632312319,
+          "time_delta_pct": -52.626739869339055
+        },
+        {
+          "candidate_bytes": 4844968,
+          "candidate_median_ns": 42314709,
+          "control_bytes": 5108948,
+          "control_median_ns": 87974625,
+          "id": "clic-validation-019",
+          "rate_delta_pct": -5.167012856658548,
+          "time_delta_pct": -51.90123402060538
+        },
+        {
+          "candidate_bytes": 6292374,
+          "candidate_median_ns": 47403750,
+          "control_bytes": 6430820,
+          "control_median_ns": 100398416,
+          "id": "clic-validation-020",
+          "rate_delta_pct": -2.1528514248571717,
+          "time_delta_pct": -52.78436464575298
+        },
+        {
+          "candidate_bytes": 4612614,
+          "candidate_median_ns": 39898333,
+          "control_bytes": 4693378,
+          "control_median_ns": 92193417,
+          "id": "clic-validation-021",
+          "rate_delta_pct": -1.7208074866332912,
+          "time_delta_pct": -56.72323003279074
+        },
+        {
+          "candidate_bytes": 5270376,
+          "candidate_median_ns": 48207333,
+          "control_bytes": 5628318,
+          "control_median_ns": 99844834,
+          "id": "clic-validation-022",
+          "rate_delta_pct": -6.359661980719644,
+          "time_delta_pct": -51.71774936297655
+        },
+        {
+          "candidate_bytes": 5700484,
+          "candidate_median_ns": 43891125,
+          "control_bytes": 5979252,
+          "control_median_ns": 103307625,
+          "id": "clic-validation-023",
+          "rate_delta_pct": -4.662255412549932,
+          "time_delta_pct": -57.51414767302994
+        },
+        {
+          "candidate_bytes": 7245928,
+          "candidate_median_ns": 57862042,
+          "control_bytes": 7363364,
+          "control_median_ns": 133878166,
+          "id": "clic-validation-024",
+          "rate_delta_pct": -1.5948688670015532,
+          "time_delta_pct": -56.780075699573
+        },
+        {
+          "candidate_bytes": 7844442,
+          "candidate_median_ns": 58280083,
+          "control_bytes": 8063140,
+          "control_median_ns": 130752417,
+          "id": "clic-validation-025",
+          "rate_delta_pct": -2.712318029948635,
+          "time_delta_pct": -55.42714671194185
+        },
+        {
+          "candidate_bytes": 8081856,
+          "candidate_median_ns": 63919750,
+          "control_bytes": 8349358,
+          "control_median_ns": 144807500,
+          "id": "clic-validation-026",
+          "rate_delta_pct": -3.20386309941435,
+          "time_delta_pct": -55.85881256150407
+        },
+        {
+          "candidate_bytes": 6026624,
+          "candidate_median_ns": 62800625,
+          "control_bytes": 7076126,
+          "control_median_ns": 133792750,
+          "id": "clic-validation-027",
+          "rate_delta_pct": -14.831590053653654,
+          "time_delta_pct": -53.06126453040243
+        },
+        {
+          "candidate_bytes": 6139536,
+          "candidate_median_ns": 67619333,
+          "control_bytes": 7360348,
+          "control_median_ns": 131069042,
+          "id": "clic-validation-028",
+          "rate_delta_pct": -16.586335320014754,
+          "time_delta_pct": -48.40937877611099
+        },
+        {
+          "candidate_bytes": 5888564,
+          "candidate_median_ns": 61941833,
+          "control_bytes": 6030840,
+          "control_median_ns": 127135708,
+          "id": "clic-validation-029",
+          "rate_delta_pct": -2.359140683553207,
+          "time_delta_pct": -51.278964836535145
+        },
+        {
+          "candidate_bytes": 8486390,
+          "candidate_median_ns": 55736125,
+          "control_bytes": 8705786,
+          "control_median_ns": 130035584,
+          "id": "clic-validation-030",
+          "rate_delta_pct": -2.5201170807552575,
+          "time_delta_pct": -57.13779006829392
+        },
+        {
+          "candidate_bytes": 7195118,
+          "candidate_median_ns": 57893875,
+          "control_bytes": 7277258,
+          "control_median_ns": 136069917,
+          "id": "clic-validation-031",
+          "rate_delta_pct": -1.128721834515145,
+          "time_delta_pct": -57.45284756806311
+        },
+        {
+          "candidate_bytes": 6367358,
+          "candidate_median_ns": 66718916,
+          "control_bytes": 6987574,
+          "control_median_ns": 132959833,
+          "id": "clic-validation-032",
+          "rate_delta_pct": -8.875984712290707,
+          "time_delta_pct": -49.820246841014004
+        },
+        {
+          "candidate_bytes": 8016860,
+          "candidate_median_ns": 59439041,
+          "control_bytes": 8431672,
+          "control_median_ns": 131615125,
+          "id": "clic-validation-033",
+          "rate_delta_pct": -4.919688526783295,
+          "time_delta_pct": -54.83874592680742
+        },
+        {
+          "candidate_bytes": 7501450,
+          "candidate_median_ns": 62492000,
+          "control_bytes": 8475800,
+          "control_median_ns": 139772291,
+          "id": "clic-validation-034",
+          "rate_delta_pct": -11.49567002524835,
+          "time_delta_pct": -55.29013686983208
+        },
+        {
+          "candidate_bytes": 7350130,
+          "candidate_median_ns": 66091833,
+          "control_bytes": 8055284,
+          "control_median_ns": 139763167,
+          "id": "clic-validation-035",
+          "rate_delta_pct": -8.75393096010023,
+          "time_delta_pct": -52.71155167798967
+        },
+        {
+          "candidate_bytes": 6999040,
+          "candidate_median_ns": 61373500,
+          "control_bytes": 7368046,
+          "control_median_ns": 137980500,
+          "id": "clic-validation-036",
+          "rate_delta_pct": -5.008193488477131,
+          "time_delta_pct": -55.520164081156395
+        },
+        {
+          "candidate_bytes": 7092626,
+          "candidate_median_ns": 62111000,
+          "control_bytes": 7805588,
+          "control_median_ns": 138876625,
+          "id": "clic-validation-037",
+          "rate_delta_pct": -9.133994774000364,
+          "time_delta_pct": -55.27613088235691
+        },
+        {
+          "candidate_bytes": 7531292,
+          "candidate_median_ns": 60962542,
+          "control_bytes": 8129706,
+          "control_median_ns": 133979375,
+          "id": "clic-validation-038",
+          "rate_delta_pct": -7.360831990726357,
+          "time_delta_pct": -54.498562185411004
+        },
+        {
+          "candidate_bytes": 7080414,
+          "candidate_median_ns": 55514791,
+          "control_bytes": 7174990,
+          "control_median_ns": 134315083,
+          "id": "clic-validation-039",
+          "rate_delta_pct": -1.3181342413020825,
+          "time_delta_pct": -58.66823757984053
+        },
+        {
+          "candidate_bytes": 6460012,
+          "candidate_median_ns": 62483041,
+          "control_bytes": 7112000,
+          "control_median_ns": 137300000,
+          "id": "clic-validation-040",
+          "rate_delta_pct": -9.167435320584927,
+          "time_delta_pct": -54.49159431900947
+        },
+        {
+          "candidate_bytes": 8081042,
+          "candidate_median_ns": 57500041,
+          "control_bytes": 8245686,
+          "control_median_ns": 137169583,
+          "id": "clic-validation-041",
+          "rate_delta_pct": -1.996728956208127,
+          "time_delta_pct": -58.08105576875596
+        },
+        {
+          "candidate_bytes": 8574764,
+          "candidate_median_ns": 57621750,
+          "control_bytes": 8621620,
+          "control_median_ns": 136943208,
+          "id": "clic-validation-042",
+          "rate_delta_pct": -0.5434709486152212,
+          "time_delta_pct": -57.92288581409601
+        },
+        {
+          "candidate_bytes": 7922220,
+          "candidate_median_ns": 59807708,
+          "control_bytes": 8110152,
+          "control_median_ns": 142180958,
+          "id": "clic-validation-043",
+          "rate_delta_pct": -2.317243869165464,
+          "time_delta_pct": -57.935500758125436
+        },
+        {
+          "candidate_bytes": 7723626,
+          "candidate_median_ns": 57818292,
+          "control_bytes": 8131272,
+          "control_median_ns": 139597708,
+          "id": "clic-validation-044",
+          "rate_delta_pct": -5.013311570440637,
+          "time_delta_pct": -58.582205375463616
+        },
+        {
+          "candidate_bytes": 7202776,
+          "candidate_median_ns": 62045500,
+          "control_bytes": 8110572,
+          "control_median_ns": 142949791,
+          "id": "clic-validation-045",
+          "rate_delta_pct": -11.192749413974745,
+          "time_delta_pct": -56.596298906096344
+        },
+        {
+          "candidate_bytes": 7854346,
+          "candidate_median_ns": 56681791,
+          "control_bytes": 7954172,
+          "control_median_ns": 141629250,
+          "id": "clic-validation-046",
+          "rate_delta_pct": -1.2550143497022659,
+          "time_delta_pct": -59.978753682590295
+        },
+        {
+          "candidate_bytes": 8034788,
+          "candidate_median_ns": 57122333,
+          "control_bytes": 8191412,
+          "control_median_ns": 141161334,
+          "id": "clic-validation-047",
+          "rate_delta_pct": -1.9120513044637466,
+          "time_delta_pct": -59.53400879592141
+        },
+        {
+          "candidate_bytes": 7523820,
+          "candidate_median_ns": 57858833,
+          "control_bytes": 7848440,
+          "control_median_ns": 134271041,
+          "id": "clic-validation-048",
+          "rate_delta_pct": -4.136108576991093,
+          "time_delta_pct": -56.90892647506918
+        },
+        {
+          "candidate_bytes": 7853928,
+          "candidate_median_ns": 56879000,
+          "control_bytes": 8108738,
+          "control_median_ns": 131384042,
+          "id": "clic-validation-049",
+          "rate_delta_pct": -3.1424125431109062,
+          "time_delta_pct": -56.707832142963
+        },
+        {
+          "candidate_bytes": 7264822,
+          "candidate_median_ns": 58042500,
+          "control_bytes": 7478216,
+          "control_median_ns": 128308000,
+          "id": "clic-validation-050",
+          "rate_delta_pct": -2.8535415398538877,
+          "time_delta_pct": -54.76314805000469
+        },
+        {
+          "candidate_bytes": 8449798,
+          "candidate_median_ns": 57821125,
+          "control_bytes": 8648696,
+          "control_median_ns": 128675958,
+          "id": "clic-validation-051",
+          "rate_delta_pct": -2.299745533893205,
+          "time_delta_pct": -55.064546711981734
+        },
+        {
+          "candidate_bytes": 7752550,
+          "candidate_median_ns": 55918083,
+          "control_bytes": 7997574,
+          "control_median_ns": 140114208,
+          "id": "clic-validation-052",
+          "rate_delta_pct": -3.0637290758422475,
+          "time_delta_pct": -60.09106870874936
+        },
+        {
+          "candidate_bytes": 7559466,
+          "candidate_median_ns": 59647042,
+          "control_bytes": 7683910,
+          "control_median_ns": 141718583,
+          "id": "clic-validation-053",
+          "rate_delta_pct": -1.619540051874635,
+          "time_delta_pct": -57.91162969784986
+        },
+        {
+          "candidate_bytes": 7093420,
+          "candidate_median_ns": 57424292,
+          "control_bytes": 7334782,
+          "control_median_ns": 136407583,
+          "id": "clic-validation-054",
+          "rate_delta_pct": -3.2906499470604533,
+          "time_delta_pct": -57.90241954510695
+        },
+        {
+          "candidate_bytes": 7287192,
+          "candidate_median_ns": 61540000,
+          "control_bytes": 7568426,
+          "control_median_ns": 135450833,
+          "id": "clic-validation-055",
+          "rate_delta_pct": -3.7158849145119466,
+          "time_delta_pct": -54.566540022681146
+        },
+        {
+          "candidate_bytes": 5082016,
+          "candidate_median_ns": 38773875,
+          "control_bytes": 5167842,
+          "control_median_ns": 87680334,
+          "id": "clic-validation-056",
+          "rate_delta_pct": -1.6607705885745006,
+          "time_delta_pct": -55.77813948564566
+        },
+        {
+          "candidate_bytes": 4981772,
+          "candidate_median_ns": 41230792,
+          "control_bytes": 5152288,
+          "control_median_ns": 92757375,
+          "id": "clic-validation-057",
+          "rate_delta_pct": -3.309519964722474,
+          "time_delta_pct": -55.54985034882671
+        },
+        {
+          "candidate_bytes": 4695890,
+          "candidate_median_ns": 45931666,
+          "control_bytes": 4935030,
+          "control_median_ns": 89102042,
+          "id": "clic-validation-058",
+          "rate_delta_pct": -4.845765881869002,
+          "time_delta_pct": -48.450490057231235
+        },
+        {
+          "candidate_bytes": 3582744,
+          "candidate_median_ns": 31662500,
+          "control_bytes": 3675422,
+          "control_median_ns": 72874584,
+          "id": "clic-validation-059",
+          "rate_delta_pct": -2.5215607894821357,
+          "time_delta_pct": -56.55206759053335
+        },
+        {
+          "candidate_bytes": 4393340,
+          "candidate_median_ns": 41973500,
+          "control_bytes": 4575774,
+          "control_median_ns": 88400584,
+          "id": "clic-validation-060",
+          "rate_delta_pct": -3.9869539011323507,
+          "time_delta_pct": -52.51897883389549
+        },
+        {
+          "candidate_bytes": 7292306,
+          "candidate_median_ns": 58875334,
+          "control_bytes": 7429254,
+          "control_median_ns": 113847833,
+          "id": "clic-validation-061",
+          "rate_delta_pct": -1.8433613926781889,
+          "time_delta_pct": -48.28594234200312
+        },
+        {
+          "candidate_bytes": 5877866,
+          "candidate_median_ns": 51566416,
+          "control_bytes": 6162162,
+          "control_median_ns": 108779583,
+          "id": "clic-validation-062",
+          "rate_delta_pct": -4.613575560006378,
+          "time_delta_pct": -52.595501308365925
+        },
+        {
+          "candidate_bytes": 6449822,
+          "candidate_median_ns": 47898708,
+          "control_bytes": 6534318,
+          "control_median_ns": 108824834,
+          "id": "clic-validation-063",
+          "rate_delta_pct": -1.2931112321132865,
+          "time_delta_pct": -55.98549867762721
+        },
+        {
+          "candidate_bytes": 7912440,
+          "candidate_median_ns": 50889791,
+          "control_bytes": 7878280,
+          "control_median_ns": 112657292,
+          "id": "clic-validation-064",
+          "rate_delta_pct": 0.43359718111060097,
+          "time_delta_pct": -54.82778780089974
+        },
+        {
+          "candidate_bytes": 6690588,
+          "candidate_median_ns": 60500000,
+          "control_bytes": 6856728,
+          "control_median_ns": 121438250,
+          "id": "clic-validation-065",
+          "rate_delta_pct": -2.4230215928063625,
+          "time_delta_pct": -50.18044150010397
+        },
+        {
+          "candidate_bytes": 3355168,
+          "candidate_median_ns": 37445667,
+          "control_bytes": 3463560,
+          "control_median_ns": 65824500,
+          "id": "clic-validation-066",
+          "rate_delta_pct": -3.1294968183025573,
+          "time_delta_pct": -43.11287286648589
+        },
+        {
+          "candidate_bytes": 7262042,
+          "candidate_median_ns": 51270959,
+          "control_bytes": 7399782,
+          "control_median_ns": 122515708,
+          "id": "clic-validation-067",
+          "rate_delta_pct": -1.8614061873714616,
+          "time_delta_pct": -58.15152208890635
+        },
+        {
+          "candidate_bytes": 7022722,
+          "candidate_median_ns": 51608542,
+          "control_bytes": 7198452,
+          "control_median_ns": 120265667,
+          "id": "clic-validation-068",
+          "rate_delta_pct": -2.441219306595366,
+          "time_delta_pct": -57.08788444170023
+        },
+        {
+          "candidate_bytes": 5920084,
+          "candidate_median_ns": 56386084,
+          "control_bytes": 6218740,
+          "control_median_ns": 121105083,
+          "id": "clic-validation-069",
+          "rate_delta_pct": -4.802516265352786,
+          "time_delta_pct": -53.44036550472452
+        },
+        {
+          "candidate_bytes": 7183898,
+          "candidate_median_ns": 51506708,
+          "control_bytes": 7230868,
+          "control_median_ns": 121431750,
+          "id": "clic-validation-070",
+          "rate_delta_pct": -0.6495762334480459,
+          "time_delta_pct": -57.583821364676034
+        },
+        {
+          "candidate_bytes": 3054654,
+          "candidate_median_ns": 30620458,
+          "control_bytes": 3213510,
+          "control_median_ns": 53406500,
+          "id": "clic-validation-071",
+          "rate_delta_pct": -4.943379668960112,
+          "time_delta_pct": -42.66529729527305
+        },
+        {
+          "candidate_bytes": 5676516,
+          "candidate_median_ns": 48735792,
+          "control_bytes": 5704026,
+          "control_median_ns": 115265416,
+          "id": "clic-validation-072",
+          "rate_delta_pct": -0.4822909292489186,
+          "time_delta_pct": -57.71863435603268
+        },
+        {
+          "candidate_bytes": 6839034,
+          "candidate_median_ns": 58216750,
+          "control_bytes": 7211752,
+          "control_median_ns": 125603750,
+          "id": "clic-validation-073",
+          "rate_delta_pct": -5.168203232723478,
+          "time_delta_pct": -53.650468238408486
+        },
+        {
+          "candidate_bytes": 4535584,
+          "candidate_median_ns": 47514042,
+          "control_bytes": 5084390,
+          "control_median_ns": 91773125,
+          "id": "clic-validation-074",
+          "rate_delta_pct": -10.793939882660453,
+          "time_delta_pct": -48.226627348692766
+        },
+        {
+          "candidate_bytes": 7030034,
+          "candidate_median_ns": 56404583,
+          "control_bytes": 7239090,
+          "control_median_ns": 121503708,
+          "id": "clic-validation-075",
+          "rate_delta_pct": -2.88787679114364,
+          "time_delta_pct": -53.577891631093266
+        },
+        {
+          "candidate_bytes": 6434546,
+          "candidate_median_ns": 52849500,
+          "control_bytes": 6423696,
+          "control_median_ns": 124611625,
+          "id": "clic-validation-076",
+          "rate_delta_pct": 0.16890587599414086,
+          "time_delta_pct": -57.58862786678209
+        },
+        {
+          "candidate_bytes": 5322478,
+          "candidate_median_ns": 55573167,
+          "control_bytes": 5607562,
+          "control_median_ns": 120523791,
+          "id": "clic-validation-077",
+          "rate_delta_pct": -5.0839206057819775,
+          "time_delta_pct": -53.89029291320582
+        },
+        {
+          "candidate_bytes": 5688602,
+          "candidate_median_ns": 49899125,
+          "control_bytes": 5829980,
+          "control_median_ns": 104385291,
+          "id": "clic-validation-078",
+          "rate_delta_pct": -2.425016895426746,
+          "time_delta_pct": -52.19716827728151
+        },
+        {
+          "candidate_bytes": 4380784,
+          "candidate_median_ns": 40341916,
+          "control_bytes": 4555170,
+          "control_median_ns": 79779792,
+          "id": "clic-validation-079",
+          "rate_delta_pct": -3.8283093715492544,
+          "time_delta_pct": -49.43341541928312
+        },
+        {
+          "candidate_bytes": 6324888,
+          "candidate_median_ns": 61414667,
+          "control_bytes": 6602440,
+          "control_median_ns": 133832417,
+          "id": "clic-validation-080",
+          "rate_delta_pct": -4.203779208898528,
+          "time_delta_pct": -54.110768992537885
+        },
+        {
+          "candidate_bytes": 5390406,
+          "candidate_median_ns": 54462250,
+          "control_bytes": 5682374,
+          "control_median_ns": 114721417,
+          "id": "clic-validation-081",
+          "rate_delta_pct": -5.1381341671632335,
+          "time_delta_pct": -52.52651908928216
+        },
+        {
+          "candidate_bytes": 1503858,
+          "candidate_median_ns": 14233750,
+          "control_bytes": 1515288,
+          "control_median_ns": 26218292,
+          "id": "clic-validation-082",
+          "rate_delta_pct": -0.7543120515703938,
+          "time_delta_pct": -45.71061303306867
+        },
+        {
+          "candidate_bytes": 6701082,
+          "candidate_median_ns": 52873458,
+          "control_bytes": 6884388,
+          "control_median_ns": 122593208,
+          "id": "clic-validation-083",
+          "rate_delta_pct": -2.6626331926672298,
+          "time_delta_pct": -56.87080967813486
+        },
+        {
+          "candidate_bytes": 5649294,
+          "candidate_median_ns": 54856417,
+          "control_bytes": 6003064,
+          "control_median_ns": 113385708,
+          "id": "clic-validation-084",
+          "rate_delta_pct": -5.893157227709045,
+          "time_delta_pct": -51.619637106292096
+        },
+        {
+          "candidate_bytes": 1920244,
+          "candidate_median_ns": 20794917,
+          "control_bytes": 1954892,
+          "control_median_ns": 39624000,
+          "id": "clic-validation-085",
+          "rate_delta_pct": -1.7723741260386783,
+          "time_delta_pct": -47.51938976377953
+        },
+        {
+          "candidate_bytes": 6964226,
+          "candidate_median_ns": 51722875,
+          "control_bytes": 6923612,
+          "control_median_ns": 121903000,
+          "id": "clic-validation-086",
+          "rate_delta_pct": 0.5866013289017369,
+          "time_delta_pct": -57.570465862201914
+        },
+        {
+          "candidate_bytes": 1199854,
+          "candidate_median_ns": 14361708,
+          "control_bytes": 1252050,
+          "control_median_ns": 24461375,
+          "id": "clic-validation-087",
+          "rate_delta_pct": -4.168843097320396,
+          "time_delta_pct": -41.288222759350205
+        },
+        {
+          "candidate_bytes": 3234640,
+          "candidate_median_ns": 29111750,
+          "control_bytes": 3293512,
+          "control_median_ns": 53203834,
+          "id": "clic-validation-088",
+          "rate_delta_pct": -1.7875143615690536,
+          "time_delta_pct": -45.28260876838313
+        },
+        {
+          "candidate_bytes": 6465364,
+          "candidate_median_ns": 46680084,
+          "control_bytes": 6529714,
+          "control_median_ns": 103626375,
+          "id": "clic-validation-089",
+          "rate_delta_pct": -0.9854949236674071,
+          "time_delta_pct": -54.953472028718565
+        },
+        {
+          "candidate_bytes": 6481682,
+          "candidate_median_ns": 52080334,
+          "control_bytes": 6588194,
+          "control_median_ns": 123091459,
+          "id": "clic-validation-090",
+          "rate_delta_pct": -1.6167101333081524,
+          "time_delta_pct": -57.68972565350777
+        },
+        {
+          "candidate_bytes": 482456,
+          "candidate_median_ns": 4444792,
+          "control_bytes": 486686,
+          "control_median_ns": 8955917,
+          "id": "clic-validation-091",
+          "rate_delta_pct": -0.8691435545711168,
+          "time_delta_pct": -50.37033058702978
+        },
+        {
+          "candidate_bytes": 6560528,
+          "candidate_median_ns": 55728375,
+          "control_bytes": 6821520,
+          "control_median_ns": 127303709,
+          "id": "clic-validation-092",
+          "rate_delta_pct": -3.82600945243875,
+          "time_delta_pct": -56.22407592224984
+        },
+        {
+          "candidate_bytes": 3512690,
+          "candidate_median_ns": 35535292,
+          "control_bytes": 3597412,
+          "control_median_ns": 74415625,
+          "id": "clic-validation-093",
+          "rate_delta_pct": -2.3550819311215943,
+          "time_delta_pct": -52.24753941124596
+        },
+        {
+          "candidate_bytes": 6019640,
+          "candidate_median_ns": 52373167,
+          "control_bytes": 6119372,
+          "control_median_ns": 116189084,
+          "id": "clic-validation-094",
+          "rate_delta_pct": -1.6297750814952883,
+          "time_delta_pct": -54.92419322283322
+        },
+        {
+          "candidate_bytes": 2701858,
+          "candidate_median_ns": 22856584,
+          "control_bytes": 2736452,
+          "control_median_ns": 43084333,
+          "id": "clic-validation-095",
+          "rate_delta_pct": -1.2641917344064502,
+          "time_delta_pct": -46.94919844761204
+        },
+        {
+          "candidate_bytes": 790990,
+          "candidate_median_ns": 7219542,
+          "control_bytes": 797744,
+          "control_median_ns": 13505375,
+          "id": "clic-validation-096",
+          "rate_delta_pct": -0.8466375178001972,
+          "time_delta_pct": -46.54319483909184
+        },
+        {
+          "candidate_bytes": 4460952,
+          "candidate_median_ns": 45751500,
+          "control_bytes": 4881750,
+          "control_median_ns": 97466500,
+          "id": "clic-validation-097",
+          "rate_delta_pct": -8.619818712551853,
+          "time_delta_pct": -53.05925625727814
+        },
+        {
+          "candidate_bytes": 7524562,
+          "candidate_median_ns": 55290625,
+          "control_bytes": 7582970,
+          "control_median_ns": 114718583,
+          "id": "clic-validation-098",
+          "rate_delta_pct": -0.7702522890107755,
+          "time_delta_pct": -51.80325318348815
+        },
+        {
+          "candidate_bytes": 3817562,
+          "candidate_median_ns": 45894417,
+          "control_bytes": 3924250,
+          "control_median_ns": 81760000,
+          "id": "clic-validation-099",
+          "rate_delta_pct": -2.7186850990635114,
+          "time_delta_pct": -43.86690680039139
+        },
+        {
+          "candidate_bytes": 6168592,
+          "candidate_median_ns": 49208042,
+          "control_bytes": 6078404,
+          "control_median_ns": 108853208,
+          "id": "clic-validation-100",
+          "rate_delta_pct": 1.483744746153759,
+          "time_delta_pct": -54.79412788642848
+        },
+        {
+          "candidate_bytes": 6281214,
+          "candidate_median_ns": 56390917,
+          "control_bytes": 6552670,
+          "control_median_ns": 125440541,
+          "id": "clic-validation-101",
+          "rate_delta_pct": -4.142677717632659,
+          "time_delta_pct": -55.04570009786549
+        }
+      ],
+      "rate_delta_pct": -3.8252467525994427,
+      "rss_delta_bytes": -497532928,
+      "rss_delta_pct": -29.36165686881188,
+      "speed_delta_pct": -51.40092334065061
+    }
+  }
+}

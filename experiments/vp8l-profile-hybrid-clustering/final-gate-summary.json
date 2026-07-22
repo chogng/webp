@@ -1,0 +1,76 @@
+{
+  "base": "58f7b8dd047cad1733bc2766a797d8f2e4b5ff3c",
+  "branch": "codex/vp8l-profile-hybrid-clustering",
+  "correctness": {
+    "default_byte_identity": "102/102",
+    "final_project_decode": "612/612",
+    "final_pinned_c_decode": "612/612",
+    "screen_project_decode": "246/246",
+    "screen_pinned_c_decode": "246/246"
+  },
+  "decision": "promote-research-to-independent-product-migration",
+  "final_quality": {
+    "default_clippy_all_targets_deny_warnings": true,
+    "default_workspace_tests": "330 passed, 4 ignored",
+    "doctest_default_and_feature": true,
+    "feature_clippy_all_targets_deny_warnings": true,
+    "feature_workspace_tests": "335 passed, 4 ignored",
+    "fmt": true,
+    "resource_api_module_audit": true,
+    "rustdoc_default_and_feature_deny_warnings": true,
+    "stable_host_only": true
+  },
+  "formal": {
+    "compact": {
+      "absolute_median_seconds": 5.721840458,
+      "independent_delta_pct": -52.38755812755252,
+      "per_image_regressions": 0
+    },
+    "gate": true,
+    "low-latency": {
+      "absolute_median_seconds": 5.821272083,
+      "independent_delta_pct": -51.40092334065061,
+      "per_image_regressions": 0
+    }
+  },
+  "phase_a": {
+    "compact": {
+      "bytes": 599398064,
+      "growth": "0/0",
+      "images_over_2pct": 0,
+      "planner_writer_rows": 306
+    },
+    "gate": true,
+    "low-latency": {
+      "bytes": 601400998,
+      "growth": "336/336",
+      "images_over_2pct": 0,
+      "planner_writer_rows": 408
+    },
+    "single_plans": 204
+  },
+  "reference_binary_sha256": "05b8421c86f3286667c5cffef35ffc2bff77f68d944063a954793e2b870e64c9",
+  "reproduction": {
+    "decision": "promote-research",
+    "exit_status": 0,
+    "gate": true,
+    "rebuilt_binary_sha256": "2e5f7b11b959de3cb25a251649ee7ffa87528b0346d92fdfbb03547da5f5e570",
+    "relative_checksum_entries": 185,
+    "relative_checksum_sha256": "640bafc963dc53e4a4fd77d01cfd149d33e80cb738ecf8fee4448aec705e6096"
+  },
+  "screen": {
+    "compact": {
+      "encode_delta_pct": -51.86248754284978,
+      "encode_regressions": 0,
+      "pinned_c_decode_delta_pct": -0.76842959743052,
+      "rust_decode_delta_pct": 0.8932919184870158
+    },
+    "gate": true,
+    "low-latency": {
+      "encode_delta_pct": -50.80542023317438,
+      "encode_regressions": 0,
+      "pinned_c_decode_delta_pct": -0.43852476827137554,
+      "rust_decode_delta_pct": 0.4075261860594148
+    }
+  }
+}

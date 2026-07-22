@@ -1,0 +1,48 @@
+{
+  "formal": {
+    "compact": {
+      "candidate_median_ns": 6079317125,
+      "per_image_regressions": 0,
+      "speed_delta_pct": -49.2430312496902
+    },
+    "low-latency": {
+      "candidate_median_ns": 6223046583,
+      "per_image_regressions": 0,
+      "speed_delta_pct": -47.0041740883669
+    }
+  },
+  "formal_gate": true,
+  "phase_a_bytes": {
+    "compact": 599398064,
+    "low-latency": 601400998
+  },
+  "phase_a_gate": {
+    "aggregate_not_worse_than_e40": true,
+    "both_profiles_within_e37_plus_2pct": true,
+    "compact_constructed_no_growth_state": true,
+    "exactness_pass": true,
+    "expected_totals_reproduced": true,
+    "phase_a_pass": true
+  },
+  "rebuilt_binary_sha256": "2e5f7b11b959de3cb25a251649ee7ffa87528b0346d92fdfbb03547da5f5e570",
+  "screen": {
+    "compact": {
+      "encode_delta_pct": -49.65707134868242,
+      "encode_regressions": 0,
+      "pinned_c_decode_delta_pct": -1.6056130749921738,
+      "rust_decode_delta_pct": -0.5345994056054293
+    },
+    "low-latency": {
+      "encode_delta_pct": -47.78461331703983,
+      "encode_regressions": 0,
+      "pinned_c_decode_delta_pct": -0.1345532587414322,
+      "rust_decode_delta_pct": -0.007347756518449877
+    }
+  },
+  "screen_correctness": {
+    "pinned_c_summary": "oracle_summary\tmatched=246\tfailed=0",
+    "project_exact": 246,
+    "project_streams": 246
+  },
+  "screen_gate": true
+}

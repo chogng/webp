@@ -1,0 +1,21 @@
+task source: 019f8321-035e-7211-8f53-987e18891c8c
+worktree: /Users/lance/.codex/worktrees/7d78/webp
+branch: codex/vp8l-profile-hybrid-clustering
+creation base / HEAD before modification: 58f7b8dd047cad1733bc2766a797d8f2e4b5ff3c
+local main before modification: 58f7b8dd047cad1733bc2766a797d8f2e4b5ff3c
+merge-base HEAD main before modification: 58f7b8dd047cad1733bc2766a797d8f2e4b5ff3c
+HEAD is ancestor of main: yes
+main is ancestor of HEAD: yes
+P15 read-only reference: 76762d10fa3c8bb2fb89b3540b3a7c0c7c2995b5 at /Users/lance/.codex/worktrees/3cd9/webp
+P16 read-only reference: 13c0f2a18dceccea2a4b6052f903f0ac6c588067 at /Users/lance/.codex/worktrees/5d9b/webp
+pinned libwebp reference: 733c91e461c18cf1127c9ed0a80dccbcfed599d3
+post-creation main registration (docs only; not merged/rebased): 7f5cd83c
+design checkpoint: 3dea69cc
+implementation checkpoint: a0606a83
+attribution/invalidated Phase A checkpoint: 36ad7acd
+passing final-binary Phase A checkpoint: 6230c4a0
+runner-filter correction and invalid evidence: 2d31a497
+passing screen checkpoint: 483ad4da
+passing formal checkpoint: 9f97bf12
+passing final product gates/reproducer: 5c1f7b00
+target-path-independent replay correction: 4bc28f4a
