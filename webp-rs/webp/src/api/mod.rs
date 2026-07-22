@@ -18,6 +18,8 @@ pub use image::Image;
 #[cfg(feature = "decode")]
 pub use image::ImageInfo;
 #[cfg(feature = "decode")]
+pub use image::IncrementalImage;
+#[cfg(feature = "decode")]
 pub use image::Progress;
 #[cfg(any(feature = "decode", feature = "encode"))]
 pub use metadata::Metadata;

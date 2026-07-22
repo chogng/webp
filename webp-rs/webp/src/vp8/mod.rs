@@ -14,6 +14,7 @@ mod loop_filter;
 mod partitions;
 mod quantization;
 mod reconstruction;
+mod row_decoder;
 #[cfg(feature = "encode")]
 mod sharp_yuv;
 #[cfg(test)]
@@ -23,6 +24,7 @@ mod transforms;
 mod yuv_image;
 
 pub use bool_coder::BoolDecoder;
+pub(crate) use bool_coder::BoolDecoderState;
 pub use bool_coder::BoolEncodeError;
 pub use bool_coder::BoolEncoder;
 pub use coefficients::COEFFICIENT_ZIGZAG;
@@ -65,12 +67,15 @@ pub use loop_filter::filter_normal_edge;
 pub use loop_filter::filter_simple_edge;
 pub use partitions::FilterHeader;
 pub use partitions::FirstPartitionHeader;
+pub(crate) use partitions::IncrementalPartitionLayout;
 pub use partitions::PartitionLayout;
 pub use partitions::SegmentHeader;
 pub use partitions::TokenPartition;
 pub use partitions::Vp8Header;
+pub(crate) use partitions::parse_incremental_partition_layout;
 pub use partitions::parse_partition_layout;
 pub use partitions::parse_riff_payload;
+pub(crate) use partitions::parse_riff_payload_prefix;
 pub use quantization::DequantizationMatrix;
 pub use quantization::QuantizationHeader;
 pub use quantization::derive_dequantization;
@@ -88,6 +93,7 @@ pub use reconstruction::predict_intra4_block;
 pub use reconstruction::predict_intra4_macroblock;
 pub use reconstruction::predict_intra16_macroblock;
 pub use reconstruction::reconstruct_intra_macroblock;
+pub(crate) use row_decoder::IncrementalVp8Decoder;
 #[cfg(feature = "encode")]
 pub use transforms::forward_dct_4x4;
 #[cfg(feature = "encode")]

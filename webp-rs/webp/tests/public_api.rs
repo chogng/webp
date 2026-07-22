@@ -65,17 +65,47 @@ fn malformed_fixtures_are_rejected_by_public_entrypoints() {
         }
         let bytes =
             fs::read(&path).unwrap_or_else(|error| panic!("read {}: {error}", path.display()));
-        assert!(
-            decode(&bytes, &DecodeOptions::default()).is_err(),
-            "{name}: decode"
-        );
+        let one_shot = decode(&bytes, &DecodeOptions::default()).unwrap_err();
         assert!(
             read_info(&bytes, &DecodeLimits::default()).is_err(),
             "{name}: read_info"
         );
         let mut incremental = IncrementalDecoder::new(DecodeOptions::default());
-        incremental.push(&bytes).unwrap();
-        assert!(incremental.finish().is_err(), "{name}: incremental");
+        let incremental_result = incremental
+            .push(&bytes)
+            .map(|_| incremental.finish())
+            .unwrap_or_else(Err);
+        assert_eq!(
+            incremental_result.unwrap_err().kind(),
+            one_shot.kind(),
+            "{name}: incremental"
+        );
+    }
+}
+
+#[test]
+fn malformed_fixtures_are_rejected_at_every_split() {
+    for path in generated_fixtures() {
+        let name = path.file_name().and_then(|name| name.to_str()).unwrap();
+        if metadata_case(name).is_some() {
+            continue;
+        }
+        let bytes = fs::read(&path).unwrap();
+        for split in 0..=bytes.len() {
+            let mut decoder = IncrementalDecoder::new(DecodeOptions::default());
+            let result = decoder
+                .push(&bytes[..split])
+                .and_then(|progress| {
+                    if progress == Progress::Complete {
+                        Ok(progress)
+                    } else {
+                        decoder.push(&bytes[split..])
+                    }
+                })
+                .map(|_| decoder.finish())
+                .unwrap_or_else(Err);
+            assert!(result.is_err(), "{name}: split={split}");
+        }
     }
 }
 
@@ -192,14 +222,31 @@ fn decode_returns_rgba_for_a_literal_vp8l_pixel() {
     let mut bytes = b"RIFF".to_vec();
     bytes.extend_from_slice(&(body.len() as u32).to_le_bytes());
     bytes.extend_from_slice(&body);
-    assert_eq!(
-        decode(&bytes, &DecodeOptions::default()).unwrap(),
-        Image {
-            width: 1,
-            height: 1,
-            rgba: vec![0x12, 0x34, 0x56, 0x78],
+    let expected = Image {
+        width: 1,
+        height: 1,
+        rgba: vec![0x12, 0x34, 0x56, 0x78],
+    };
+    assert_eq!(decode(&bytes, &DecodeOptions::default()).unwrap(), expected);
+    for split in 0..=bytes.len() {
+        let mut incremental = IncrementalDecoder::new(DecodeOptions::default());
+        let first = incremental.push(&bytes[..split]).unwrap();
+        if first != Progress::Complete {
+            assert_eq!(
+                incremental.push(&bytes[split..]).unwrap(),
+                Progress::Complete
+            );
         }
-    );
+        let view = incremental.decoded().unwrap();
+        assert_eq!(view.decoded_rows, 1);
+        assert_eq!(view.rgba, expected.rgba);
+        assert_eq!(incremental.info().unwrap().width, 1);
+        assert_eq!(
+            incremental.push(&[]).unwrap_err().kind(),
+            DecodeErrorKind::InvalidParameter
+        );
+        assert_eq!(incremental.finish().unwrap(), expected, "split={split}");
+    }
 }
 
 #[derive(Default)]

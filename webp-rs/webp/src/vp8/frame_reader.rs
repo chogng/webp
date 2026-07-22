@@ -126,6 +126,76 @@ impl Vp8YuvImage {
         Ok(rgba)
     }
 
+    pub(crate) fn append_rgba_rows(
+        &self,
+        start_row: u32,
+        end_row: u32,
+        rgba: &mut Vec<u8>,
+        limits: &DecodeLimits,
+    ) -> Result<(), DecodeError> {
+        if start_row > end_row || end_row > self.height {
+            return Err(DecodeError::new(
+                DecodeErrorKind::InvalidParameter,
+                None,
+                "VP8 incremental row range is outside the image",
+            ));
+        }
+        let width = usize::try_from(self.width).map_err(|_| allocation_size_error())?;
+        let height = usize::try_from(self.height).map_err(|_| allocation_size_error())?;
+        let start = usize::try_from(start_row).map_err(|_| allocation_size_error())?;
+        let end = usize::try_from(end_row).map_err(|_| allocation_size_error())?;
+        let full_len = checked_image_bytes(self.width, self.height, 4)?;
+        if full_len > limits.max_alloc_bytes {
+            return Err(DecodeError::new(
+                DecodeErrorKind::LimitExceeded,
+                None,
+                "VP8 RGBA output exceeds configured allocation limit",
+            ));
+        }
+        let expected = width
+            .checked_mul(start)
+            .and_then(|pixels| pixels.checked_mul(4))
+            .ok_or_else(allocation_size_error)?;
+        if rgba.len() != expected {
+            return Err(DecodeError::new(
+                DecodeErrorKind::InvalidParameter,
+                None,
+                "VP8 incremental RGBA prefix is not row aligned",
+            ));
+        }
+        let added = width
+            .checked_mul(end - start)
+            .and_then(|pixels| pixels.checked_mul(4))
+            .ok_or_else(allocation_size_error)?;
+        rgba.try_reserve(added).map_err(|_| {
+            DecodeError::new(
+                DecodeErrorKind::AllocationFailed,
+                None,
+                "cannot grow VP8 incremental RGBA output",
+            )
+        })?;
+        let uv_width = width.checked_add(1).ok_or_else(allocation_size_error)? / 2;
+        let uv_height = height.checked_add(1).ok_or_else(allocation_size_error)? / 2;
+        let chroma = ChromaSamplingGeometry {
+            uv_width,
+            uv_height,
+            width,
+            height,
+        };
+        for y in start..end {
+            let y_row = y * self.y_stride;
+            for x in 0..width {
+                let [red, green, blue] = vp8_yuv_to_rgb(
+                    self.y[y_row + x],
+                    fancy_chroma_sample(&self.u, self.uv_stride, chroma, x, y),
+                    fancy_chroma_sample(&self.v, self.uv_stride, chroma, x, y),
+                );
+                rgba.extend_from_slice(&[red, green, blue, 255]);
+            }
+        }
+        Ok(())
+    }
+
     pub(crate) fn new(frame: &Vp8Header, limits: &DecodeLimits) -> Result<Self, DecodeError> {
         let (macroblock_width, macroblock_height) = macroblock_dimensions(frame)?;
         let y_stride = macroblock_width.checked_mul(16).ok_or_else(|| {

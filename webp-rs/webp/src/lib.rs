@@ -85,6 +85,8 @@ pub use api::DecodeOptions;
 pub use api::Image;
 #[cfg(feature = "decode")]
 pub use api::ImageInfo;
+#[cfg(feature = "decode")]
+pub use api::IncrementalImage;
 #[cfg(feature = "encode")]
 pub use api::LosslessEncodeOptions;
 #[cfg(feature = "encode")]

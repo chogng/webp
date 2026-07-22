@@ -16,6 +16,11 @@ encoding; performance work remains deliberately deferred.
   are connected to the static VP8L public pixel decoder.
 - VP8 key frames decode through bounded entropy, reconstruction, loop
   filtering, and YUV-to-RGBA conversion.
+- Static incremental decoding scans RIFF framing once, exposes early image
+  information and stable RGBA row prefixes, and resumes VP8 token decoding at
+  saved macroblock boundaries. See
+  [`docs/incremental-decoding.md`](docs/incremental-decoding.md) for the API and
+  the current VP8L chunk-level boundary.
 - The private `webp::alpha` owner implements complete `ALPH` payload encoding and decoding: raw and
   headerless-VP8L compression, fixed/fast/best spatial-filter selection,
   quality-driven level reduction, compressed-size comparison with raw

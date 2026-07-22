@@ -37,8 +37,10 @@ used by the public decoder test. `animation_raw` always gets a minimal valid
 is present. The script only adds or refreshes files it owns; it does not delete
 findings from a local fuzz corpus.
 
-`container_raw` exercises metadata container parsing, `incremental_raw` varies
-chunk boundaries for the public incremental state machine, and `animation_raw`
+`container_raw` exercises metadata container parsing. `incremental_raw` varies
+chunk boundaries for the public incremental state machine, checks monotonic
+row-prefix shape, and requires accepted images to equal one-shot decode. It
+also exercises errors returned during `push`, not only `finish`. `animation_raw`
 drives the complete public animation path through `ANIM`/`ANMF` parsing,
 frame decoding, and canvas composition under tight limits.  Then
 `vp8l_header_raw` reaches VP8L header validation through `read_info`.

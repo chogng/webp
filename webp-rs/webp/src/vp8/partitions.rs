@@ -9,6 +9,7 @@ use crate::DecodeErrorKind;
 use crate::DecodeLimits;
 
 use crate::vp8::BoolDecoder;
+use crate::vp8::BoolDecoderState;
 use crate::vp8::CoefficientProbabilities;
 use crate::vp8::QuantizationHeader;
 use crate::vp8::coefficients::COEFFICIENT_UPDATE_PROBABILITIES;
@@ -76,6 +77,142 @@ pub struct PartitionLayout<'a> {
     pub tokens: Vec<TokenPartition<'a>>,
 }
 
+#[derive(Clone, Debug)]
+pub(crate) struct IncrementalPartitionLayout {
+    pub header: FirstPartitionHeader,
+    pub first_partition: std::ops::Range<usize>,
+    pub tokens: Vec<std::ops::Range<usize>>,
+    pub mode_state: BoolDecoderState,
+}
+
+/// Parses the immutable VP8 control partition and token size table without
+/// requiring every token byte to have arrived yet.
+pub(crate) fn parse_incremental_partition_layout(
+    payload: &[u8],
+    frame: &Vp8Header,
+    declared_payload_len: usize,
+    limits: &DecodeLimits,
+) -> Result<IncrementalPartitionLayout, DecodeError> {
+    limits.check_input_len(declared_payload_len)?;
+    let first_partition_end = KEY_FRAME_HEADER_LEN
+        .checked_add(frame.first_partition_len)
+        .ok_or_else(|| {
+            DecodeError::at(
+                DecodeErrorKind::InvalidBitstream,
+                FRAME_TAG_LEN,
+                "VP8 first partition end overflows",
+            )
+        })?;
+    if first_partition_end > declared_payload_len {
+        return Err(DecodeError::at(
+            DecodeErrorKind::InvalidBitstream,
+            FRAME_TAG_LEN,
+            "VP8 first partition is outside declared payload",
+        ));
+    }
+    if first_partition_end > payload.len() {
+        return Err(DecodeError::at(
+            DecodeErrorKind::UnexpectedEof,
+            payload.len(),
+            "VP8 first partition is not available yet",
+        ));
+    }
+
+    let first_partition = KEY_FRAME_HEADER_LEN..first_partition_end;
+    let mut bits = BoolDecoder::new(&payload[first_partition.clone()], limits)?;
+    let header = parse_first_partition_header(&mut bits)?;
+    let size_table_len = 3_usize * (usize::from(header.token_partition_count) - 1);
+    let token_data_start = first_partition_end
+        .checked_add(size_table_len)
+        .ok_or_else(|| {
+            DecodeError::at(
+                DecodeErrorKind::InvalidBitstream,
+                first_partition_end,
+                "VP8 token-partition table end overflows",
+            )
+        })?;
+    if token_data_start >= declared_payload_len {
+        return Err(DecodeError::at(
+            DecodeErrorKind::InvalidBitstream,
+            first_partition_end,
+            "truncated VP8 token-partition size table or final partition",
+        ));
+    }
+    if token_data_start > payload.len() {
+        return Err(DecodeError::at(
+            DecodeErrorKind::UnexpectedEof,
+            payload.len(),
+            "VP8 token-partition size table is not available yet",
+        ));
+    }
+
+    let mut tokens = Vec::new();
+    tokens
+        .try_reserve_exact(usize::from(header.token_partition_count))
+        .map_err(|_| {
+            DecodeError::at(
+                DecodeErrorKind::AllocationFailed,
+                first_partition_end,
+                "cannot allocate VP8 token partition layout",
+            )
+        })?;
+    let mut table_offset = first_partition_end;
+    let mut data_offset = token_data_start;
+    for _ in 1..header.token_partition_count {
+        let size = usize::from(payload[table_offset])
+            | (usize::from(payload[table_offset + 1]) << 8)
+            | (usize::from(payload[table_offset + 2]) << 16);
+        table_offset += 3;
+        let end = data_offset.checked_add(size).ok_or_else(|| {
+            DecodeError::at(
+                DecodeErrorKind::InvalidBitstream,
+                data_offset,
+                "VP8 token partition end overflows",
+            )
+        })?;
+        if end > declared_payload_len {
+            return Err(DecodeError::at(
+                DecodeErrorKind::InvalidBitstream,
+                data_offset,
+                "VP8 token partition exceeds declared payload",
+            ));
+        }
+        tokens.push(data_offset..end);
+        data_offset = end;
+    }
+    tokens.push(data_offset..declared_payload_len);
+
+    Ok(IncrementalPartitionLayout {
+        header,
+        first_partition,
+        tokens,
+        mode_state: bits.state(),
+    })
+}
+
+fn parse_first_partition_header(
+    bits: &mut BoolDecoder<'_>,
+) -> Result<FirstPartitionHeader, DecodeError> {
+    let colorspace_reserved = bits.read_bool(128)?;
+    let clamp_type = bits.read_bool(128)?;
+    let segments = parse_segment_header(bits)?;
+    let filter = parse_filter_header(bits)?;
+    let token_partition_count = 1_u8 << bits.read_literal(2)?;
+    let quantization = parse_quantization_header(bits)?;
+    let refresh_entropy_probabilities = bits.read_bool(128)?;
+    let coefficients = parse_coefficient_probabilities(bits)?;
+    Ok(FirstPartitionHeader {
+        colorspace_reserved,
+        clamp_type,
+        segments,
+        filter,
+        token_partition_count,
+        quantization,
+        refresh_entropy_probabilities,
+        coefficients,
+    })
+}
+
 /// Parses the VP8 first-partition prefix and safely partitions token data.
 ///
 /// The supplied [`Vp8Header`] must have been parsed from the same payload. No
@@ -119,16 +256,9 @@ pub(crate) fn parse_partition_layout_with_mode_decoder<'a>(
     }
 
     let mut bits = BoolDecoder::new(&payload[KEY_FRAME_HEADER_LEN..first_partition_end], limits)?;
-    let colorspace_reserved = bits.read_bool(128)?;
-    let clamp_type = bits.read_bool(128)?;
-    let segments = parse_segment_header(&mut bits)?;
-    let filter = parse_filter_header(&mut bits)?;
-    let token_partition_count = 1_u8 << bits.read_literal(2)?;
-    let quantization = parse_quantization_header(&mut bits)?;
-    let refresh_entropy_probabilities = bits.read_bool(128)?;
-    let coefficients = parse_coefficient_probabilities(&mut bits)?;
+    let header = parse_first_partition_header(&mut bits)?;
 
-    let size_table_len = 3_usize * (usize::from(token_partition_count) - 1);
+    let size_table_len = 3_usize * (usize::from(header.token_partition_count) - 1);
     let token_data_start = first_partition_end
         .checked_add(size_table_len)
         .ok_or_else(|| {
@@ -146,10 +276,10 @@ pub(crate) fn parse_partition_layout_with_mode_decoder<'a>(
         ));
     }
 
-    let mut tokens = Vec::with_capacity(usize::from(token_partition_count));
+    let mut tokens = Vec::with_capacity(usize::from(header.token_partition_count));
     let mut table_offset = first_partition_end;
     let mut data_offset = token_data_start;
-    for _ in 1..token_partition_count {
+    for _ in 1..header.token_partition_count {
         let size = usize::from(payload[table_offset])
             | (usize::from(payload[table_offset + 1]) << 8)
             | (usize::from(payload[table_offset + 2]) << 16);
@@ -179,22 +309,7 @@ pub(crate) fn parse_partition_layout_with_mode_decoder<'a>(
         offset: data_offset,
     });
 
-    Ok((
-        PartitionLayout {
-            header: FirstPartitionHeader {
-                colorspace_reserved,
-                clamp_type,
-                segments,
-                filter,
-                token_partition_count,
-                quantization,
-                refresh_entropy_probabilities,
-                coefficients,
-            },
-            tokens,
-        },
-        bits,
-    ))
+    Ok((PartitionLayout { header, tokens }, bits))
 }
 
 fn parse_segment_header(bits: &mut BoolDecoder<'_>) -> Result<SegmentHeader, DecodeError> {
@@ -341,7 +456,16 @@ pub fn parse_riff_payload(
     canvas: Option<(u32, u32)>,
     limits: &DecodeLimits,
 ) -> Result<Vp8Header, DecodeError> {
-    limits.check_input_len(payload.len())?;
+    parse_riff_payload_prefix(payload, payload.len(), canvas, limits)
+}
+
+pub(crate) fn parse_riff_payload_prefix(
+    payload: &[u8],
+    declared_payload_len: usize,
+    canvas: Option<(u32, u32)>,
+    limits: &DecodeLimits,
+) -> Result<Vp8Header, DecodeError> {
+    limits.check_input_len(declared_payload_len)?;
     if payload.len() < KEY_FRAME_HEADER_LEN {
         return Err(DecodeError::at(
             DecodeErrorKind::UnexpectedEof,
@@ -382,7 +506,7 @@ pub fn parse_riff_payload(
             "VP8 first partition length does not fit usize",
         )
     })?;
-    if first_partition_len > payload.len() - KEY_FRAME_HEADER_LEN {
+    if first_partition_len > declared_payload_len.saturating_sub(KEY_FRAME_HEADER_LEN) {
         return Err(DecodeError::at(
             DecodeErrorKind::UnexpectedEof,
             FRAME_TAG_LEN,

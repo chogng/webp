@@ -135,18 +135,56 @@ pub struct BoolDecoder<'a> {
     work: WorkBudget,
 }
 
-impl<'a> BoolDecoder<'a> {
-    /// Creates a decoder over one already-bounded VP8 partition.
-    pub fn new(data: &'a [u8], limits: &DecodeLimits) -> Result<Self, DecodeError> {
-        limits.check_input_len(data.len())?;
-        Ok(Self {
-            data,
+/// Owned arithmetic state used to suspend a decoder while its backing slice
+/// grows. The byte slice itself deliberately remains with the caller so an
+/// append cannot invalidate a self-reference.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct BoolDecoderState {
+    byte_position: usize,
+    value: u64,
+    range: u32,
+    bits: i32,
+    work: WorkBudget,
+}
+
+impl BoolDecoderState {
+    pub(crate) fn new(limits: &DecodeLimits) -> Self {
+        Self {
             byte_position: 0,
             value: 0,
             range: 254,
             bits: -8,
             work: limits.work_budget(),
-        })
+        }
+    }
+}
+
+impl<'a> BoolDecoder<'a> {
+    /// Creates a decoder over one already-bounded VP8 partition.
+    pub fn new(data: &'a [u8], limits: &DecodeLimits) -> Result<Self, DecodeError> {
+        limits.check_input_len(data.len())?;
+        Ok(Self::from_state(data, BoolDecoderState::new(limits)))
+    }
+
+    pub(crate) fn from_state(data: &'a [u8], state: BoolDecoderState) -> Self {
+        Self {
+            data,
+            byte_position: state.byte_position,
+            value: state.value,
+            range: state.range,
+            bits: state.bits,
+            work: state.work,
+        }
+    }
+
+    pub(crate) const fn state(&self) -> BoolDecoderState {
+        BoolDecoderState {
+            byte_position: self.byte_position,
+            value: self.value,
+            range: self.range,
+            bits: self.bits,
+            work: self.work,
+        }
     }
 
     /// Decodes one boolean value with the supplied VP8 probability.
