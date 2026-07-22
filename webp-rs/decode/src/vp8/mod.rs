@@ -3,9 +3,6 @@
 
 mod bool_coder;
 mod coefficients;
-#[cfg(feature = "encode")]
-mod frame_writer;
-
 mod frame_reader;
 #[cfg(feature = "fuzzing")]
 pub(crate) mod fuzzing;
@@ -17,13 +14,17 @@ mod reconstruction;
 mod row_decoder;
 #[cfg(test)]
 mod test_support;
-#[cfg(feature = "encode")]
-mod yuv_image;
 
 pub use bool_coder::BoolDecoder;
 pub(crate) use bool_coder::BoolDecoderState;
 pub use bool_coder::BoolEncodeError;
 pub use bool_coder::BoolEncoder;
+#[cfg(feature = "encode")]
+pub use coefficients::COEFFICIENT_BANDS;
+#[cfg(feature = "encode")]
+pub use coefficients::COEFFICIENT_DEFAULTS;
+#[cfg(feature = "encode")]
+pub use coefficients::COEFFICIENT_UPDATE_PROBABILITIES;
 pub use coefficients::COEFFICIENT_ZIGZAG;
 pub use coefficients::CoefficientBlockType;
 #[cfg(feature = "encode")]
@@ -36,22 +37,10 @@ pub use coefficients::decode_coefficients;
 pub use coefficients::decode_intra_residuals;
 #[cfg(feature = "encode")]
 pub use coefficients::encode_coefficients;
+#[cfg(feature = "encode")]
+pub use coefficients::encode_coefficients_observed;
 pub use frame_reader::Vp8YuvImage;
 pub use frame_reader::decode_intra_frame;
-#[cfg(feature = "encode")]
-pub use frame_writer::Vp8DcMacroblockCoefficients;
-#[cfg(feature = "encode")]
-pub use frame_writer::Vp8EncodeError;
-#[cfg(feature = "encode")]
-pub use frame_writer::encode_dc_predicted_key_frame_with_quantizer;
-#[cfg(feature = "encode")]
-pub use frame_writer::encode_dc_predicted_macroblock_key_frame;
-#[cfg(feature = "encode")]
-pub use frame_writer::encode_dc_predicted_macroblock_key_frame_with_quantizer;
-#[cfg(feature = "encode")]
-pub use frame_writer::encode_neutral_key_frame;
-#[cfg(feature = "encode")]
-pub use frame_writer::quantize_dc_macroblock;
 pub use intra_prediction::ChromaMode;
 pub use intra_prediction::Intra4Mode;
 pub use intra_prediction::Intra16Mode;
@@ -90,6 +79,10 @@ pub use reconstruction::predict_intra4_block;
 pub use reconstruction::predict_intra4_macroblock;
 pub use reconstruction::predict_intra16_macroblock;
 pub use reconstruction::reconstruct_intra_macroblock;
+#[cfg(feature = "encode")]
+pub use reconstruction::reconstruct_intra16_chroma;
+#[cfg(feature = "encode")]
+pub use reconstruction::reconstruct_intra16_luma;
 pub(crate) use row_decoder::IncrementalVp8Decoder;
 #[cfg(feature = "encode")]
 pub use webp_dsp::forward_dct_4x4;
@@ -103,7 +96,3 @@ pub use webp_dsp::inverse_dct_4x4;
 pub use webp_dsp::inverse_dct_4x4_i32;
 pub use webp_dsp::inverse_wht_4x4;
 pub use webp_dsp::inverse_wht_4x4_i32;
-#[cfg(feature = "encode")]
-pub use yuv_image::Vp8SourceYuv;
-#[cfg(feature = "encode")]
-pub use yuv_image::rgba_to_yuv420;

@@ -166,7 +166,6 @@ dependencies = [
  "webp-demux",
  "webp-dsp",
  "webp-mux",
- "webp-sharpyuv",
  "webp-utils",
 ]
 
@@ -189,7 +188,9 @@ dependencies = [
  "webp-container",
  "webp-decode",
  "webp-demux",
+ "webp-dsp",
  "webp-mux",
+ "webp-sharpyuv",
  "webp-utils",
 ]
 

@@ -24,5 +24,4 @@ webp-container = { path = "../container" }
 webp-demux = { path = "../demux" }
 webp-dsp = { path = "../dsp" }
 webp-mux = { path = "../mux" }
-webp-sharpyuv = { path = "../sharpyuv" }
 webp-utils = { path = "../utils" }

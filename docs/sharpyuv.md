@@ -1,7 +1,7 @@
 # VP8 SharpYUV contract
 
 The VP8 encoder has one RGB-to-YUV420 production path: the private scalar
-SharpYUV implementation in `webp::vp8`. The previous 2x2 box sampler is not
+SharpYUV implementation in `webp-encode::vp8`. The previous 2x2 box sampler is not
 retained as a compatibility profile, fallback, or hidden option. Public lossy
 options therefore continue to describe encoder quality only; they do not expose
 two competing color-conversion states.

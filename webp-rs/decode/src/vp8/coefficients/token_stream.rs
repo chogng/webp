@@ -34,11 +34,30 @@ impl Default for CoefficientProbabilities {
 }
 
 impl CoefficientProbabilities {
+    /// Returns the complete canonical probability table.
+    #[must_use]
+    pub fn values(&self) -> &[[[[u8; 11]; 3]; 8]; 4] {
+        &self.values
+    }
+
     /// Reads one canonical probability by coefficient type, band, context, and
     /// tree node. All indices are specification-bounded: `4 × 8 × 3 × 11`.
     #[must_use]
     pub fn get(&self, coefficient_type: usize, band: usize, context: usize, node: usize) -> u8 {
         self.values[coefficient_type][band][context][node]
+    }
+
+    /// Updates one canonical probability by coefficient type, band, context,
+    /// and tree node. All indices are specification-bounded: `4 × 8 × 3 × 11`.
+    pub fn set(
+        &mut self,
+        coefficient_type: usize,
+        band: usize,
+        context: usize,
+        node: usize,
+        value: u8,
+    ) {
+        self.values[coefficient_type][band][context][node] = value;
     }
 
     pub(crate) fn nodes(
@@ -123,7 +142,7 @@ pub fn encode_coefficients(
     )
 }
 
-pub(crate) fn encode_coefficients_observed(
+pub fn encode_coefficients_observed(
     bits: &mut BoolEncoder,
     probabilities: &CoefficientProbabilities,
     coefficient_type: CoefficientBlockType,

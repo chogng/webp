@@ -4,7 +4,7 @@ mod probabilities;
 mod token_stream;
 
 pub(crate) use probabilities::CATEGORY_PROBABILITIES;
-pub(crate) use probabilities::COEFFICIENT_BANDS;
+pub use probabilities::COEFFICIENT_BANDS;
 pub use probabilities::COEFFICIENT_DEFAULTS;
 pub use probabilities::COEFFICIENT_UPDATE_PROBABILITIES;
 pub use probabilities::COEFFICIENT_ZIGZAG;
@@ -17,4 +17,4 @@ pub use token_stream::ResidualContext;
 pub use token_stream::decode_coefficients;
 pub use token_stream::decode_intra_residuals;
 pub use token_stream::encode_coefficients;
-pub(crate) use token_stream::encode_coefficients_observed;
+pub use token_stream::encode_coefficients_observed;

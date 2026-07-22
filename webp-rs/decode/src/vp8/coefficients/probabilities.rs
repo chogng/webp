@@ -7,8 +7,7 @@
 /// VP8's coefficient scan order, mapping entropy positions to raster indexes.
 pub const COEFFICIENT_ZIGZAG: [usize; 16] = [0, 1, 4, 8, 5, 2, 3, 6, 9, 12, 13, 10, 7, 11, 14, 15];
 
-pub(crate) const COEFFICIENT_BANDS: [usize; 17] =
-    [0, 1, 2, 3, 6, 4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 7, 0];
+pub const COEFFICIENT_BANDS: [usize; 17] = [0, 1, 2, 3, 6, 4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 7, 0];
 
 pub(crate) const CATEGORY_PROBABILITIES: [&[u8]; 4] = [
     &[173, 148, 140],

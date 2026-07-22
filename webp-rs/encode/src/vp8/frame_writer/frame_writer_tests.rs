@@ -1,7 +1,8 @@
 use super::*;
-use crate::DecodeLimits;
-use crate::vp8::decode_intra_frame;
-use crate::vp8::parse_riff_payload;
+use webp_decode::DecodeLimits;
+use webp_decode::vp8_codec;
+use webp_decode::vp8_codec::decode_intra_frame;
+use webp_decode::vp8_codec::parse_riff_payload;
 
 #[test]
 fn neutral_key_frames_parse_and_decode_at_visible_edge_sizes() {
@@ -47,8 +48,8 @@ fn rgba_to_yuv420_pads_visible_edges_to_whole_macroblocks() {
 
 #[test]
 fn dc_macroblock_quantization_routes_luma_dc_through_y2() {
-    let matrix = crate::vp8::derive_dequantization(
-        crate::vp8::QuantizationHeader {
+    let matrix = webp_decode::vp8_codec::derive_dequantization(
+        webp_decode::vp8_codec::QuantizationHeader {
             base_index: 0,
             y1_dc_delta: 0,
             y2_dc_delta: 0,
@@ -56,7 +57,7 @@ fn dc_macroblock_quantization_routes_luma_dc_through_y2() {
             uv_dc_delta: 0,
             uv_ac_delta: 0,
         },
-        &crate::vp8::SegmentHeader {
+        &webp_decode::vp8_codec::SegmentHeader {
             enabled: false,
             update_map: false,
             absolute_delta: false,
@@ -84,8 +85,8 @@ fn dc_macroblock_quantization_routes_luma_dc_through_y2() {
 
 #[test]
 fn dc_macroblock_quantization_rejects_short_planes() {
-    let matrix = crate::vp8::derive_dequantization(
-        crate::vp8::QuantizationHeader {
+    let matrix = webp_decode::vp8_codec::derive_dequantization(
+        webp_decode::vp8_codec::QuantizationHeader {
             base_index: 0,
             y1_dc_delta: 0,
             y2_dc_delta: 0,
@@ -93,7 +94,7 @@ fn dc_macroblock_quantization_rejects_short_planes() {
             uv_dc_delta: 0,
             uv_ac_delta: 0,
         },
-        &crate::vp8::SegmentHeader {
+        &webp_decode::vp8_codec::SegmentHeader {
             enabled: false,
             update_map: false,
             absolute_delta: false,
@@ -188,7 +189,7 @@ fn zero_residual_frames_select_macroblock_skip_when_it_is_smaller() {
     let encoded = encode_dc_predicted_key_frame_with_quantizer(&source, 127).unwrap();
     let header = parse_riff_payload(&encoded, None, &DecodeLimits::default()).unwrap();
     let layout =
-        crate::vp8::parse_partition_layout(&encoded, &header, &DecodeLimits::default()).unwrap();
+        vp8_codec::parse_partition_layout(&encoded, &header, &DecodeLimits::default()).unwrap();
     assert!(layout.header.coefficients.use_skip_probability);
     let decoded = decode_intra_frame(&encoded, &header, &DecodeLimits::default()).unwrap();
     assert!(decoded.y.iter().all(|&sample| sample == 128));
@@ -223,9 +224,10 @@ fn repeated_coefficient_events_select_frame_probability_updates() {
     let encoded = encode_dc_predicted_key_frame_with_quantizer(&source, 75).unwrap();
     let header = parse_riff_payload(&encoded, None, &DecodeLimits::default()).unwrap();
     let layout =
-        crate::vp8::parse_partition_layout(&encoded, &header, &DecodeLimits::default()).unwrap();
+        vp8_codec::parse_partition_layout(&encoded, &header, &DecodeLimits::default()).unwrap();
     assert_ne!(
-        layout.header.coefficients.values, COEFFICIENT_DEFAULTS,
+        layout.header.coefficients.values(),
+        &COEFFICIENT_DEFAULTS,
         "a repeated non-zero token distribution should amortize frame updates"
     );
     let decoded = decode_intra_frame(&encoded, &header, &DecodeLimits::default()).unwrap();
@@ -234,8 +236,8 @@ fn repeated_coefficient_events_select_frame_probability_updates() {
 
 #[test]
 fn intra16_selector_uses_vertical_prediction_when_top_edge_matches_source() {
-    let matrix = crate::vp8::derive_dequantization(
-        crate::vp8::QuantizationHeader {
+    let matrix = vp8_codec::derive_dequantization(
+        vp8_codec::QuantizationHeader {
             base_index: 0,
             y1_dc_delta: 0,
             y2_dc_delta: 0,
@@ -243,7 +245,7 @@ fn intra16_selector_uses_vertical_prediction_when_top_edge_matches_source() {
             uv_dc_delta: 0,
             uv_ac_delta: 0,
         },
-        &crate::vp8::SegmentHeader {
+        &vp8_codec::SegmentHeader {
             enabled: false,
             update_map: false,
             absolute_delta: false,
@@ -261,17 +263,17 @@ fn intra16_selector_uses_vertical_prediction_when_top_edge_matches_source() {
         &[128; 64],
         8,
         matrix,
-        crate::vp8::MacroblockPredictionEdges {
+        vp8_codec::MacroblockPredictionEdges {
             top_y: Some(top_y),
             top_u: Some([128; 8]),
             top_v: Some([128; 8]),
-            ..crate::vp8::MacroblockPredictionEdges::default()
+            ..vp8_codec::MacroblockPredictionEdges::default()
         },
     )
     .unwrap();
     assert_eq!(
         block.luma,
-        crate::vp8::LumaMode::Sixteen(crate::vp8::Intra16Mode::Vertical)
+        vp8_codec::LumaMode::Sixteen(vp8_codec::Intra16Mode::Vertical)
     );
     assert!(coefficients.y2.iter().all(|&value| value == 0));
     assert!(coefficients.luma.iter().flatten().all(|&value| value == 0));
@@ -279,8 +281,8 @@ fn intra16_selector_uses_vertical_prediction_when_top_edge_matches_source() {
 
 #[test]
 fn factored_intra16_search_matches_exhaustive_mode_pairs() {
-    let matrix = crate::vp8::derive_dequantization(
-        crate::vp8::QuantizationHeader {
+    let matrix = vp8_codec::derive_dequantization(
+        vp8_codec::QuantizationHeader {
             base_index: 37,
             y1_dc_delta: 0,
             y2_dc_delta: 0,
@@ -288,7 +290,7 @@ fn factored_intra16_search_matches_exhaustive_mode_pairs() {
             uv_dc_delta: 0,
             uv_ac_delta: 0,
         },
-        &crate::vp8::SegmentHeader {
+        &vp8_codec::SegmentHeader {
             enabled: false,
             update_map: false,
             absolute_delta: false,
@@ -304,7 +306,7 @@ fn factored_intra16_search_matches_exhaustive_mode_pairs() {
     });
     let u: [u8; 64] = std::array::from_fn(|index| (index * 13 + 41) as u8);
     let v: [u8; 64] = std::array::from_fn(|index| (index * 17 + 19) as u8);
-    let edges = crate::vp8::MacroblockPredictionEdges {
+    let edges = vp8_codec::MacroblockPredictionEdges {
         top_y: Some(std::array::from_fn(|index| 31 + index as u8 * 9)),
         left_y: Some(std::array::from_fn(|index| {
             211_u8.wrapping_sub(index as u8 * 5)
@@ -320,7 +322,7 @@ fn factored_intra16_search_matches_exhaustive_mode_pairs() {
             203_u8.wrapping_sub(index as u8 * 9)
         })),
         top_left_v: 89,
-        ..crate::vp8::MacroblockPredictionEdges::default()
+        ..vp8_codec::MacroblockPredictionEdges::default()
     };
     let factored = select_intra16_macroblock(&y, 16, &u, &v, 8, matrix, edges).unwrap();
     let exhaustive = exhaustive_intra16_search(&y, &u, &v, matrix, edges);
@@ -331,30 +333,30 @@ fn exhaustive_intra16_search(
     y: &[u8; 256],
     u: &[u8; 64],
     v: &[u8; 64],
-    matrix: crate::vp8::DequantizationMatrix,
-    edges: crate::vp8::MacroblockPredictionEdges,
+    matrix: vp8_codec::DequantizationMatrix,
+    edges: vp8_codec::MacroblockPredictionEdges,
 ) -> (
     IntraMacroblock,
     Vp8DcMacroblockCoefficients,
-    crate::vp8::MacroblockPixels,
+    vp8_codec::MacroblockPixels,
 ) {
     let mut best = None;
     for luma_mode in [
-        crate::vp8::Intra16Mode::Dc,
-        crate::vp8::Intra16Mode::Vertical,
-        crate::vp8::Intra16Mode::Horizontal,
-        crate::vp8::Intra16Mode::TrueMotion,
+        vp8_codec::Intra16Mode::Dc,
+        vp8_codec::Intra16Mode::Vertical,
+        vp8_codec::Intra16Mode::Horizontal,
+        vp8_codec::Intra16Mode::TrueMotion,
     ] {
         for chroma_mode in [
-            crate::vp8::ChromaMode::Dc,
-            crate::vp8::ChromaMode::Vertical,
-            crate::vp8::ChromaMode::Horizontal,
-            crate::vp8::ChromaMode::TrueMotion,
+            vp8_codec::ChromaMode::Dc,
+            vp8_codec::ChromaMode::Vertical,
+            vp8_codec::ChromaMode::Horizontal,
+            vp8_codec::ChromaMode::TrueMotion,
         ] {
             let block = IntraMacroblock {
                 segment: 0,
                 skip: false,
-                luma: crate::vp8::LumaMode::Sixteen(luma_mode),
+                luma: vp8_codec::LumaMode::Sixteen(luma_mode),
                 chroma: chroma_mode,
             };
             let prediction = predict_intra16_macroblock(luma_mode, chroma_mode, edges);

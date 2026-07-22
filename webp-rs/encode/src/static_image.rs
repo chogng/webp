@@ -5,6 +5,7 @@ use crate::LosslessEncodeOptions;
 use crate::LosslessEncodeProfile;
 use crate::LossyEncodeOptions;
 use crate::Metadata;
+use crate::vp8;
 use crate::vp8l;
 #[cfg(test)]
 use crate::vp8l::COLOR_TRANSFORM_BLOCK_BITS;
@@ -22,7 +23,6 @@ use crate::vp8l::select_color_transform;
 use crate::vp8l::select_left_predictor;
 #[cfg(test)]
 use crate::vp8l::try_make_palette_plan;
-use webp_decode::encode_support;
 
 /// Encodes a static RGBA8 image as a lossless WebP file.
 ///
@@ -140,11 +140,10 @@ pub fn encode_lossy_rgba_with_alpha_options(
     } else {
         None
     };
-    let source =
-        encode_support::rgba_to_yuv420(width, height, rgba).map_err(map_vp8_encode_error)?;
+    let source = vp8::rgba_to_yuv420(width, height, rgba).map_err(map_vp8_encode_error)?;
     let quantizer = u8::try_from((u16::from(100 - options.quality) * 127) / 100)
         .map_err(|_| EncodeError::invalid_quality())?;
-    let payload = encode_support::encode_dc_predicted_key_frame_with_quantizer(&source, quantizer)
+    let payload = vp8::encode_dc_predicted_key_frame_with_quantizer(&source, quantizer)
         .map_err(map_vp8_encode_error)?;
     wrap_vp8(payload, width, height, alpha, alpha_options)
 }
@@ -238,16 +237,14 @@ fn wrap_vp8(
         .map_err(map_container_error)
 }
 
-fn map_vp8_encode_error(error: encode_support::Vp8EncodeError) -> EncodeError {
+fn map_vp8_encode_error(error: vp8::Vp8EncodeError) -> EncodeError {
     match error {
-        encode_support::Vp8EncodeError::InvalidDimensions => EncodeError::invalid_dimensions(),
-        encode_support::Vp8EncodeError::InvalidRgbaLength => EncodeError::invalid_rgba_length(),
-        encode_support::Vp8EncodeError::AllocationFailed => EncodeError::allocation_failed(),
-        encode_support::Vp8EncodeError::FirstPartitionTooLarge
-        | encode_support::Vp8EncodeError::InvalidPlaneLayout
-        | encode_support::Vp8EncodeError::InvalidQuantizer => {
-            EncodeError::unsupported_lossy_profile()
-        }
+        vp8::Vp8EncodeError::InvalidDimensions => EncodeError::invalid_dimensions(),
+        vp8::Vp8EncodeError::InvalidRgbaLength => EncodeError::invalid_rgba_length(),
+        vp8::Vp8EncodeError::AllocationFailed => EncodeError::allocation_failed(),
+        vp8::Vp8EncodeError::FirstPartitionTooLarge
+        | vp8::Vp8EncodeError::InvalidPlaneLayout
+        | vp8::Vp8EncodeError::InvalidQuantizer => EncodeError::unsupported_lossy_profile(),
     }
 }
 

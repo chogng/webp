@@ -110,14 +110,43 @@ pub fn decode_animation(data: &[u8], options: &DecodeOptions) -> Result<Animatio
     animated_image::decode_animation(data, options)
 }
 
-/// Unstable implementation hooks consumed by the direction-specific encoder.
+/// Unstable VP8 primitives temporarily shared by the reader and writer.
 ///
-/// This module is not part of the compatibility API. It exists while shared
-/// codec primitives are split from their reader and writer orchestration.
+/// Frame writing and RGB-to-YUV conversion are owned by `webp-encode`. This
+/// module contains only codec algorithms that still need a dedicated shared
+/// home while the VP8 reader is separated further. It is not a compatibility
+/// API and may change without notice.
 #[cfg(feature = "encode")]
 #[doc(hidden)]
-pub mod encode_support {
-    pub use crate::vp8::Vp8EncodeError;
-    pub use crate::vp8::encode_dc_predicted_key_frame_with_quantizer;
-    pub use crate::vp8::rgba_to_yuv420;
+pub mod vp8_codec {
+    pub use crate::vp8::BoolEncodeError;
+    pub use crate::vp8::BoolEncoder;
+    pub use crate::vp8::COEFFICIENT_BANDS;
+    pub use crate::vp8::COEFFICIENT_DEFAULTS;
+    pub use crate::vp8::COEFFICIENT_UPDATE_PROBABILITIES;
+    pub use crate::vp8::ChromaMode;
+    pub use crate::vp8::CoefficientBlockType;
+    pub use crate::vp8::CoefficientEncodeError;
+    pub use crate::vp8::CoefficientProbabilities;
+    pub use crate::vp8::DecodedCoefficients;
+    pub use crate::vp8::DequantizationMatrix;
+    pub use crate::vp8::Intra16Mode;
+    pub use crate::vp8::IntraMacroblock;
+    pub use crate::vp8::LumaMode;
+    pub use crate::vp8::MacroblockPixels;
+    pub use crate::vp8::MacroblockPredictionEdges;
+    pub use crate::vp8::MacroblockResiduals;
+    pub use crate::vp8::QuantizationHeader;
+    pub use crate::vp8::SegmentHeader;
+    pub use crate::vp8::decode_intra_frame;
+    pub use crate::vp8::derive_dequantization;
+    pub use crate::vp8::encode_coefficients;
+    pub use crate::vp8::encode_coefficients_observed;
+    pub use crate::vp8::parse_partition_layout;
+    pub use crate::vp8::parse_riff_payload;
+    pub use crate::vp8::predict_intra16_macroblock;
+    pub use crate::vp8::quantize_block;
+    pub use crate::vp8::reconstruct_intra_macroblock;
+    pub use crate::vp8::reconstruct_intra16_chroma;
+    pub use crate::vp8::reconstruct_intra16_luma;
 }

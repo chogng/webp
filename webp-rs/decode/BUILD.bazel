@@ -6,7 +6,7 @@ webp_rust_crate(
     crate_name = "webp_decode",
     rustc_flags = [
         '--cfg=feature="decode"',
-        # The encoding crate consumes decode's temporary private writer bridge.
+        # The encoding crate consumes temporary shared VP8 codec primitives.
         '--cfg=feature="encode"',
         '--cfg=feature="animation"',
     ],

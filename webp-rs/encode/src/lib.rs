@@ -9,6 +9,7 @@ mod animation;
 mod error;
 mod options;
 mod static_image;
+mod vp8;
 mod vp8l;
 
 pub use alpha::AlphaEncodeError;

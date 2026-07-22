@@ -5,36 +5,39 @@
 //! public RGB(A) lossy encoder: RGB-to-YUV, transform/quantization and
 //! coefficient selection build on this verified partition layout.
 
-use crate::vp8::BoolEncodeError;
-use crate::vp8::BoolEncoder;
-use crate::vp8::ChromaMode;
-use crate::vp8::CoefficientBlockType;
-use crate::vp8::CoefficientEncodeError;
-use crate::vp8::CoefficientProbabilities;
-use crate::vp8::DecodedCoefficients;
-use crate::vp8::DequantizationMatrix;
-use crate::vp8::Intra16Mode;
-use crate::vp8::IntraMacroblock;
-use crate::vp8::LumaMode;
-use crate::vp8::MacroblockResiduals;
-use crate::vp8::QuantizationHeader;
-use crate::vp8::SegmentHeader;
 use crate::vp8::Vp8SourceYuv;
-use crate::vp8::Vp8YuvImage;
-use crate::vp8::coefficients::COEFFICIENT_BANDS;
-use crate::vp8::coefficients::COEFFICIENT_DEFAULTS;
-use crate::vp8::coefficients::COEFFICIENT_UPDATE_PROBABILITIES;
-use crate::vp8::coefficients::encode_coefficients_observed;
-use crate::vp8::derive_dequantization;
-use crate::vp8::encode_coefficients;
-use crate::vp8::forward_dct_4x4_i32;
-use crate::vp8::forward_wht_4x4_i32;
-use crate::vp8::predict_intra16_macroblock;
-use crate::vp8::quantize_block;
-use crate::vp8::reconstruct_intra_macroblock;
 #[cfg(test)]
 use crate::vp8::rgba_to_yuv420;
 use crate::vp8::yuv_image::reserve_zeroed;
+use webp_decode::vp8_codec::BoolEncodeError;
+use webp_decode::vp8_codec::BoolEncoder;
+use webp_decode::vp8_codec::COEFFICIENT_BANDS;
+use webp_decode::vp8_codec::COEFFICIENT_DEFAULTS;
+use webp_decode::vp8_codec::COEFFICIENT_UPDATE_PROBABILITIES;
+use webp_decode::vp8_codec::ChromaMode;
+use webp_decode::vp8_codec::CoefficientBlockType;
+use webp_decode::vp8_codec::CoefficientEncodeError;
+use webp_decode::vp8_codec::CoefficientProbabilities;
+use webp_decode::vp8_codec::DecodedCoefficients;
+use webp_decode::vp8_codec::DequantizationMatrix;
+use webp_decode::vp8_codec::Intra16Mode;
+use webp_decode::vp8_codec::IntraMacroblock;
+use webp_decode::vp8_codec::LumaMode;
+use webp_decode::vp8_codec::MacroblockPixels;
+use webp_decode::vp8_codec::MacroblockPredictionEdges;
+use webp_decode::vp8_codec::MacroblockResiduals;
+use webp_decode::vp8_codec::QuantizationHeader;
+use webp_decode::vp8_codec::SegmentHeader;
+use webp_decode::vp8_codec::derive_dequantization;
+use webp_decode::vp8_codec::encode_coefficients;
+use webp_decode::vp8_codec::encode_coefficients_observed;
+use webp_decode::vp8_codec::predict_intra16_macroblock;
+use webp_decode::vp8_codec::quantize_block;
+use webp_decode::vp8_codec::reconstruct_intra_macroblock;
+use webp_decode::vp8_codec::reconstruct_intra16_chroma;
+use webp_decode::vp8_codec::reconstruct_intra16_luma;
+use webp_dsp::forward_dct_4x4_i32;
+use webp_dsp::forward_wht_4x4_i32;
 
 const KEY_FRAME_HEADER_LEN: usize = 10;
 const KEY_FRAME_START_CODE: [u8; 3] = [0x9d, 0x01, 0x2a];
@@ -62,6 +65,84 @@ pub struct Vp8DcMacroblockCoefficients {
     pub v: [[i16; 16]; 4],
 }
 
+/// Reconstructed macroblock edges retained while writing a VP8 frame.
+///
+/// The writer must predict every macroblock from the pixels a decoder will
+/// reconstruct. This storage belongs to encoding even though the edge shape
+/// itself is a VP8 codec primitive shared with the reader.
+struct ReconstructedYuv {
+    y_stride: usize,
+    uv_stride: usize,
+    y: Vec<u8>,
+    u: Vec<u8>,
+    v: Vec<u8>,
+}
+
+impl ReconstructedYuv {
+    fn edges(&self, macroblock_x: usize, macroblock_y: usize) -> MacroblockPredictionEdges {
+        let y_origin = macroblock_y * 16 * self.y_stride + macroblock_x * 16;
+        let uv_origin = macroblock_y * 8 * self.uv_stride + macroblock_x * 8;
+        let top_y = (macroblock_y > 0)
+            .then(|| std::array::from_fn(|index| self.y[y_origin - self.y_stride + index]));
+        let top_right_y = (macroblock_y > 0 && macroblock_x + 1 < self.y_stride / 16)
+            .then(|| std::array::from_fn(|index| self.y[y_origin - self.y_stride + 16 + index]));
+        let left_y = (macroblock_x > 0)
+            .then(|| std::array::from_fn(|index| self.y[y_origin + index * self.y_stride - 1]));
+        let top_u = (macroblock_y > 0)
+            .then(|| std::array::from_fn(|index| self.u[uv_origin - self.uv_stride + index]));
+        let left_u = (macroblock_x > 0)
+            .then(|| std::array::from_fn(|index| self.u[uv_origin + index * self.uv_stride - 1]));
+        let top_v = (macroblock_y > 0)
+            .then(|| std::array::from_fn(|index| self.v[uv_origin - self.uv_stride + index]));
+        let left_v = (macroblock_x > 0)
+            .then(|| std::array::from_fn(|index| self.v[uv_origin + index * self.uv_stride - 1]));
+        MacroblockPredictionEdges {
+            top_y,
+            top_right_y,
+            left_y,
+            top_left_y: if macroblock_x > 0 && macroblock_y > 0 {
+                self.y[y_origin - self.y_stride - 1]
+            } else {
+                0
+            },
+            top_u,
+            left_u,
+            top_left_u: if macroblock_x > 0 && macroblock_y > 0 {
+                self.u[uv_origin - self.uv_stride - 1]
+            } else {
+                0
+            },
+            top_v,
+            left_v,
+            top_left_v: if macroblock_x > 0 && macroblock_y > 0 {
+                self.v[uv_origin - self.uv_stride - 1]
+            } else {
+                0
+            },
+        }
+    }
+
+    fn store_macroblock(
+        &mut self,
+        macroblock_x: usize,
+        macroblock_y: usize,
+        pixels: MacroblockPixels,
+    ) {
+        let y_origin = macroblock_y * 16 * self.y_stride + macroblock_x * 16;
+        let uv_origin = macroblock_y * 8 * self.uv_stride + macroblock_x * 8;
+        for row in 0..16 {
+            self.y[y_origin + row * self.y_stride..y_origin + row * self.y_stride + 16]
+                .copy_from_slice(&pixels.y[row * 16..row * 16 + 16]);
+        }
+        for row in 0..8 {
+            self.u[uv_origin + row * self.uv_stride..uv_origin + row * self.uv_stride + 8]
+                .copy_from_slice(&pixels.u[row * 8..row * 8 + 8]);
+            self.v[uv_origin + row * self.uv_stride..uv_origin + row * self.uv_stride + 8]
+                .copy_from_slice(&pixels.v[row * 8..row * 8 + 8]);
+        }
+    }
+}
+
 impl From<BoolEncodeError> for Vp8EncodeError {
     fn from(error: BoolEncodeError) -> Self {
         match error {
@@ -78,6 +159,7 @@ impl From<BoolEncodeError> for Vp8EncodeError {
 /// encoding supplied pixels. It is a public, independently testable M7
 /// bitstream-building primitive; the RGBA encoder is added only after it can
 /// populate this frame with quantized coefficients.
+#[cfg(test)]
 pub fn encode_neutral_key_frame(width: u32, height: u32) -> Result<Vec<u8>, Vp8EncodeError> {
     if width == 0 || height == 0 || width > 0x3fff || height > 0x3fff {
         return Err(Vp8EncodeError::InvalidDimensions);
@@ -102,6 +184,7 @@ pub fn encode_neutral_key_frame(width: u32, height: u32) -> Result<Vec<u8>, Vp8E
 /// slice: it exercises the real transform, quantizer, Y2 path, and
 /// coefficient token partition. The forthcoming frame writer generalizes its
 /// neighbour contexts and prediction borders to arbitrary dimensions.
+#[cfg(test)]
 pub fn encode_dc_predicted_macroblock_key_frame(
     source: &Vp8SourceYuv,
 ) -> Result<Vec<u8>, Vp8EncodeError> {
@@ -113,6 +196,7 @@ pub fn encode_dc_predicted_macroblock_key_frame(
 /// `quantizer` is the exact 0 through 127 value written into the first
 /// partition. The output remains limited to one DC-predicted macroblock while
 /// the general frame writer is developed.
+#[cfg(test)]
 pub fn encode_dc_predicted_macroblock_key_frame_with_quantizer(
     source: &Vp8SourceYuv,
     quantizer: u8,
@@ -173,9 +257,7 @@ pub fn encode_dc_predicted_key_frame_with_quantizer(
     let reconstructed_uv_len = uv_width
         .checked_mul(uv_height)
         .ok_or(Vp8EncodeError::AllocationFailed)?;
-    let mut reconstructed = Vp8YuvImage {
-        width: source.width,
-        height: source.height,
+    let mut reconstructed = ReconstructedYuv {
         y_stride: y_width,
         uv_stride: uv_width,
         y: reserve_zeroed(reconstructed_y_len)?,
@@ -246,6 +328,7 @@ pub fn encode_dc_predicted_key_frame_with_quantizer(
     )
 }
 
+#[cfg(test)]
 fn dc_intra_macroblock() -> IntraMacroblock {
     IntraMacroblock {
         segment: 0,
@@ -262,12 +345,12 @@ fn select_intra16_macroblock(
     v: &[u8],
     uv_stride: usize,
     matrix: DequantizationMatrix,
-    edges: crate::vp8::MacroblockPredictionEdges,
+    edges: MacroblockPredictionEdges,
 ) -> Result<
     (
         IntraMacroblock,
         Vp8DcMacroblockCoefficients,
-        crate::vp8::MacroblockPixels,
+        MacroblockPixels,
     ),
     Vp8EncodeError,
 > {
@@ -291,7 +374,7 @@ fn select_intra16_macroblock(
         let mut coefficients = empty_dc_coefficients();
         coefficients.y2 = y2;
         coefficients.luma = luma;
-        let pixels = crate::vp8::reconstruction::reconstruct_intra16_luma(
+        let pixels = reconstruct_intra16_luma(
             luma_mode,
             &dc_macroblock_residuals(coefficients),
             matrix,
@@ -318,7 +401,7 @@ fn select_intra16_macroblock(
         let mut coefficients = empty_dc_coefficients();
         coefficients.u = u_coefficients;
         coefficients.v = v_coefficients;
-        let (pixels_u, pixels_v) = crate::vp8::reconstruction::reconstruct_intra16_chroma(
+        let (pixels_u, pixels_v) = reconstruct_intra16_chroma(
             chroma_mode,
             &dc_macroblock_residuals(coefficients),
             matrix,
@@ -466,7 +549,7 @@ impl CoefficientStatistics {
                         let candidate_cost =
                             branch_cost(*counts, candidate) + bit_cost(true, update) + 8 * 256;
                         if candidate != current && candidate_cost < current_cost {
-                            probabilities.values[coefficient_type][band][context][node] = candidate;
+                            probabilities.set(coefficient_type, band, context, node, candidate);
                         }
                     }
                 }
@@ -609,6 +692,7 @@ fn assemble_key_frame(
 /// prediction values are the already-reconstructed DC intra predictions for
 /// their respective planes. This keeps prediction ownership in the frame
 /// writer while making the transform/Y2 layout independently testable.
+#[cfg(test)]
 pub fn quantize_dc_macroblock(
     y: &[u8],
     y_stride: usize,
@@ -624,7 +708,7 @@ pub fn quantize_dc_macroblock(
         u,
         v,
         uv_stride,
-        crate::vp8::MacroblockPixels {
+        MacroblockPixels {
             y: [prediction[0]; 256],
             u: [prediction[1]; 64],
             v: [prediction[2]; 64],
@@ -633,13 +717,14 @@ pub fn quantize_dc_macroblock(
     )
 }
 
+#[cfg(test)]
 fn quantize_intra16_macroblock(
     y: &[u8],
     y_stride: usize,
     u: &[u8],
     v: &[u8],
     uv_stride: usize,
-    prediction: crate::vp8::MacroblockPixels,
+    prediction: MacroblockPixels,
     matrix: DequantizationMatrix,
 ) -> Result<Vp8DcMacroblockCoefficients, Vp8EncodeError> {
     if y_stride < 16
@@ -755,7 +840,7 @@ fn write_first_partition(
         for (band, contexts) in bands.iter().enumerate() {
             for (context, nodes) in contexts.iter().enumerate() {
                 for (node, &update_probability) in nodes.iter().enumerate() {
-                    let probability = probabilities.values[coefficient_type][band][context][node];
+                    let probability = probabilities.get(coefficient_type, band, context, node);
                     let update =
                         probability != COEFFICIENT_DEFAULTS[coefficient_type][band][context][node];
                     bits.write_bool(update, update_probability)?;
@@ -820,6 +905,7 @@ fn write_first_partition(
     bits.finish().map_err(Into::into)
 }
 
+#[cfg(test)]
 fn write_zero_token_partition(macroblock_count: usize) -> Result<Vec<u8>, Vp8EncodeError> {
     let mut bits = BoolEncoder::new();
     for _ in 0..macroblock_count {
@@ -1020,6 +1106,7 @@ fn write_coefficients(
     })
 }
 
+#[cfg(test)]
 fn write_eob(
     bits: &mut BoolEncoder,
     coefficient_type: usize,
@@ -1029,6 +1116,7 @@ fn write_eob(
     bits.write_bool(false, probability).map_err(Into::into)
 }
 
+#[cfg(test)]
 const fn coefficient_band(position: usize) -> usize {
     const BANDS: [usize; 17] = [0, 1, 2, 3, 6, 4, 5, 6, 6, 6, 6, 6, 6, 6, 6, 7, 0];
     BANDS[position]

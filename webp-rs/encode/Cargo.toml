@@ -20,4 +20,6 @@ webp-decode = { path = "../decode", default-features = false, features = ["encod
 webp-container = { path = "../container" }
 webp-demux = { path = "../demux" }
 webp-mux = { path = "../mux" }
+webp-dsp = { path = "../dsp" }
+webp-sharpyuv = { path = "../sharpyuv" }
 webp-utils = { path = "../utils" }

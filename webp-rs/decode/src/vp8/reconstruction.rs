@@ -250,7 +250,7 @@ pub fn reconstruct_intra_macroblock(
     Ok(combine_macroblock_prediction(prediction, spatial))
 }
 
-pub(crate) fn reconstruct_intra16_luma(
+pub fn reconstruct_intra16_luma(
     mode: Intra16Mode,
     residuals: &MacroblockResiduals,
     matrix: DequantizationMatrix,
@@ -271,7 +271,7 @@ pub(crate) fn reconstruct_intra16_luma(
     prediction
 }
 
-pub(crate) fn reconstruct_intra16_chroma(
+pub fn reconstruct_intra16_chroma(
     mode: ChromaMode,
     residuals: &MacroblockResiduals,
     matrix: DequantizationMatrix,
