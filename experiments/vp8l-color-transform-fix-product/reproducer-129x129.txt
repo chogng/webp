@@ -1,0 +1,7 @@
+width	129
+height	129
+rgba_sha256	8a94180f089595a88a29829dc1fd4c35372830e91716cb8fea286a97c498564b
+output_sha256	ce513d7c3ebaa1abd8436aabbda9306ad71fa69e74303be7af34b6e552a15d9f
+output_bytes	50704
+project_status	rgba_equal=true
+dwebp_status	ok

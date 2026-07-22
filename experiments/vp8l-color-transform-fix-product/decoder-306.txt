@@ -1,0 +1,4 @@
+validation backend=rust files=306 exact_rgba=true mismatches=0 decode_errors=0 checksum_fnv1a64=16f1b6ca2415e2d6
+validation backend=image-webp files=306 exact_rgba=true mismatches=0 decode_errors=0 checksum_fnv1a64=16f1b6ca2415e2d6
+benchmark backend=rust files=306 decodes=306 input_bytes=823204804 rgba_bytes=3022297644 retained_input_bytes=823204804 max_output_bytes=12451840 estimated_live_bytes_at_least=835656644 elapsed_ms=13621.401 checksum_u64=14695981039347653093
+benchmark backend=image-webp files=306 decodes=306 input_bytes=823204804 rgba_bytes=3022297644 retained_input_bytes=823204804 max_output_bytes=12451840 estimated_live_bytes_at_least=835656644 elapsed_ms=16433.096 checksum_u64=14695981039347653093

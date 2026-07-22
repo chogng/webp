@@ -1,0 +1,7 @@
+before: 102 rows, project failures=101, dwebp failures=101
+after: 102 rows, project failures=0, dwebp failures=0
+paired: RGBA SHA and bytes unchanged; total bytes=661692326; no-transform unchanged=1
+first after: sha256=9c68ff67c15c5d3df7daece012d3e9f0b8d7fd5e10e74e291d3aab1eebe97d80 bytes=8196184
+decoder gate: rust/image-webp exact=306/306 checksum=16f1b6ca2415e2d6
+synthetic: 129x129, both decoders exact, bytes=50704
+evidence assertions: ok

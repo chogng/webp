@@ -1,0 +1,104 @@
+# VP8L color-transform wire correctness product-candidate report
+
+## Reproduction identity
+
+| Item | Value |
+| --- | --- |
+| Delegating/root task | `019f8321-035e-7211-8f53-987e18891c8c` |
+| Worktree | `/Users/lance/.codex/worktrees/689c/webp` |
+| Branch | `codex/vp8l-color-transform-fix-product` |
+| Required local-main base | `11f6f669215479848628c1bdcd438c2a891e96fb` |
+| Code commit | `fb17a98c3599d4c64d77f901155f46c9e83c1b55` |
+| Validation branch | `codex/vp8l-color-transform-validity-fix` |
+| Validation branch HEAD used | `9fa7f5c55be869ca852badf7effd9f598bf1f5c6` |
+| Validation source parent | `6627800d4786262651dd06e81022c7df2c3c84ab` |
+| Pinned libwebp | `733c91e461c18cf1127c9ed0a80dccbcfed599d3` |
+| Product-candidate decision | **pass** |
+
+The delegated text named full source SHA
+`9fa7f5c56bd901240276401ea2add8929846b8de`, but that object is not present in
+the local repository. The named validation branch resolves to
+`9fa7f5c55be869ca852badf7effd9f598bf1f5c6`; its subject and four-file diff
+exactly match the delegated fix. The product code commit replays that available
+branch HEAD on the required local `main` base. A file-scoped `git diff
+--exit-code` confirms that the four product files are identical to the
+validation source. The old worktree's untracked `third_party` symlink and raw
+TSV were not imported as code; only the explicitly authorized TSV was copied
+into this evidence directory after checksum and row validation.
+
+## Root cause and fix
+
+`COLOR_TRANSFORM_BLOCK_BITS = 7` is the actual block-size exponent, so the
+coefficient image uses 128-by-128 source-pixel blocks. VP8L does not store that
+exponent directly: its three-bit field stores `size_bits - 2`. The specification
+states `size_bits = ReadBits(3) + 2` in the pinned local copy at
+`third_party/oracle/libwebp/doc/webp-lossless-bitstream-spec.txt:448`; the pinned
+decoder performs the same addition at
+`third_party/oracle/libwebp/src/dec/vp8l_dec.c:1438`, and this repository's
+parser does so at `webp-rs/vp8l/src/lib.rs:232`.
+
+The encoder previously wrote decimal 7, so the first color-transform descriptor
+field was `111`. The parser restored `7 + 2 = 9` and therefore assumed 512-pixel
+blocks. The fix writes `7 - 2 = 5`, changing only the middle descriptor bit and
+making the field `101`; the parser now restores the intended exponent 7.
+
+For the first 1512-by-2016 CLIC image, the broken descriptor made the parser
+expect `ceil(1512 / 512) * ceil(2016 / 512) = 3 * 4 = 12` coefficient pixels.
+The encoder had actually emitted
+`ceil(1512 / 128) * ceil(2016 / 128) = 12 * 16 = 192`. The nested image parser
+therefore stopped 180 coefficient pixels early and interpreted coefficient
+payload bits as the following transform/main-image syntax, shifting the later
+bit boundary and ending in `InvalidBitstream` / `VP8L Huffman tree has no
+symbols`. The one-line serialization fix leaves the default API and decoder
+unchanged and uses stable safe Rust.
+
+## Before/after evidence
+
+`before-102.tsv` is the authorized raw from the validation worktree. It has 102
+data rows: 101 project failures and 101 pinned-`dwebp` failures. Its SHA-256 is
+`0094c10d3a8417e786e206617855b6a9f9fb4e7123e1cb63bd20bef2f4c45f82`.
+
+`after-102.tsv` was generated in this worktree by the release reproducer from
+the product code commit. It records the input RGBA SHA-256, encoded output
+SHA-256 and bytes, project error kind/offset/context, and pinned-`dwebp` status
+for all 102 public-encoder runs. It has 102/102 exact project decodes and
+102/102 exact pinned-`dwebp` decodes; its SHA-256 is
+`994a4afabb52d94e65678ce15de57a09c35c279b53566cf94f26137201bd7b34`.
+
+The first repaired stream is 8,196,184 bytes with SHA-256
+`9c68ff67c15c5d3df7daece012d3e9f0b8d7fd5e10e74e291d3aab1eebe97d80`,
+matching the independent validation result in the delegated task. Pairing the
+two TSVs finds identical input RGBA hashes and byte lengths for every row. The
+total is 661,692,326 bytes before and after. Exactly 101 output hashes change;
+`clic-validation-098`, the sole no-color-transform case, is byte-identical.
+This is consistent with the source diff changing only the descriptor field and
+never changing stream length.
+
+The committed deterministic reproducer is 129 by 129, 50,704 bytes, and has
+SHA-256 `ce513d7c3ebaa1abd8436aabbda9306ad71fa69e74303be7af34b6e552a15d9f`.
+Both decoders recover its exact RGBA. No large generated stream is committed.
+
+Run `./verify-evidence.sh` in this directory to assert the raw checksums,
+before `101 -> 0` failure transition, pairing invariants, first-image result,
+306-stream checksum, and synthetic reproducer status.
+
+## Regression gates
+
+- Targeted unit and pinned-oracle tests pass at 127/128/129 and 511/512/513
+  boundaries, including partial edge blocks and the wire value assertion.
+- Negative coefficients pass exact project round-trip. Existing lossless alpha
+  matrices and pinned oracle cases cover transparent samples; the 102-row pair
+  identifies and preserves the no-transform path.
+- The release public encoder reproducer passes 102/102 exact in both decoders.
+- The fixed CLIC m0/m3/m6 matrix passes 306/306 exact against
+  `image-webp 0.2.4`; both decoders produce the strong all-byte checksum
+  `16f1b6ca2415e2d6`. Timing output is retained only as runner output and is not
+  a performance gate.
+- `cargo test --workspace --all-features` passes in debug and release profiles,
+  including all available pinned-oracle tests.
+- `cargo fmt --all -- --check` passes on stable (the existing nightly-only
+  `imports_granularity` warning is informational).
+- `cargo clippy --workspace --all-targets --all-features -- -D warnings`
+  passes.
+- `git diff --check` passes, `AGENTS.md` is untouched, and the product code
+  files are file-for-file identical to the audited validation commit.
