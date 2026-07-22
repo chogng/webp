@@ -1,0 +1,23 @@
+{
+  "lock": "/private/tmp/webp-vp8l-product-benchmark.lock",
+  "lock_pid": 64987,
+  "started_unix_ns": 1784700788615186000,
+  "binary": "/Users/lance/.codex/worktrees/6368/webp/webp-rs/target/release/deps/webp-018635ace19b190c",
+  "binary_sha256": "596df0feaedc5033c18f5220540281774ddf9e3622a3b9c80e4f9b75be88c903",
+  "binary_bytes": 1481328,
+  "rounds": 3,
+  "order": "forward on odd rounds, reverse on even rounds",
+  "layouts": [
+    "low-latency-control",
+    "low-latency"
+  ],
+  "operations": [
+    "encode"
+  ],
+  "formal": false,
+  "input": "/private/tmp/vp8l-exact-cost-product-screen-input",
+  "generated": "/private/tmp/vp8l-exact-cost-product-unused",
+  "preloaded": true,
+  "checksum": "full output bytes (encode) or full RGBA bytes (decode)",
+  "completed_unix_ns": 1784700846314305000
+}
