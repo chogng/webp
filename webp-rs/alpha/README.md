@@ -65,6 +65,7 @@ boundary.
 | A12 | byte-identical greedy LZ hot loop：safe word-at-a-time LCP 与 rolling 3-byte skipped hashes，保持 hash overwrite、token、Huffman 和输出字节完全不变 | `codex/alpha-byte-identical-greedy-hotloop@990e0b20` | 精确创建于 `a648cbd8b23b323209c6d4d750924eb003bd6a07`；登记后重放到测量基线 `5e6b549abd5b9e7ad4f0b89ceda81da8a8e97e3a` | [`169c` worktree](</Users/lance/.codex/worktrees/169c/webp>)；task `019f88fd-6e65-7e60-997b-35d1f7712a6d` | 5 轮 same-binary：parse 硬上限 31.174%，但 L/H/LH 可信 ALPH ceiling 仅 2.854% / 2.113% / **4.878%**；355/355 plane token exact；报告 `990e0b20:reports/alpha-byte-identical-greedy-hotloop/README.md` | **Phase-A reject / 不实现**；无 production candidate，不跑 formal/q-matrix/RSS/libwebp；default encoder 不变 | 顶部表不变；保留 31 项 raw/hash、source/codegen audit、per-file 负值与 10% 早停证据 |
 | A13 | byte-identical packed ALPH entropy-token writer：把 literal/copy 的 Huffman + extra 段预组为 bounded packet，以 persistent safe accumulator 批量 flush | `codex/alpha-packed-token-writer@ac1d30d6`；Phase A `dfd1eff6`；candidate `302904b0`；evidence `2552cdda` | 创建于 `180eafd4`；登记后正式基线 `e655ab9a79c018176992d200f3cd79a3cc6c73a8` | [`8d9d` worktree](</Users/lance/.codex/worktrees/8d9d/webp>)；task `019f8919-78ee-70b2-8be9-9e9deb9e7e80` | 41×10×5 ALPH `895.748 -> 743.931 ms`（**-16.949%**），whole -3.644%、CPU -4.257%、RSS median -3.450%；224/224 q-matrix byte/project/`dwebp` exact；报告 `ac1d30d6:reports/alpha-packed-token-writer/README.md` | **研究通过 / 建议推广**；但 15-file 仅 -7.078%，且 review 发现模块双向依赖与 `encode.rs` 532 行；由 A14 latest-main 产品化重放 | 暂不进入顶部表；保留 136 项 checksum、P +4.731% 反优化、泛化/小文件限制与全部 invalidated runs |
 | A14 | A13 packed token writer 产品化：从 latest main 手工迁移 persistent sink，把 syntax/token-output 依赖改成单向并让 `encode.rs` 回到模块行数目标内 | `codex/alpha-packed-token-writer-product@759417c6`；code `77842c1c`；evidence `ec05d41e` | intake `26e7ae82`；登记后精确产品/测量基线 `1c16ebe826ea57adaf2293bf44bdc36175401a8b` | [`6821` worktree](</Users/lance/.codex/worktrees/6821/webp>)；task `019f8962-85b6-7f11-97fa-8fa053c9687f` | 41×10×5 ALPH `816.001 -> 659.907 ms`（**-19.129%**），whole -2.388%、CPU -3.985%、RSS -3.665%、0/41 ALPH regressions；224/224 exact；报告 `759417c6:reports/alpha-packed-token-writer-product/README.md` | **已推广**；15-file 仅 -8.063%、real4 -3.825%，rlib +15.121%，限制明确保留 | code/evidence/audit 已 fast-forward 到 `main@759417c6`；本提交刷新顶部表、迭代日志、反优化和研究目标 |
+| A15 | compiled token codebook：把 I5 每 token 的 Huffman/prefix/extra 解释式组包改成每 entropy stream 一次编译的 literal/length packet codebook 与 O(1) distance prefix | `codex/alpha-compiled-token-codebook@14ef4ab0`（intake；未实现） | 精确创建于 `14ef4ab05ff216057c718c5f8a2bafbf29f2c744`；登记后必须先重放到本次 docs commit | [`a9e6` worktree](</Users/lance/.codex/worktrees/a9e6/webp>)；task `019f8998-567f-7531-b323-88de59d1a876` | **已登记 / Phase A 待测**；源码边界已核验，post-I5 replaceable ceiling 尚未测；报告目标 `reports/alpha-compiled-token-codebook/README.md` | **pending**；combined owner ceiling 或 same-binary screen <10% 即 reject，不做 production polish | 本次提交登记精确 creation base、变体、文献/owner census 与早停规则；结果无论正负都回填 |
 
 ### A01 / A02 已完成结果明细
 
@@ -488,6 +489,25 @@ build、codegen owner 和 207 项 SHA-256 全过。第一次完整数据因 test
 Clippy 失败均保留在 `FAILURES.md`。代码、证据、最终 audit 为 `77842c1c` /
 `ec05d41e` / `759417c6`，已经线性 fast-forward 到 `main`。
 
+### A15 compiled token codebook 登记
+
+A15 从 `main@14ef4ab05ff216057c718c5f8a2bafbf29f2c744` 精确创建；root 与独立任务
+都验证了 `HEAD = main = merge-base`、双向 ancestry、干净 index/worktree 和零
+untracked。唯一分支为 `codex/alpha-compiled-token-codebook`。intake 只读取 A14
+报告和产品源码，没有实现、benchmark 或报告变更。
+
+源码推导出的待测边界是：最终 Huffman table 已在 `encode` 编排层生成，但普通 packed
+路径仍为每个 token 调用 `packet_for_token`，重复执行 table lookup/reversal、length 与
+distance 的线性 prefix scan、checked packet push 和 branchy `distance_code`，之后才
+进入 I5 persistent sink。这个边界目前只是源码假设，不能直接当性能 owner。
+
+Phase A 必须把 lookup/reversal、prefix、packet push、distance mapping 与 sink append
+分别归因，并预声明 current-I5、closed-form prefix、compiled literal/length codebook、
+combined 四个 same-binary 变体；setup 和 checked allocation 必须计时。研究同时对照
+pinned libwebp 本地源码与 WebP/RFC primary material，但不复制其模块边界。若 combined
+可信可回收上限低于 10%，立即以 analyzer reject 收口；只有 41×10×3 screen 达到
+>=10% 且零 mismatch，才继续 formal、gen15、224-case、资源/产物/libwebp 与全门禁。
+
 ### 总账更新规则
 
 1. 创建实验前先记录最新 `main` 完整 SHA；工作树就绪后再次验证 `main`、`HEAD` 和祖先关系。
@@ -881,6 +901,10 @@ The next accepted architecture should target at least one measurable 10% gap:
    formal -19.129%, 224/224 exactness, directional modules, and no ALPH tail
    regressions. This serialization owner is closed as a shipped iteration;
    future work must attack a distinct owner or broaden the real-image result.
+   A15 is the bounded follow-up inside the residual token-composition surface:
+   it will first measure whether compiling per-stream literal/length packets
+   and replacing linear prefix scans can still recover >=10% after I5. It is
+   not eligible for implementation if that post-I5 owner ceiling fails.
 2. **Real-image evidence:** add a pinned, licensed translucent PNG/WebP corpus
    with PSNR/SSIM or exact-alpha gates, alpha-cardinality buckets, p50/p95
    latency, and peak RSS. No architecture should be tuned only to conformance
