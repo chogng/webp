@@ -167,7 +167,11 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 
 ### 进行中的 latest-main 编码优化
 
-P18 已作为 E43 收口并通过全部研究 gate；首次产品树 P19 因创建期间 main 前进而作为 E44 零修改失效；P20 已作为 E45 在 LowLatency 48.190% 的硬门失败后完整收口。下一棵树只验证独立审计发现的 sparse exact-histogram merge 回归；在它从归档后的 latest main 创建并完成身份核验前，不预填分支或结果。
+P18 已作为 E43 收口并通过全部研究 gate；首次产品树 P19 因创建期间 main 前进而作为 E44 零修改失效；P20 已作为 E45 在 LowLatency 48.190% 的硬门失败后完整收口。P21 只验证独立审计发现的 sparse exact-histogram merge 回归；登记提交只记录 post-creation provenance，不会 merge/rebase 到实验树。
+
+| 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
+| --- | --- | --- | --- | --- |
+| P21 | zero-eliding sparse histogram merge recovery | `codex/vp8l-sparse-histogram-merge`；`8485fc0593bf6e29715350ea72b15a9dabf4c80b` | [1841](</Users/lance/.codex/worktrees/1841/webp>)；task `019f8aba-a8d0-73e3-b1b8-434634e9eea6`；结果目录 `experiments/vp8l-sparse-histogram-merge` | 创建时 HEAD/local main/merge-base 精确相等，工作树干净且已挂分支；先冻结唯一 A/B，再要求 LowLatency zero-elision 相对 dense merge ≥3%、0/41 回退，只有 recovery 通过才重跑完整双档 ≥50% 产品门 |
 
 ## 每次优化的结果与结论
 
