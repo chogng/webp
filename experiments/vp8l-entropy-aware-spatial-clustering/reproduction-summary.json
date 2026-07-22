@@ -1,0 +1,49 @@
+{
+  "command": "./experiments/vp8l-entropy-aware-spatial-clustering/reproduce.sh",
+  "cwd": "/Users/lance/.codex/worktrees/3cd9/webp",
+  "exit_status": 0,
+  "output": "/private/tmp/vp8l-entropy-aware-spatial-clustering-reproduction",
+  "output_file_count_excluding_sha256sums": 128,
+  "output_sha256sums_sha256": "70b7f41acd6a1a328afd90ae4525195a50a43b64a44804758cbb8d5250093e62",
+  "candidate_binary_sha256": "4fe3c1f20192bb599e66973a787648ce335492f87f4076b150f93ce489895172",
+  "phase_a": {
+    "compact_final_bytes": 599398064,
+    "low_latency_final_bytes": 617047520
+  },
+  "screen": {
+    "compact": {
+      "encode_delta_pct": -30.948936442976194,
+      "per_image_encode_regressions": 0,
+      "rate_delta_pct": -3.482486730649992,
+      "worst_rate_id": "clic-validation-002",
+      "worst_rate_delta_pct": 1.4905309333190786,
+      "rss_delta_bytes": 3080192,
+      "rss_delta_pct": 0.5272900656307922,
+      "rust_decode_delta_pct": -1.9762225943598333,
+      "pinned_c_decode_delta_pct": 0.8509215267953563,
+      "gate": true
+    },
+    "low_latency": {
+      "encode_delta_pct": -29.99665778966908,
+      "per_image_encode_regressions": 0,
+      "rate_delta_pct": -1.737695007969442,
+      "worst_rate_id": "clic-validation-008",
+      "worst_rate_delta_pct": 4.33820699831271,
+      "rss_delta_bytes": -11386880,
+      "rss_delta_pct": -1.9300730372962316,
+      "rust_decode_delta_pct": -0.3987736583572654,
+      "pinned_c_decode_delta_pct": -5.504952523642137,
+      "gate": false
+    }
+  },
+  "correctness": {
+    "default_full_byte": "102/102",
+    "screen_project_exact": "246/246",
+    "screen_pinned_c_exact": "246/246",
+    "archive_project_exact": "918/918",
+    "archive_pinned_c_exact": "918/918"
+  },
+  "quality": "7/7",
+  "formal_102x5_run": false,
+  "decision": "reject-screen-rate"
+}

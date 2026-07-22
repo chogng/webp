@@ -1,0 +1,25 @@
+{
+  "lock": "/private/tmp/webp-vp8l-product-benchmark.lock",
+  "lock_pid": 12200,
+  "started_unix_ns": 1784721771781249000,
+  "binary": "/private/tmp/p15-screen-target/release/deps/webp-018635ace19b190c",
+  "binary_sha256": "3061aac6b823aa0b521ec5b52876167a923d0b29b07e0eb010d1a8ac56dc4e72",
+  "binary_bytes": 1573600,
+  "rounds": 3,
+  "order": "forward on odd rounds, reverse on even rounds",
+  "layouts": [
+    "compact-control",
+    "compact",
+    "low-latency-control",
+    "low-latency"
+  ],
+  "operations": [
+    "encode"
+  ],
+  "formal": false,
+  "input": "/private/tmp/p14-screen-input-exact-symbol",
+  "generated": "/private/tmp/p15-unused-generated",
+  "preloaded": true,
+  "checksum": "full output bytes (encode) or full RGBA bytes (decode)",
+  "completed_unix_ns": 1784721854494444000
+}

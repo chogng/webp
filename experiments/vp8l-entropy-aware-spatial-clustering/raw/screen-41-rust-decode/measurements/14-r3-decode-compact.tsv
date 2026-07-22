@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	decode	3	compact	clic-validation-000	53873042	12192768	7693316	464ce5db301ecb19
+measurement	decode	3	compact	clic-validation-001	39077000	9437184	6124594	ac6ff401cad1e56a
+measurement	decode	3	compact	clic-validation-002	38570542	9437184	5885852	53073efbc9fbc324
+measurement	decode	3	compact	clic-validation-003	38973417	9437184	5946656	2d0e74cba29a55a5
+measurement	decode	3	compact	clic-validation-004	38675459	9437184	5198332	4545a7582ba384f7
+measurement	decode	3	compact	clic-validation-005	38663167	9437184	5337014	d810c411c455be8c
+measurement	decode	3	compact	clic-validation-006	39179125	9437184	4973668	f1f4f6e7dfa0083f
+measurement	decode	3	compact	clic-validation-007	50645875	12192768	7843464	228a2c6b57b23249
+measurement	decode	3	compact	clic-validation-008	32335125	7902720	4353944	dec398a774c113a2
+measurement	decode	3	compact	clic-validation-009	32759583	7902720	4944864	6bc0d1593454772e
+measurement	decode	3	compact	clic-validation-010	28060459	6441528	3954474	c9e307df409044b5
+measurement	decode	3	compact	clic-validation-011	13406083	3011904	1984944	209831bda5d4627c
+measurement	decode	3	compact	clic-validation-012	33098792	7990272	4797792	3670defafa50ea4e
+measurement	decode	3	compact	clic-validation-013	33035166	7990272	5012244	1cd21726ef8f533f
+measurement	decode	3	compact	clic-validation-014	34032458	7990272	5297732	c2a93c8908bfb686
+measurement	decode	3	compact	clic-validation-015	34061459	7990272	5645960	c250b581a7aef503
+measurement	decode	3	compact	clic-validation-016	32935875	7990272	4556150	93bac67a01bb76e9
+measurement	decode	3	compact	clic-validation-017	49903875	12192768	6523274	5976bb2cf09b055b
+measurement	decode	3	compact	clic-validation-018	34283083	7990272	4826202	01f4dfd39c9dcea8
+measurement	decode	3	compact	clic-validation-019	33076542	7990272	4783566	baa5e95011876f48
+measurement	decode	3	compact	clic-validation-020	39005584	9445376	6211508	dc09bc9dbb42193d
+measurement	decode	3	compact	clic-validation-021	31886875	7834368	4600432	f6f48492d10740e0
+measurement	decode	3	compact	clic-validation-022	39076416	9445376	5217358	09fa4e4fe6aa63d6
+measurement	decode	3	compact	clic-validation-023	39133875	9445376	5588180	f8a29bed56822898
+measurement	decode	3	compact	clic-validation-024	50136958	12192768	7152086	c4f8779afc3c9993
+measurement	decode	3	compact	clic-validation-025	50085084	12192768	7633234	726fd24483d342a3
+measurement	decode	3	compact	clic-validation-026	53526916	12451840	7872312	9c668909712280e2
+measurement	decode	3	compact	clic-validation-027	49271959	11968000	6752220	6d7a3d538daf3164
+measurement	decode	3	compact	clic-validation-028	49287708	11968000	6804216	6ac585fda881c351
+measurement	decode	3	compact	clic-validation-029	48982375	12192768	5842508	df06568e13cc5010
+measurement	decode	3	compact	clic-validation-030	49262834	11968000	8152722	aaa1f8d564d01733
+measurement	decode	3	compact	clic-validation-031	50131458	12192768	7045876	13b35a79be3ad589
+measurement	decode	3	compact	clic-validation-032	51631833	12192768	6791602	501e9493c3e82317
+measurement	decode	3	compact	clic-validation-033	50234125	12192768	7922090	89041b7b8d7ab9ff
+measurement	decode	3	compact	clic-validation-034	51345375	12289728	7712614	9ab537cee8a6f725
+measurement	decode	3	compact	clic-validation-035	50831667	12289728	7360522	1c7cba4a5059cb2d
+measurement	decode	3	compact	clic-validation-036	51272500	12289728	6943116	8a82094490cf3de6
+measurement	decode	3	compact	clic-validation-037	51300875	12289728	7249538	3a910c171731cab6
+measurement	decode	3	compact	clic-validation-038	49771333	12192768	7430188	ad437832dec9a2fb
+measurement	decode	3	compact	clic-validation-039	49473208	12192768	6913994	79092bf051e7b7fa
+measurement	decode	3	compact	clic-validation-040	50336375	12192768	6837300	f1cedda480b841a2
+aggregate	decode	3	compact	41	1735945583	417812344	249717658	cdeaade87abac151
+test encoder::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out; finished in 1.77s
+

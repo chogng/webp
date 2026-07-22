@@ -1,0 +1,28 @@
+{
+  "lock": "/private/tmp/webp-vp8l-libwebp-product-benchmark.lock",
+  "lock_pid": 34739,
+  "started_unix_ns": 1784722256129432000,
+  "binary": "/private/tmp/p15-libwebp-bench",
+  "binary_sha256": "ac54d1e1e501efde23a5c6702304df1859a2396bc41fa0ca98cdff9e303d4baf",
+  "binary_bytes": 283536,
+  "decoder": "pinned libwebp WebPDecodeRGBA",
+  "pinned_revision": "733c91e461c18cf1127c9ed0a80dccbcfed599d3",
+  "rounds": 3,
+  "order": "forward on odd rounds, reverse on even rounds",
+  "layouts": [
+    "compact-control",
+    "compact",
+    "low-latency-control",
+    "low-latency"
+  ],
+  "operations": [
+    "decode"
+  ],
+  "baseline": "libwebp-m6",
+  "formal": false,
+  "generated": "/private/tmp/p15-screen-final-generated",
+  "expected": "/private/tmp/p15-screen-final-generated/expected",
+  "preloaded": true,
+  "timed_validation": "full RGBA memcmp and full RGBA FNV-1a",
+  "completed_unix_ns": 1784722294690340000
+}

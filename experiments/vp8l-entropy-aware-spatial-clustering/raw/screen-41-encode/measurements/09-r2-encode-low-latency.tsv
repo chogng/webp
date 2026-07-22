@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	encode	2	low-latency	clic-validation-000	62478084	12192768	8049220	291908ac87f11fe2
+measurement	encode	2	low-latency	clic-validation-001	41202792	9437184	6299146	1d253c5bc57c7f81
+measurement	encode	2	low-latency	clic-validation-002	42281500	9437184	6018478	4c91febc7f31e56a
+measurement	encode	2	low-latency	clic-validation-003	41342042	9437184	6121796	92e9bbb25e09a595
+measurement	encode	2	low-latency	clic-validation-004	41404500	9437184	5419504	76ad8687a0439dbe
+measurement	encode	2	low-latency	clic-validation-005	41623167	9437184	5257942	e901da4385699dc1
+measurement	encode	2	low-latency	clic-validation-006	42152375	9437184	5124450	42f1cb68aa2e7395
+measurement	encode	2	low-latency	clic-validation-007	54888167	12192768	8152224	668170144e57e446
+measurement	encode	2	low-latency	clic-validation-008	36502291	7902720	4582148	25a5e2711f680644
+measurement	encode	2	low-latency	clic-validation-009	35858666	7902720	5132336	faa263e2dc796f89
+measurement	encode	2	low-latency	clic-validation-010	28884375	6441528	4091532	03b4d8b41eab58f0
+measurement	encode	2	low-latency	clic-validation-011	13445000	3011904	2025816	ad71b82762fd8c0d
+measurement	encode	2	low-latency	clic-validation-012	37702958	7990272	4944876	111d133a0b35cfc1
+measurement	encode	2	low-latency	clic-validation-013	36316292	7990272	5076218	3b2891148953315a
+measurement	encode	2	low-latency	clic-validation-014	37502416	7990272	5325214	b9d3c7f28f88d8da
+measurement	encode	2	low-latency	clic-validation-015	34861584	7990272	5701376	2239b30615c97695
+measurement	encode	2	low-latency	clic-validation-016	36880250	7990272	4742908	c30e4d1f28b21b41
+measurement	encode	2	low-latency	clic-validation-017	57934125	12192768	6662152	a41911716db39e87
+measurement	encode	2	low-latency	clic-validation-018	36440584	7990272	4970974	59baef36fceb1221
+measurement	encode	2	low-latency	clic-validation-019	36525875	7990272	4966408	2da3eb61220fc518
+measurement	encode	2	low-latency	clic-validation-020	43953042	9445376	6359472	8ad30a20954954ed
+measurement	encode	2	low-latency	clic-validation-021	38353875	7834368	4754854	5c5ba6cd8b05f7ca
+measurement	encode	2	low-latency	clic-validation-022	44236166	9445376	5534706	46334efff9e3cd0e
+measurement	encode	2	low-latency	clic-validation-023	43285500	9445376	5700484	40d3c4d1ba9b054f
+measurement	encode	2	low-latency	clic-validation-024	58459125	12192768	7245928	5d509b5377a7fe35
+measurement	encode	2	low-latency	clic-validation-025	57109667	12192768	7844442	80699cf21a4d163a
+measurement	encode	2	low-latency	clic-validation-026	66469917	12451840	8128184	d774e58a6893d1af
+measurement	encode	2	low-latency	clic-validation-027	53983708	11968000	6787308	cbb20220945dca21
+measurement	encode	2	low-latency	clic-validation-028	53169500	11968000	6895334	86e02f160d517770
+measurement	encode	2	low-latency	clic-validation-029	55824958	12192768	6118864	60b590b1ac8feb50
+measurement	encode	2	low-latency	clic-validation-030	55259708	11968000	8486390	f6ee32706b66ae62
+measurement	encode	2	low-latency	clic-validation-031	55748333	12192768	7195118	d1371667d0f04ecc
+measurement	encode	2	low-latency	clic-validation-032	55150250	12192768	6870664	18f339e8226bdfbb
+measurement	encode	2	low-latency	clic-validation-033	55568375	12192768	8250198	507b99ba332e273c
+measurement	encode	2	low-latency	clic-validation-034	55009417	12289728	8055376	fb4fd5d6f1141951
+measurement	encode	2	low-latency	clic-validation-035	55747708	12289728	7887660	9e51b620bc1a6561
+measurement	encode	2	low-latency	clic-validation-036	58376459	12289728	7286640	45ca710246cbf237
+measurement	encode	2	low-latency	clic-validation-037	56487208	12289728	7428732	f335b3a6ba63eb3e
+measurement	encode	2	low-latency	clic-validation-038	55583875	12192768	7867454	d9ea8ebcf8414b7e
+measurement	encode	2	low-latency	clic-validation-039	54466459	12192768	7080414	15419aa59619819d
+measurement	encode	2	low-latency	clic-validation-040	54508375	12192768	6739944	32d2e8fa966b1fb9
+aggregate	encode	2	low-latency	41	2238154417	417812344	257182884	c9c8875d2531bc03
+test encoder::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out; finished in 4.51s
+

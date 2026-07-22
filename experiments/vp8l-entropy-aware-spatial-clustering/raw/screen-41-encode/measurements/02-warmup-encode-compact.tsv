@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	encode	warmup	compact	clic-validation-000	73443250	12192768	7693316	6fef3c2323be96e2
+measurement	encode	warmup	compact	clic-validation-001	47739250	9437184	6124594	e4a776f3634e6f85
+measurement	encode	warmup	compact	clic-validation-002	44833250	9437184	5885852	3b88c6c03cac89b9
+measurement	encode	warmup	compact	clic-validation-003	46743750	9437184	5946656	acfbf010dabd397a
+measurement	encode	warmup	compact	clic-validation-004	43649917	9437184	5198332	4b1d4762577a5c62
+measurement	encode	warmup	compact	clic-validation-005	44461042	9437184	5337014	d5407df88594a4b9
+measurement	encode	warmup	compact	clic-validation-006	45548792	9437184	4973668	b185592ecb847cfb
+measurement	encode	warmup	compact	clic-validation-007	62972917	12192768	7843464	a762148f2a392f32
+measurement	encode	warmup	compact	clic-validation-008	38725250	7902720	4353944	71f4f8860124131c
+measurement	encode	warmup	compact	clic-validation-009	39458250	7902720	4944864	ab3edbac97109399
+measurement	encode	warmup	compact	clic-validation-010	31098916	6441528	3954474	b2a924ad70cc87a8
+measurement	encode	warmup	compact	clic-validation-011	15358542	3011904	1984944	d044ff339962a25d
+measurement	encode	warmup	compact	clic-validation-012	40464792	7990272	4797792	6c14fdf78db04253
+measurement	encode	warmup	compact	clic-validation-013	39471250	7990272	5012244	5608c3101d30797c
+measurement	encode	warmup	compact	clic-validation-014	40808334	7990272	5297732	39a8f3bb2b78ce29
+measurement	encode	warmup	compact	clic-validation-015	40080500	7990272	5645960	c9534777b8b6cacd
+measurement	encode	warmup	compact	clic-validation-016	39000875	7990272	4556150	0e584c021833b809
+measurement	encode	warmup	compact	clic-validation-017	63996500	12192768	6523274	c08795c03e9be29f
+measurement	encode	warmup	compact	clic-validation-018	40206000	7990272	4826202	6279873339095fd0
+measurement	encode	warmup	compact	clic-validation-019	42606458	7990272	4783566	75328ad5326499e3
+measurement	encode	warmup	compact	clic-validation-020	47974416	9445376	6211508	cd8ca3773f6ac558
+measurement	encode	warmup	compact	clic-validation-021	39434375	7834368	4600432	b61838b80a2f6b2c
+measurement	encode	warmup	compact	clic-validation-022	46071000	9445376	5217358	170bf3f75b57a5ac
+measurement	encode	warmup	compact	clic-validation-023	49042833	9445376	5588180	c3aa95790988458e
+measurement	encode	warmup	compact	clic-validation-024	61576584	12192768	7152086	b7312f92f4752452
+measurement	encode	warmup	compact	clic-validation-025	60858833	12192768	7633234	2f0845b0a19612fd
+measurement	encode	warmup	compact	clic-validation-026	66276834	12451840	7872312	258477aabb21cb59
+measurement	encode	warmup	compact	clic-validation-027	57591084	11968000	6752220	812a3b3aacd31eed
+measurement	encode	warmup	compact	clic-validation-028	57754542	11968000	6804216	5e2c6386fa6749b3
+measurement	encode	warmup	compact	clic-validation-029	59339541	12192768	5842508	89acbf1956212d89
+measurement	encode	warmup	compact	clic-validation-030	58264292	11968000	8152722	ef9047f83b596ff3
+measurement	encode	warmup	compact	clic-validation-031	61661750	12192768	7045876	745f7d0005ab7419
+measurement	encode	warmup	compact	clic-validation-032	59910584	12192768	6791602	7609aa3cb54ab226
+measurement	encode	warmup	compact	clic-validation-033	61375458	12192768	7922090	00fcfd2904e429a6
+measurement	encode	warmup	compact	clic-validation-034	59758083	12289728	7712614	503770163966213c
+measurement	encode	warmup	compact	clic-validation-035	59850125	12289728	7360522	7e0bc6f9a19edfd7
+measurement	encode	warmup	compact	clic-validation-036	58764709	12289728	6943116	7ffbe5e862489ce0
+measurement	encode	warmup	compact	clic-validation-037	60622375	12289728	7249538	f400b01a8fd4365d
+measurement	encode	warmup	compact	clic-validation-038	61832791	12192768	7430188	47e3e18f00d2ba8c
+measurement	encode	warmup	compact	clic-validation-039	58365500	12192768	6913994	5c1ff47425c7a662
+measurement	encode	warmup	compact	clic-validation-040	57206791	12192768	6837300	cc504e557c3ac5d7
+aggregate	encode	warmup	compact	41	2386067292	417812344	249717658	fd9773c906d72533
+test encoder::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out; finished in 4.60s
+

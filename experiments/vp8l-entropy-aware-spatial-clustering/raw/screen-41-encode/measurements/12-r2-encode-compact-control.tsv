@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	encode	2	compact-control	clic-validation-000	102998000	12192768	8130642	0f02a28355405c35
+measurement	encode	2	compact-control	clic-validation-001	67582416	9437184	6257982	8cdded93ea38d0c4
+measurement	encode	2	compact-control	clic-validation-002	63401083	9437184	5799410	44ed3741c525c80c
+measurement	encode	2	compact-control	clic-validation-003	71112208	9437184	6050450	e907a2e37937e785
+measurement	encode	2	compact-control	clic-validation-004	81646291	9437184	5328258	06ddd8677593609e
+measurement	encode	2	compact-control	clic-validation-005	65414958	9437184	5539552	38ab4fcd4b83074a
+measurement	encode	2	compact-control	clic-validation-006	72037542	9437184	5188746	dc82c3867cd27ef5
+measurement	encode	2	compact-control	clic-validation-007	89634875	12192768	7922454	cab5aafc5dbe6bc5
+measurement	encode	2	compact-control	clic-validation-008	55218000	7902720	4327522	41057fcac4692baf
+measurement	encode	2	compact-control	clic-validation-009	53789917	7902720	5063414	5cec33e99360af39
+measurement	encode	2	compact-control	clic-validation-010	48786541	6441528	3997470	e39fa39b81d063c4
+measurement	encode	2	compact-control	clic-validation-011	21139208	3011904	1961344	9e7fedd69fae81d4
+measurement	encode	2	compact-control	clic-validation-012	62270500	7990272	4891824	c7ca321d2e5ff1ef
+measurement	encode	2	compact-control	clic-validation-013	58912542	7990272	5058144	018d6fc3bf5a4998
+measurement	encode	2	compact-control	clic-validation-014	57865750	7990272	5293592	6839d747d9b3ecd3
+measurement	encode	2	compact-control	clic-validation-015	56399250	7990272	5656200	e1e43c8a3678dc0d
+measurement	encode	2	compact-control	clic-validation-016	59028291	7990272	4555750	d74e0485d62c6a97
+measurement	encode	2	compact-control	clic-validation-017	92229667	12192768	6691500	ec0a33bc3dd53d6d
+measurement	encode	2	compact-control	clic-validation-018	58256916	7990272	5115144	61a83d9e32466dda
+measurement	encode	2	compact-control	clic-validation-019	56208583	7990272	5039696	b07bddc8d312f434
+measurement	encode	2	compact-control	clic-validation-020	60881458	9445376	6358216	466e96893e179b35
+measurement	encode	2	compact-control	clic-validation-021	60603125	7834368	4565070	e6ea7751bb0fa96c
+measurement	encode	2	compact-control	clic-validation-022	62592583	9445376	5628196	52980d6296da50c6
+measurement	encode	2	compact-control	clic-validation-023	65129416	9445376	5856188	14a3cbdb5772f655
+measurement	encode	2	compact-control	clic-validation-024	86056584	12192768	7349344	fabb08f2175b9ae9
+measurement	encode	2	compact-control	clic-validation-025	86523541	12192768	7869586	8e2bafa718f19a77
+measurement	encode	2	compact-control	clic-validation-026	89226000	12451840	8259084	f45a79434b11b0a8
+measurement	encode	2	compact-control	clic-validation-027	85911292	11968000	6933844	bb6c90c7c8ce176a
+measurement	encode	2	compact-control	clic-validation-028	80477667	11968000	7265392	06e5e235e1a82103
+measurement	encode	2	compact-control	clic-validation-029	83123042	12192768	6107890	f3e390306bdceba2
+measurement	encode	2	compact-control	clic-validation-030	82814375	11968000	8257108	b05bd6d94c5eec76
+measurement	encode	2	compact-control	clic-validation-031	87129166	12192768	7174330	25794fd98a943f36
+measurement	encode	2	compact-control	clic-validation-032	83893250	12192768	6915788	e12aaa37425a5e15
+measurement	encode	2	compact-control	clic-validation-033	86428750	12192768	8462362	b152258efbfb45be
+measurement	encode	2	compact-control	clic-validation-034	89858000	12289728	8425850	c60a77ee228fbe0f
+measurement	encode	2	compact-control	clic-validation-035	92405375	12289728	8124282	0935beeb6715c7da
+measurement	encode	2	compact-control	clic-validation-036	90130625	12289728	7281758	dbba36b7f776979d
+measurement	encode	2	compact-control	clic-validation-037	89355875	12289728	7772372	5d2756e807704ab1
+measurement	encode	2	compact-control	clic-validation-038	84023375	12192768	8140256	16c4160b4af1b939
+measurement	encode	2	compact-control	clic-validation-039	83495708	12192768	7163302	71b90b977929d8ff
+measurement	encode	2	compact-control	clic-validation-040	86180250	12192768	6948508	4ebc4f813c05112a
+aggregate	encode	2	compact-control	41	3341012375	417812344	258727820	89dd34c8a37272b5
+test encoder::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out; finished in 5.56s
+

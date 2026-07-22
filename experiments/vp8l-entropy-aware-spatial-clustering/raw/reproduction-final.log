@@ -1,0 +1,182 @@
+   Compiling webp-core v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/core)
+   Compiling webp-vp8l-transform v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/vp8l-transform)
+   Compiling webp-vp8l-color-transform v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/vp8l-color-transform)
+   Compiling webp-vp8l-indexing v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/vp8l-indexing)
+   Compiling webp-vp8l-entropy v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/vp8l-entropy)
+   Compiling webp-vp8l v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/vp8l)
+   Compiling webp-vp8l-huffman v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/vp8l-huffman)
+   Compiling webp-animation v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/animation)
+   Compiling webp-vp8 v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/vp8)
+   Compiling webp-container v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/container)
+   Compiling webp-vp8l-color-cache v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/vp8l-color-cache)
+   Compiling webp-vp8l-literal v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/vp8l-literal)
+   Compiling webp-alpha v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/alpha)
+   Compiling webp v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/webp)
+    Finished `release` profile [optimized] target(s) in 2.42s
+  Executable unittests src/lib.rs (/private/tmp/p15-reproduce.ymEAAW/base-target/release/deps/webp-018635ace19b190c)
+   Compiling webp v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/base/webp-rs/webp)
+    Finished `release` profile [optimized] target(s) in 0.69s
+   Compiling webp-core v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/core)
+   Compiling webp-vp8l-transform v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/vp8l-transform)
+   Compiling webp-vp8l-color-transform v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/vp8l-color-transform)
+   Compiling webp-vp8l-indexing v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/vp8l-indexing)
+   Compiling webp-vp8l-entropy v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/vp8l-entropy)
+   Compiling webp-vp8l v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/vp8l)
+   Compiling webp-vp8l-huffman v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/vp8l-huffman)
+   Compiling webp-vp8 v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/vp8)
+   Compiling webp-container v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/container)
+   Compiling webp-animation v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/animation)
+   Compiling webp-vp8l-color-cache v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/vp8l-color-cache)
+   Compiling webp-vp8l-literal v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/vp8l-literal)
+   Compiling webp-alpha v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/alpha)
+   Compiling webp v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/webp)
+    Finished `release` profile [optimized] target(s) in 1.99s
+  Executable unittests src/lib.rs (/private/tmp/p15-reproduce.ymEAAW/control-target/release/deps/webp-018635ace19b190c)
+   Compiling webp v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/control/webp-rs/webp)
+    Finished `release` profile [optimized] target(s) in 0.69s
+   Compiling webp-core v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/core)
+   Compiling webp-vp8l-transform v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/vp8l-transform)
+   Compiling webp-vp8l-color-transform v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/vp8l-color-transform)
+   Compiling webp-vp8l-indexing v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/vp8l-indexing)
+   Compiling webp-vp8l-entropy v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/vp8l-entropy)
+   Compiling webp-vp8l-huffman v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/vp8l-huffman)
+   Compiling webp-vp8l v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/vp8l)
+   Compiling webp-animation v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/animation)
+   Compiling webp-container v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/container)
+   Compiling webp-vp8 v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/vp8)
+   Compiling webp-vp8l-color-cache v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/vp8l-color-cache)
+   Compiling webp-vp8l-literal v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/vp8l-literal)
+   Compiling webp-alpha v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/alpha)
+   Compiling webp v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/webp)
+    Finished `release` profile [optimized] target(s) in 2.43s
+  Executable unittests src/lib.rs (/private/tmp/p15-reproduce.ymEAAW/candidate-target/release/deps/webp-018635ace19b190c)
+   Compiling webp v0.1.0 (/private/tmp/p15-reproduce.ymEAAW/candidate/webp-rs/webp)
+    Finished `release` profile [optimized] target(s) in 0.76s
+./gate-summary.json: OK
+./phase-a-summary.json: OK
+./raw/binary-artifacts.tsv: OK
+./raw/corpus-manifest-102.tsv: OK
+./raw/formal-102x5-not-run.txt: OK
+./raw/identity-306-final/identity-306.tsv: OK
+./raw/identity-306-final/oracle-918.tsv: OK
+./raw/identity-306-final/run.json: OK
+./raw/phase-a-102/phase-a.stderr: OK
+./raw/phase-a-102/phase-a.tsv: OK
+./raw/screen-41-correctness/libwebp-compare.stderr: OK
+./raw/screen-41-correctness/libwebp-compare.tsv: OK
+./raw/screen-41-correctness/project-generate.stderr: OK
+./raw/screen-41-correctness/project-generate.tsv: OK
+./raw/screen-41-encode/measurements/01-warmup-encode-compact-control.stderr: OK
+./raw/screen-41-encode/measurements/01-warmup-encode-compact-control.tsv: OK
+./raw/screen-41-encode/measurements/02-warmup-encode-compact.stderr: OK
+./raw/screen-41-encode/measurements/02-warmup-encode-compact.tsv: OK
+./raw/screen-41-encode/measurements/03-warmup-encode-low-latency-control.stderr: OK
+./raw/screen-41-encode/measurements/03-warmup-encode-low-latency-control.tsv: OK
+./raw/screen-41-encode/measurements/04-warmup-encode-low-latency.stderr: OK
+./raw/screen-41-encode/measurements/04-warmup-encode-low-latency.tsv: OK
+./raw/screen-41-encode/measurements/05-r1-encode-compact-control.stderr: OK
+./raw/screen-41-encode/measurements/05-r1-encode-compact-control.tsv: OK
+./raw/screen-41-encode/measurements/06-r1-encode-compact.stderr: OK
+./raw/screen-41-encode/measurements/06-r1-encode-compact.tsv: OK
+./raw/screen-41-encode/measurements/07-r1-encode-low-latency-control.stderr: OK
+./raw/screen-41-encode/measurements/07-r1-encode-low-latency-control.tsv: OK
+./raw/screen-41-encode/measurements/08-r1-encode-low-latency.stderr: OK
+./raw/screen-41-encode/measurements/08-r1-encode-low-latency.tsv: OK
+./raw/screen-41-encode/measurements/09-r2-encode-low-latency.stderr: OK
+./raw/screen-41-encode/measurements/09-r2-encode-low-latency.tsv: OK
+./raw/screen-41-encode/measurements/10-r2-encode-low-latency-control.stderr: OK
+./raw/screen-41-encode/measurements/10-r2-encode-low-latency-control.tsv: OK
+./raw/screen-41-encode/measurements/11-r2-encode-compact.stderr: OK
+./raw/screen-41-encode/measurements/11-r2-encode-compact.tsv: OK
+./raw/screen-41-encode/measurements/12-r2-encode-compact-control.stderr: OK
+./raw/screen-41-encode/measurements/12-r2-encode-compact-control.tsv: OK
+./raw/screen-41-encode/measurements/13-r3-encode-compact-control.stderr: OK
+./raw/screen-41-encode/measurements/13-r3-encode-compact-control.tsv: OK
+./raw/screen-41-encode/measurements/14-r3-encode-compact.stderr: OK
+./raw/screen-41-encode/measurements/14-r3-encode-compact.tsv: OK
+./raw/screen-41-encode/measurements/15-r3-encode-low-latency-control.stderr: OK
+./raw/screen-41-encode/measurements/15-r3-encode-low-latency-control.tsv: OK
+./raw/screen-41-encode/measurements/16-r3-encode-low-latency.stderr: OK
+./raw/screen-41-encode/measurements/16-r3-encode-low-latency.tsv: OK
+./raw/screen-41-encode/processes.jsonl: OK
+./raw/screen-41-encode/run.json: OK
+./raw/screen-41-libwebp-decode/measurements/01-warmup-decode-compact-control.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/01-warmup-decode-compact-control.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/02-warmup-decode-compact.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/02-warmup-decode-compact.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/03-warmup-decode-low-latency-control.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/03-warmup-decode-low-latency-control.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/04-warmup-decode-low-latency.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/04-warmup-decode-low-latency.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/05-r1-decode-compact-control.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/05-r1-decode-compact-control.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/06-r1-decode-compact.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/06-r1-decode-compact.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/07-r1-decode-low-latency-control.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/07-r1-decode-low-latency-control.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/08-r1-decode-low-latency.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/08-r1-decode-low-latency.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/09-r2-decode-low-latency.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/09-r2-decode-low-latency.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/10-r2-decode-low-latency-control.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/10-r2-decode-low-latency-control.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/11-r2-decode-compact.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/11-r2-decode-compact.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/12-r2-decode-compact-control.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/12-r2-decode-compact-control.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/13-r3-decode-compact-control.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/13-r3-decode-compact-control.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/14-r3-decode-compact.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/14-r3-decode-compact.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/15-r3-decode-low-latency-control.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/15-r3-decode-low-latency-control.tsv: OK
+./raw/screen-41-libwebp-decode/measurements/16-r3-decode-low-latency.stderr: OK
+./raw/screen-41-libwebp-decode/measurements/16-r3-decode-low-latency.tsv: OK
+./raw/screen-41-libwebp-decode/processes.jsonl: OK
+./raw/screen-41-libwebp-decode/run.json: OK
+./raw/screen-41-rust-decode/measurements/01-warmup-decode-compact-control.stderr: OK
+./raw/screen-41-rust-decode/measurements/01-warmup-decode-compact-control.tsv: OK
+./raw/screen-41-rust-decode/measurements/02-warmup-decode-compact.stderr: OK
+./raw/screen-41-rust-decode/measurements/02-warmup-decode-compact.tsv: OK
+./raw/screen-41-rust-decode/measurements/03-warmup-decode-low-latency-control.stderr: OK
+./raw/screen-41-rust-decode/measurements/03-warmup-decode-low-latency-control.tsv: OK
+./raw/screen-41-rust-decode/measurements/04-warmup-decode-low-latency.stderr: OK
+./raw/screen-41-rust-decode/measurements/04-warmup-decode-low-latency.tsv: OK
+./raw/screen-41-rust-decode/measurements/05-r1-decode-compact-control.stderr: OK
+./raw/screen-41-rust-decode/measurements/05-r1-decode-compact-control.tsv: OK
+./raw/screen-41-rust-decode/measurements/06-r1-decode-compact.stderr: OK
+./raw/screen-41-rust-decode/measurements/06-r1-decode-compact.tsv: OK
+./raw/screen-41-rust-decode/measurements/07-r1-decode-low-latency-control.stderr: OK
+./raw/screen-41-rust-decode/measurements/07-r1-decode-low-latency-control.tsv: OK
+./raw/screen-41-rust-decode/measurements/08-r1-decode-low-latency.stderr: OK
+./raw/screen-41-rust-decode/measurements/08-r1-decode-low-latency.tsv: OK
+./raw/screen-41-rust-decode/measurements/09-r2-decode-low-latency.stderr: OK
+./raw/screen-41-rust-decode/measurements/09-r2-decode-low-latency.tsv: OK
+./raw/screen-41-rust-decode/measurements/10-r2-decode-low-latency-control.stderr: OK
+./raw/screen-41-rust-decode/measurements/10-r2-decode-low-latency-control.tsv: OK
+./raw/screen-41-rust-decode/measurements/11-r2-decode-compact.stderr: OK
+./raw/screen-41-rust-decode/measurements/11-r2-decode-compact.tsv: OK
+./raw/screen-41-rust-decode/measurements/12-r2-decode-compact-control.stderr: OK
+./raw/screen-41-rust-decode/measurements/12-r2-decode-compact-control.tsv: OK
+./raw/screen-41-rust-decode/measurements/13-r3-decode-compact-control.stderr: OK
+./raw/screen-41-rust-decode/measurements/13-r3-decode-compact-control.tsv: OK
+./raw/screen-41-rust-decode/measurements/14-r3-decode-compact.stderr: OK
+./raw/screen-41-rust-decode/measurements/14-r3-decode-compact.tsv: OK
+./raw/screen-41-rust-decode/measurements/15-r3-decode-low-latency-control.stderr: OK
+./raw/screen-41-rust-decode/measurements/15-r3-decode-low-latency-control.tsv: OK
+./raw/screen-41-rust-decode/measurements/16-r3-decode-low-latency.stderr: OK
+./raw/screen-41-rust-decode/measurements/16-r3-decode-low-latency.tsv: OK
+./raw/screen-41-rust-decode/processes.jsonl: OK
+./raw/screen-41-rust-decode/run.json: OK
+./raw/screen-manifest-41.tsv: OK
+./raw/validation-final/build-release.log: OK
+./raw/validation-final/clippy.log: OK
+./raw/validation-final/doctest.log: OK
+./raw/validation-final/fmt.log: OK
+./raw/validation-final/installed-targets.txt: OK
+./raw/validation-final/rustdoc.log: OK
+./raw/validation-final/test-release.log: OK
+./raw/validation-final/test-workspace.log: OK
+./raw/validation-final/toolchain.txt: OK
+./raw/validation-final/validation.tsv: OK
+./reproduction-status.txt: OK
