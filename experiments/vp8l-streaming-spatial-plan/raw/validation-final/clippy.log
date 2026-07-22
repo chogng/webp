@@ -1,0 +1,27 @@
+    Checking webp-core v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/core)
+    Checking webp-vp8l-transform v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/vp8l-transform)
+    Checking webp-vp8l-color-transform v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/vp8l-color-transform)
+    Checking hashbrown v0.17.1
+    Checking equivalent v1.0.2
+    Checking toml_write v0.1.2
+    Checking winnow v0.7.15
+    Checking serde_core v1.0.229
+    Checking webp-vp8l-indexing v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/vp8l-indexing)
+    Checking webp-vp8l-entropy v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/vp8l-entropy)
+    Checking webp-vp8l-huffman v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/vp8l-huffman)
+    Checking webp-vp8l v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/vp8l)
+    Checking webp-vp8 v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/vp8)
+    Checking webp-container v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/container)
+    Checking webp-animation v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/animation)
+    Checking webp-vp8l-color-cache v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/vp8l-color-cache)
+    Checking webp-vp8l-literal v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/vp8l-literal)
+    Checking indexmap v2.14.0
+    Checking webp-alpha v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/alpha)
+    Checking webp v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/webp)
+    Checking serde v1.0.229
+    Checking toml_datetime v0.6.11
+    Checking serde_spanned v0.6.9
+    Checking toml_edit v0.22.27
+    Checking toml v0.8.23
+    Checking xtask v0.1.0 (/private/tmp/vp8l-p13-final.PZEPX9/candidate/webp-rs/xtask)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.18s

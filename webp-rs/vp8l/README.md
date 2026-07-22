@@ -111,7 +111,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 
 ## 与本任务关联的工作树索引
 
-根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 37 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断或通过实验 gate 后另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
+根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 38 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断或通过实验 gate 后另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
 
 | ID | 实验 | 分支 / HEAD | 实验 base | 当前工作树与结果 | 决定 |
 | --- | --- | --- | --- | --- | --- |
@@ -152,16 +152,15 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 | E35 | exact-cost single-write 产品迁移 | `codex/vp8l-exact-cost-product@4803b2d`；代码 `6ed10e55`；证据 `6369ddcd` | `130aa1f3` | [report](../../experiments/vp8l-exact-cost-product/REPORT.md)；[raw/reproducer](../../experiments/vp8l-exact-cost-product)；[6368](</Users/lance/.codex/worktrees/6368/webp>)；task `019f885a-c777-70c2-83c1-f622b78e3363` | **已线性迁入 main**：代码 `97d6f1f4`、证据 `00f02468`、whitespace policy `61aa5899`；两档 -28.389%/-28.966%，306/306 byte identity 与双 decoder exact |
 | E36 | packed token writer 实验 | `codex/vp8l-packed-token-writer@6000af0a`；候选 `dfc0cf6f`；证据 `1f8635c1` | `7eca2b83` | [report](</Users/lance/.codex/worktrees/b8f0/webp/experiments/vp8l-packed-token-writer/REPORT.md>)；[raw/reproducer](</Users/lance/.codex/worktrees/b8f0/webp/experiments/vp8l-packed-token-writer>)；[b8f0](</Users/lance/.codex/worktrees/b8f0/webp>)；task `019f8890-c433-7013-b862-00f8c5f4221a` | **通过实验 gate**：最终 binary 上 Compact/LowLatency -27.657%/-28.119%，306/306 byte identity 与双 decoder exact，转 latest-main 产品迁移 |
 | E37 | packed token writer 产品迁移 | `codex/vp8l-packed-writer-product@a7cde726`；代码 `9435fbd0`；证据 `a7cde726` | `0ee428dc` | [report](../../experiments/vp8l-packed-writer-product/REPORT.md)；[raw/reproducer](../../experiments/vp8l-packed-writer-product)；[5e00](</Users/lance/.codex/worktrees/5e00/webp>)；task `019f88d1-ed7a-7573-8898-d78525870e70` | **已线性迁入 main**：代码 `b3b96fdc`、证据 `80113c1e`、whitespace policy `fabcbf9c`；两档 -27.005%/-26.561%，latest-main/E36 各 306/306 byte identity 与双 decoder exact |
+| E38 | 流式 tokenization + spatial sufficient statistics | `codex/vp8l-streaming-spatial-plan@d2207f45`；S+C `daadb6f1`；F `f5e5bee5`；修正 `815df546`；诊断 `292c1d74`；证据 `a2295c3d` | `cec68762` | [report](../../experiments/vp8l-streaming-spatial-plan/REPORT.md)；[raw/reproducer](../../experiments/vp8l-streaming-spatial-plan)；[25a6](</Users/lance/.codex/worktrees/25a6/webp>)；task `019f8915-45d9-7a90-a843-4d0062ade22b` | **拒绝，不迁移代码**：修正版 S+C+F 两档 -2.658%/-3.191%，最强 materialized C+F -5.899%/-3.520%，均未过双档 10%/零回退 gate；306/306 byte identity、918/918 pinned C exact；完整负证据归档 main |
 
 ### latest-main 迁移链
 
-E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08，最终作为 E33 线性迁入 main。P09/E34 又从创建时最新 `main@5362912a23a39175758796e07f45af3ee79143b1` 独立建树；通过 25% gate 后，没有直接把研究树合入，而是从届时最新 `main@130aa1f347ae1193463f35205b5bd98b4031bc7c` 新建 E35，重新理解并迁移最小产品实现。E35 最终作为 `97d6f1f4`/`00f02468`/`61aa5899` 线性进入 main。P11/E36 则从创建时最新 `main@7eca2b83c2b9338ab4f15a58755e6e0acc970bf0` 独立建树；研究树已证明 packed token writer 的端到端收益和 wire identity，但没有把 census/phase instrumentation 带进产品。P12/E37 随后从创建时最新 `main@0ee428dc0bee9c035f051b4ccaa846dabe394ca8` 新建独立产品树，重建最小 packet sink；产品代码、完整证据和 raw whitespace policy 已分别作为 `b3b96fdc`/`80113c1e`/`fabcbf9c` 线性迁入 main。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
+E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08，最终作为 E33 线性迁入 main。P09/E34 又从创建时最新 `main@5362912a23a39175758796e07f45af3ee79143b1` 独立建树；通过 25% gate 后，没有直接把研究树合入，而是从届时最新 `main@130aa1f347ae1193463f35205b5bd98b4031bc7c` 新建 E35，重新理解并迁移最小产品实现。E35 最终作为 `97d6f1f4`/`00f02468`/`61aa5899` 线性进入 main。P11/E36 则从创建时最新 `main@7eca2b83c2b9338ab4f15a58755e6e0acc970bf0` 独立建树；研究树已证明 packed token writer 的端到端收益和 wire identity，但没有把 census/phase instrumentation 带进产品。P12/E37 随后从创建时最新 `main@0ee428dc0bee9c035f051b4ccaa846dabe394ca8` 新建独立产品树，重建最小 packet sink；产品代码、完整证据和 raw whitespace policy 已分别作为 `b3b96fdc`/`80113c1e`/`fabcbf9c` 线性迁入 main。P13/E38 从创建时最新 `main@cec68762e5ab6184bce275aeff5720ba3e6f96c7` 独立建树；它通过完整 screen 和复现证明“只融合 pass”不足以过 10% gate，因此没有 rebase、没有产品迁移，只把报告、raw 与复现器归档进 main。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
 
 ### 进行中的 latest-main 编码优化
 
-| 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
-| --- | --- | --- | --- | --- |
-| P13 | 流式 tokenization + spatial sufficient statistics | `codex/vp8l-streaming-spatial-plan`；`cec68762e5ab6184bce275aeff5720ba3e6f96c7` | [25a6](</Users/lance/.codex/worktrees/25a6/webp>)；task `019f8915-45d9-7a90-a843-4d0062ade22b`；结果目录 `experiments/vp8l-streaming-spatial-plan` | 已证明创建时 HEAD/main/merge-base 精确；先隔离 S/C/F 三个同架构变体，正式同 binary 两档 >=10%、绝对 <=7.1/6.9 s、0/102 回退、306/306 byte identity、双 decoder exact、RSS 增量 <=64 MiB 且 <=5% 才可建议另建产品迁移树 |
+E38 已关闭；下一棵实验树必须从包含本行和 E38 完整证据的届时最新本地 `main` 创建，并在此处登记后再进入实现。
 
 ## 每次优化的结果与结论
 
@@ -481,18 +480,30 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 - 只把最终完整仓库 archive binary 的结果写入 headline。错误 cwd archive、zsh 特殊 `path` 导致的 non-run、pre-manifest partial、workspace-subtree archive 的 screen/formal/identity、缺 root fixtures 的 validation 与覆盖日志重建均作为失效运行完整保存在 [invalidated-runs](../../experiments/vp8l-packed-writer-product/invalidated-runs) 和具名 `raw/invalidated-*` 目录，不因无效或无收益而丢弃。
 - 分支 `codex/vp8l-packed-writer-product`：base `0ee428dc`，代码 `9435fbd0`，证据/最终 HEAD `a7cde726`；工作树 [5e00](</Users/lance/.codex/worktrees/5e00/webp>)，task `019f88d1-ed7a-7573-8898-d78525870e70`，[完整报告](../../experiments/vp8l-packed-writer-product/REPORT.md)。对应 main 线性提交为代码 `b3b96fdc`、证据 `80113c1e`、raw whitespace policy `fabcbf9c`。
 
+### E38：流式 tokenization 与空间统计融合
+
+优化点：把 residual 生成、tokenization、block census 与 group frequencies 拆成可独立对照的 S/C/F 变体，验证“让 token producer 同步拥有空间规划统计、删除中间 materialization 和后续全 token 扫描”能否形成新的高收益数据流架构。
+
+- Phase A 对两档各 102 图、251,858,137 pixels、244,018,874 tokens 做完整归因。Compact/LowLatency 的 residual 为 0.627/0.622 s、tokenization 为 0.913/0.902 s、ordered census 为 2.504/2.530 s、group-frequency pass 为 0.773/0.745 s、packed writer 为 3.276/3.180 s；名义可删除阶段合计约 3.905/3.897 s，但这只是忽略同步更新与 merge 成本的乐观上界。
+- 初版 S 循环重复计算 lookahead residual，作为有效失败变体保留：S、S+C、S+C+F 在两档全部未过 gate。`815df546` 修正为每像素只计算一次后，最强 S+C+F 的 41 图结果也只有 Compact 3.818069 -> 3.716571 s（-2.658%，1/41 回退）和 LowLatency 3.772696 -> 3.652312 s（-3.191%，0/41 回退）。
+- 预声明的 materialized residual + C+F 诊断隔离掉 S：Compact 4.015890 -> 3.778998 s（独立 -5.899%、配对 -3.515%、1/41 回退），LowLatency 3.787675 -> 3.654337 s（独立 -3.520%、配对 -3.479%、0/41 回退）。三轮与 3×MAD 标记全部保留；因为所有 screen 都未达到双档至少 10% 且零回退，正式 102×5 按 gate 主动跳过。
+- F 使用每 block 1,049 个 cache-0 counter；16384² 最坏额外存储为 Compact 32.781 MiB、LowLatency 16.391 MiB，加 C 后约 33.406/16.547 MiB。真实最大图仅约 0.392/0.194 MiB，实测诊断 RSS 只增加 0.484/0.141 MiB；内存通过，性能失败。
+- base/control/candidate 的 Default/Compact/LowLatency 共 306/306 在长度、SHA 与完整字节上相同；项目 decoder 全部 exact，pinned libwebp `733c91e` 为 918/918 RGBA exact。stable debug/release、all-targets、Clippy `-D warnings`、fmt、rustdoc/doctest 七项全通过；一键复现脚本已从仓库根实际运行并 exit 0，新生成的相对 SHA 清单全部通过。
+- E37 相对 E33 已改善 46.320%/46.406%；叠加修正版 S+C+F 只投影到 47.747%/48.116%，叠加最强诊断也只到 49.487%/48.293%，都不能声称超过 50%。结论是“删除 pass 本身不够，必须删除或根本改变统计更新成本”；不建产品迁移树，不把研究 hooks 合入生产。
+- 分支 `codex/vp8l-streaming-spatial-plan`：base `cec68762`，S+C `daadb6f1`，F `f5e5bee5`，修正 `815df546`，最终诊断 `292c1d74`，证据 `a2295c3d`，最终 HEAD `d2207f45`；工作树 [25a6](</Users/lance/.codex/worktrees/25a6/webp>)，task `019f8915-45d9-7a90-a843-4d0062ade22b`，[完整报告与复现器](../../experiments/vp8l-streaming-spatial-plan/REPORT.md)。
+
 ## 下一阶段：优先寻找更强且更通用的新架构
 
 标准 VP8L 的局部优化已经给出一致信号：Huffman、predictor、LZ77、PGO、单个 copy kernel 各自只有个位数收益或以明显 rate/latency 回退换取收益。后续优先级应从“继续打磨一个旧循环”转向能够同时改变表示、依赖图和输出流水线的架构方案。
 
-### 第一优先：流式 tokenization 与空间规划融合
+### 第一优先：frequency-owned spatial clustering
 
-- E37 之后，候选 writer 已从约 5.3–5.5 s 降到约 2.4 s；此前约 2.84–2.87 s 的 `SpatialPlan::build` 成为最显著的剩余阶段。当前管线先生成完整 residual buffer，再生成 token，随后为 block signature 与 group frequencies 再扫描 token；这是数据所有权和 pass 数量的问题，不是并发或单条指令问题。
-- 下一假设是让 profile-aware token producer 在流式生成 residual/token 时同步产出空间规划所需的充分统计量。最低档只融合 block census，进阶档在内存有界时持有 per-block exact frequencies 并按最终 assignment 合并，从而消除一至两次全 token 扫描；必须保持 copy 归属、Boyer–Moore majority 顺序、cluster seed、Huffman frequencies 和最终 wire 完全不变。
-- Phase A 必须先分别量化 residual materialization、tokenization、block census、seed/rank/assign、group-frequency pass、tables 与 packed writer，给出可回收上界；实现阶段逐个隔离 streaming-only、census fusion 和 per-block merge，不能把不相关算法改动混入一个数字。
-- 正式同 binary gate 目标为 Compact/LowLatency 都至少改善 10%，候选绝对中位分别不高于 7.1/6.9 s，且 0/102 逐图中位回退。这个目标若成立，按 E33 14.668/14.253 s 的历史产品起点，两档累计编码时间将超过 50% 改善。
-- 必须完成 latest-main/candidate 306/306 byte identity、项目 decoder 与 pinned libwebp 各 306/306 RGBA exact，并报告 process wall/CPU/RSS、额外峰值内存、rlib/test binary、错误语义和全部 stable quality gates。若 dense per-block 统计导致 RSS 增量超过 64 MiB 或 5%，必须改用更紧凑布局或拒绝该变体。
-- 研究保持 safe、单线程、无新增依赖，不改变 Default/API/profile 决策、cluster 算法、token parse、标准 VP8L wire、metadata 或 animation；成功后仍需从届时最新 `main` 另建产品迁移树，不能直接把研究 hooks 合入。
+- E38 证明，census 的 2.50–2.53 s 主要不是“读一遍 token”的成本，而是每个 literal 同步执行四套分支密集型 ordered Boyer–Moore 更新；简单把它挪进 producer，收益会被同样的统计工作吞掉。下一假设因此改变统计所有权：每 block 只维护最终 group entropy 本来就需要的 exact frequencies，再从这些计数派生确定性的通道 mode/signature，完全删除独立 ordered census 及其四路 candidate/balance 状态。
+- 第一变体只做 exact marginal-mode signature：green/red/blue/alpha 各取频率最大、同频最小 symbol，并沿用现有 seed rank、assignment、group cap、map/table/writer。第二变体只有在第一变体已证明成本模型成立但 rate 不理想时，才允许用固定维度 frequency sketch 直接分配；不得把两种聚类算法混成一个无法归因的结果。
+- 这是允许改变 Compact/LowLatency 标准 VP8L 字节流的研究，不再把与 E37 byte identity 当成性能前提；但 Default 必须逐字节不变，所有候选必须由项目 decoder 与 pinned libwebp 完整 RGBA exact。必须同时报告编码时间、压缩 bytes、Rust/C 解码时间和每图尾部，避免用明显 rate 或 decode 回退换取表面 encode 提升。
+- 41 图同 binary screen 的预声明 gate：Compact/LowLatency 编码都至少改善 10%；aggregate bytes 各不劣于 E37 0.25%，任一图不劣于 2%；Rust 与 pinned C decode 各不回退超过 1%；额外 RSS 不超过 64 MiB/5%。达到后才运行 102 图五轮，并要求双档绝对中位不高于 7.1/6.9 s、每图编码中位 0/102 回退。
+- Phase A 必须先离线重放 E38 的 token/block statistics，量化 exact mode 与 Boyer–Moore signature/assignment 的差异、预计 rate、统计更新次数、counter init/merge 与可回收上界。若 exact-frequency 更新本身仍吃掉收益，应停止，不把 branchless/SIMD 微调伪装成架构成功。
+- 研究继续保持 safe、单线程、无新增依赖，不改变公开 API、Default、metadata、animation、错误语义和标准 VP8L 兼容性；通过研究 gate 后仍从届时最新 `main` 另建最小产品迁移树。
 
 ### 第二优先：统一的 Fast Representation v2
 

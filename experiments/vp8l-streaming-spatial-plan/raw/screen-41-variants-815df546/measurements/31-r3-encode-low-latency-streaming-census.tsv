@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	encode	3	low-latency-streaming-census	clic-validation-000	106632583	12192768	8259942	205e5806964e04fc
+measurement	encode	3	low-latency-streaming-census	clic-validation-001	77337208	9437184	6309214	ba19efae1920b5b5
+measurement	encode	3	low-latency-streaming-census	clic-validation-002	72764167	9437184	5942826	af8571cc2446a9be
+measurement	encode	3	low-latency-streaming-census	clic-validation-003	75319917	9437184	6126922	7d6a58d075d31a26
+measurement	encode	3	low-latency-streaming-census	clic-validation-004	80305875	9437184	5437070	2dc381d95ce7a611
+measurement	encode	3	low-latency-streaming-census	clic-validation-005	76070125	9437184	5390698	2221ba24f8b7e39a
+measurement	encode	3	low-latency-streaming-census	clic-validation-006	79131166	9437184	5209140	09cead9651c5fb23
+measurement	encode	3	low-latency-streaming-census	clic-validation-007	99358750	12192768	8112576	4bc674812323efaf
+measurement	encode	3	low-latency-streaming-census	clic-validation-008	61272166	7902720	4391630	9c8d110f84c6ab0f
+measurement	encode	3	low-latency-streaming-census	clic-validation-009	60261750	7902720	5114026	cd11260673851ac2
+measurement	encode	3	low-latency-streaming-census	clic-validation-010	53728875	6441528	4032212	b3f35799b19cb083
+measurement	encode	3	low-latency-streaming-census	clic-validation-011	23389417	3011904	2023660	0dee869344112095
+measurement	encode	3	low-latency-streaming-census	clic-validation-012	68399584	7990272	5008486	c8a6ca1f27fee40c
+measurement	encode	3	low-latency-streaming-census	clic-validation-013	64510584	7990272	5153972	d0fd577c198f05ca
+measurement	encode	3	low-latency-streaming-census	clic-validation-014	63353084	7990272	5386808	2f0e2ce078dfa0e0
+measurement	encode	3	low-latency-streaming-census	clic-validation-015	63507500	7990272	5684412	e4114154d23303f0
+measurement	encode	3	low-latency-streaming-census	clic-validation-016	66988959	7990272	4701704	709af32520817fe5
+measurement	encode	3	low-latency-streaming-census	clic-validation-017	105044333	12192768	6719656	00d466397d9cf7a6
+measurement	encode	3	low-latency-streaming-census	clic-validation-018	65997000	7990272	5118420	eb054bdbdfb3c853
+measurement	encode	3	low-latency-streaming-census	clic-validation-019	63546542	7990272	5108948	fc80d328d4116136
+measurement	encode	3	low-latency-streaming-census	clic-validation-020	70131834	9445376	6430820	a70878ccda5dadb3
+measurement	encode	3	low-latency-streaming-census	clic-validation-021	67353333	7834368	4693378	eeacf5658ce6dae5
+measurement	encode	3	low-latency-streaming-census	clic-validation-022	72040417	9445376	5628318	f1df5dd2f587a11e
+measurement	encode	3	low-latency-streaming-census	clic-validation-023	74450375	9445376	5979252	86417f977d44787c
+measurement	encode	3	low-latency-streaming-census	clic-validation-024	96648250	12192768	7363364	382bb2aa62af6523
+measurement	encode	3	low-latency-streaming-census	clic-validation-025	95219416	12192768	8063140	7e0fa761ed6d5c04
+measurement	encode	3	low-latency-streaming-census	clic-validation-026	98902792	12451840	8349358	10688eb18b045ed4
+measurement	encode	3	low-latency-streaming-census	clic-validation-027	99349250	11968000	7076126	08c61a1a756bc696
+measurement	encode	3	low-latency-streaming-census	clic-validation-028	95254500	11968000	7360348	3288c8c84e053dd9
+measurement	encode	3	low-latency-streaming-census	clic-validation-029	93418042	12192768	6030840	0038173aae5c4cbc
+measurement	encode	3	low-latency-streaming-census	clic-validation-030	93880833	11968000	8705786	cce495777e9bf98d
+measurement	encode	3	low-latency-streaming-census	clic-validation-031	99459542	12192768	7277258	101739cfd5e60743
+measurement	encode	3	low-latency-streaming-census	clic-validation-032	95524041	12192768	6987574	2126e8c389111622
+measurement	encode	3	low-latency-streaming-census	clic-validation-033	96850291	12192768	8431672	5214c4c49c246a83
+measurement	encode	3	low-latency-streaming-census	clic-validation-034	103471292	12289728	8475800	8c9291363f667e1b
+measurement	encode	3	low-latency-streaming-census	clic-validation-035	104766583	12289728	8055284	412e6979ef098033
+measurement	encode	3	low-latency-streaming-census	clic-validation-036	101830083	12289728	7368046	85cf78c6599ce065
+measurement	encode	3	low-latency-streaming-census	clic-validation-037	102260417	12289728	7805588	0c2c1cf96dc34b0a
+measurement	encode	3	low-latency-streaming-census	clic-validation-038	96564584	12192768	8129706	d882db21b5bd96f3
+measurement	encode	3	low-latency-streaming-census	clic-validation-039	94679916	12192768	7174990	db4ccf38a773a2bc
+measurement	encode	3	low-latency-streaming-census	clic-validation-040	98011333	12192768	7112000	c32e1fa0c6d2c711
+aggregate	encode	3	low-latency-streaming-census	41	3695689333	417812344	261730970	0b684a4a5df93994
+test encoder::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out; finished in 5.88s
+

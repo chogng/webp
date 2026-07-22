@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	encode	1	low-latency-streaming	clic-validation-000	113396208	12192768	8259942	205e5806964e04fc
+measurement	encode	1	low-latency-streaming	clic-validation-001	81744459	9437184	6309214	ba19efae1920b5b5
+measurement	encode	1	low-latency-streaming	clic-validation-002	77981209	9437184	5942826	af8571cc2446a9be
+measurement	encode	1	low-latency-streaming	clic-validation-003	77055208	9437184	6126922	7d6a58d075d31a26
+measurement	encode	1	low-latency-streaming	clic-validation-004	84280875	9437184	5437070	2dc381d95ce7a611
+measurement	encode	1	low-latency-streaming	clic-validation-005	77297292	9437184	5390698	2221ba24f8b7e39a
+measurement	encode	1	low-latency-streaming	clic-validation-006	85232583	9437184	5209140	09cead9651c5fb23
+measurement	encode	1	low-latency-streaming	clic-validation-007	103888792	12192768	8112576	4bc674812323efaf
+measurement	encode	1	low-latency-streaming	clic-validation-008	66462834	7902720	4391630	9c8d110f84c6ab0f
+measurement	encode	1	low-latency-streaming	clic-validation-009	64962666	7902720	5114026	cd11260673851ac2
+measurement	encode	1	low-latency-streaming	clic-validation-010	55749750	6441528	4032212	b3f35799b19cb083
+measurement	encode	1	low-latency-streaming	clic-validation-011	24360500	3011904	2023660	0dee869344112095
+measurement	encode	1	low-latency-streaming	clic-validation-012	70933875	7990272	5008486	c8a6ca1f27fee40c
+measurement	encode	1	low-latency-streaming	clic-validation-013	67939750	7990272	5153972	d0fd577c198f05ca
+measurement	encode	1	low-latency-streaming	clic-validation-014	66170625	7990272	5386808	2f0e2ce078dfa0e0
+measurement	encode	1	low-latency-streaming	clic-validation-015	65926375	7990272	5684412	e4114154d23303f0
+measurement	encode	1	low-latency-streaming	clic-validation-016	70226291	7990272	4701704	709af32520817fe5
+measurement	encode	1	low-latency-streaming	clic-validation-017	108312375	12192768	6719656	00d466397d9cf7a6
+measurement	encode	1	low-latency-streaming	clic-validation-018	69323541	7990272	5118420	eb054bdbdfb3c853
+measurement	encode	1	low-latency-streaming	clic-validation-019	67093417	7990272	5108948	fc80d328d4116136
+measurement	encode	1	low-latency-streaming	clic-validation-020	74298375	9445376	6430820	a70878ccda5dadb3
+measurement	encode	1	low-latency-streaming	clic-validation-021	72001416	7834368	4693378	eeacf5658ce6dae5
+measurement	encode	1	low-latency-streaming	clic-validation-022	77706417	9445376	5628318	f1df5dd2f587a11e
+measurement	encode	1	low-latency-streaming	clic-validation-023	79997500	9445376	5979252	86417f977d44787c
+measurement	encode	1	low-latency-streaming	clic-validation-024	102506292	12192768	7363364	382bb2aa62af6523
+measurement	encode	1	low-latency-streaming	clic-validation-025	103040791	12192768	8063140	7e0fa761ed6d5c04
+measurement	encode	1	low-latency-streaming	clic-validation-026	104961000	12451840	8349358	10688eb18b045ed4
+measurement	encode	1	low-latency-streaming	clic-validation-027	103278250	11968000	7076126	08c61a1a756bc696
+measurement	encode	1	low-latency-streaming	clic-validation-028	101413167	11968000	7360348	3288c8c84e053dd9
+measurement	encode	1	low-latency-streaming	clic-validation-029	97199083	12192768	6030840	0038173aae5c4cbc
+measurement	encode	1	low-latency-streaming	clic-validation-030	98767916	11968000	8705786	cce495777e9bf98d
+measurement	encode	1	low-latency-streaming	clic-validation-031	103600042	12192768	7277258	101739cfd5e60743
+measurement	encode	1	low-latency-streaming	clic-validation-032	100080166	12192768	6987574	2126e8c389111622
+measurement	encode	1	low-latency-streaming	clic-validation-033	100527833	12192768	8431672	5214c4c49c246a83
+measurement	encode	1	low-latency-streaming	clic-validation-034	105622708	12289728	8475800	8c9291363f667e1b
+measurement	encode	1	low-latency-streaming	clic-validation-035	108462459	12289728	8055284	412e6979ef098033
+measurement	encode	1	low-latency-streaming	clic-validation-036	105439875	12289728	7368046	85cf78c6599ce065
+measurement	encode	1	low-latency-streaming	clic-validation-037	106263291	12289728	7805588	0c2c1cf96dc34b0a
+measurement	encode	1	low-latency-streaming	clic-validation-038	102512708	12192768	8129706	d882db21b5bd96f3
+measurement	encode	1	low-latency-streaming	clic-validation-039	101935709	12192768	7174990	db4ccf38a773a2bc
+measurement	encode	1	low-latency-streaming	clic-validation-040	104172750	12192768	7112000	c32e1fa0c6d2c711
+aggregate	encode	1	low-latency-streaming	41	3870153667	417812344	261730970	0b684a4a5df93994
+test encoder::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 42 filtered out; finished in 6.14s
+

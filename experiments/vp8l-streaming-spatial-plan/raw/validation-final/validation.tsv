@@ -1,0 +1,8 @@
+gate	status	log
+test-workspace	0	test-workspace.log
+test-release	0	test-release.log
+build-release	0	build-release.log
+clippy	0	clippy.log
+fmt	0	fmt.log
+rustdoc	0	rustdoc.log
+doctest	0	doctest.log

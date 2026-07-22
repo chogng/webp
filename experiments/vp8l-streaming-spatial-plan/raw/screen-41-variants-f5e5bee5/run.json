@@ -1,0 +1,29 @@
+{
+  "lock": "/private/tmp/webp-vp8l-product-benchmark.lock",
+  "lock_pid": 84909,
+  "started_unix_ns": 1784713029469012000,
+  "binary": "/private/tmp/vp8l-p13-screen.eQhuMU/target/release/deps/webp-018635ace19b190c",
+  "binary_sha256": "9696a8aeb07ee31c2e6940ccc36ebfa01f7438f73ab364b5cba162c297b03dc4",
+  "binary_bytes": 1572160,
+  "rounds": 3,
+  "order": "forward on odd rounds, reverse on even rounds",
+  "layouts": [
+    "compact-pipeline-control",
+    "compact-streaming",
+    "compact-streaming-census",
+    "compact-streaming-census-frequencies",
+    "low-latency-pipeline-control",
+    "low-latency-streaming",
+    "low-latency-streaming-census",
+    "low-latency-streaming-census-frequencies"
+  ],
+  "operations": [
+    "encode"
+  ],
+  "formal": false,
+  "input": "/private/tmp/vp8l-p13-screen.eQhuMU/screen-input",
+  "generated": "/private/tmp/vp8l-p13-screen.eQhuMU/unused",
+  "preloaded": true,
+  "checksum": "full output bytes (encode) or full RGBA bytes (decode)",
+  "completed_unix_ns": 1784713224966767000
+}
