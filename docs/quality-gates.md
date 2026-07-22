@@ -277,10 +277,10 @@ The canonical detailed ledger is
 [`webp-rs/alpha/README.md`](../webp-rs/alpha/README.md). Benchmark v3 covers all
 41 transparent upstream files, reports per-case content and size metrics plus
 MPix/s and ns/pixel, and times a separate Rust ALPH-only profile. Three
-ten-iteration runs at revision `1b6bfdb` measured a 7037.887 ms Rust
-whole-image median and a 9934.306 ms pinned-libwebp median. Rust therefore uses
-29.16% less time and delivers 41.15% higher throughput. Its ALPH-only median is
-794.383 ms, down 55.52% from the latest-main baseline. Complete Rust output is
+ten-iteration runs after revision `b32d350` measured a 7019.944 ms Rust
+whole-image median and a 10029.278 ms pinned-libwebp median. Rust therefore uses
+30.01% less time and delivers 42.87% higher throughput. Its ALPH-only median is
+796.203 ms, down 55.42% from the latest-main code baseline. Complete Rust output is
 1.67% larger than libwebp and its ALPH total is 0.50% larger; on the 40-file
 structured subtotal, the indexed-alpha architecture reduces Rust ALPH size by
 10.98% from the baseline while remaining 15.14% above libwebp.

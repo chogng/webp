@@ -1,10 +1,10 @@
 | Encoder / iteration | Revision | Exact alpha | Whole-image median (3 x 10) ↓ | Throughput ↑ | Cost ↓ | Change from prior Rust | Time vs paired libwebp | Rust ALPH-only median ↓ | ALPH throughput ↑ | ALPH cost ↓ | ALPH change from prior |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| pinned libwebp | `733c91e` | 41/41 | **9934.306 ms** | 6.426 MPix/s | 155.622 ns/pixel | reference | reference | n/a: no public standalone ALPH encoder | n/a | n/a | n/a |
-| Rust I1: current `main` baseline | `5e54dd3` | 41/41 | 8058.452 ms | 7.922 MPix/s | 126.237 ns/pixel | baseline | -18.79% | 1786.003 ms | 35.742 MPix/s | 27.978 ns/pixel | baseline |
-| Rust I2: batched LSB writer | `7cd8fd4` | 41/41 | 7122.629 ms | 8.962 MPix/s | 111.577 ns/pixel | **-11.61%** | -28.14% | 879.106 ms | 72.615 MPix/s | 13.771 ns/pixel | **-50.78%** |
+| pinned libwebp | `733c91e` | 41/41 | **10029.278 ms** | 6.365 MPix/s | 157.110 ns/pixel | reference | reference | n/a: no public standalone ALPH encoder | n/a | n/a | n/a |
+| Rust I1: latest-main code baseline | `a8a7371` (`5e54dd3` code) | 41/41 | 8058.452 ms | 7.922 MPix/s | 126.237 ns/pixel | baseline | -18.79% | 1786.003 ms | 35.742 MPix/s | 27.978 ns/pixel | baseline |
+| Rust I2: batched LSB writer | `86ea22b` | 41/41 | 7122.629 ms | 8.962 MPix/s | 111.577 ns/pixel | **-11.61%** | -28.14% | 879.106 ms | 72.615 MPix/s | 13.771 ns/pixel | **-50.78%** |
 | Rust I2f: ownership/filter/parser cleanup | pre-I3 checkpoint | 41/41 | 7022.180 ms | 9.091 MPix/s | 110.003 ns/pixel | -1.41% | -29.27% | 800.482 ms | 79.747 MPix/s | 12.540 ns/pixel | -8.94% |
-| Rust I3: plane codes + indexed alpha | `1b6bfdb` | **41/41** | **7037.887 ms** | **9.070 MPix/s** | **110.249 ns/pixel** | **+0.22% regression** | **-29.16%** | **794.383 ms** | **80.359 MPix/s** | **12.444 ns/pixel** | -0.76% |
+| Rust I3: plane codes + indexed alpha | `b32d350` | **41/41** | **7019.944 ms** | **9.094 MPix/s** | **109.968 ns/pixel** | -0.03% | **-30.01%** | **796.203 ms** | **80.176 MPix/s** | **12.473 ns/pixel** | -0.53% |
 
 | Encoder / iteration | ALPH bytes / suite ↓ | ALPH bpp ↓ | ALPH gap to libwebp | ALPH change from prior | Complete WebP bytes / suite ↓ | WebP gap to libwebp | WebP change from prior |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -23,8 +23,8 @@ Sub-10% compatible changes may be folded into an architectural iteration, but
 are recorded as marginal rather than presented as wins. Regressions remain in
 the table.
 
-At the current operating point Rust uses **29.16% less whole-image time** than
-libwebp, which is **41.15% higher throughput**. It is close to, but does not yet
+At the current operating point Rust uses **30.01% less whole-image time** than
+libwebp, which is **42.87% higher throughput**. It is close to, but does not yet
 claim, the 50% throughput target. Complete output is 1.67% larger and ALPH is
 0.50% larger. There is no honest cross-library ALPH-only speed ratio because
 libwebp does not expose a public standalone ALPH encoder; its public whole-image
@@ -134,14 +134,14 @@ ALPH size fell 14.75%, while time regressed 12.95%. The size win was material
 and the time trade remained explicit. This is the code baseline at `5e54dd3`
 for the broader v3 table.
 
-### Benchmark v3 - broader evidence (`8de284e`)
+### Benchmark v3 - broader evidence (`d796657`)
 
 Expanded the public comparison and exact external oracle from nine highly
 duplicated inputs to all 41 transparent upstream files. Added machine metadata,
 per-file content/size metrics, ns/pixel, and an isolated Rust ALPH profile. This
 changes measurement coverage, not encoder output.
 
-### I2 - batched LSB-first writes (`7cd8fd4`)
+### I2 - batched LSB-first writes (`86ea22b`)
 
 Replaced one-bit-at-a-time emission with bounded byte-window merges in the
 shared core `BitWriter`. Output stayed byte-for-byte identical. Whole-image
@@ -157,7 +157,7 @@ LZ77 module, and sized its match table to the input. Relative to I2, whole time
 fell 1.41% and ALPH-only time fell 8.94%. Neither clears the 10% rule, so these
 are folded support changes rather than standalone wins.
 
-### I3 - VP8L plane distance codes and color indexing (`1b6bfdb`)
+### I3 - VP8L plane distance codes and color indexing (`b32d350`)
 
 Added nearby two-dimensional distance codes and a row-packed VP8L
 color-indexing transform for planes with at most 16 levels. Small inputs encode
@@ -165,15 +165,15 @@ both indexed and plain forms and retain the smaller result; larger low-cardinali
 planes take the indexed path directly. The palette subimage and indexed entropy
 stream use the existing adaptive Huffman machinery.
 
-Against I2f, whole time regressed 0.22% and ALPH-only time improved 0.76%, both
+Against I2f, whole time improved 0.03% and ALPH-only time improved 0.53%, both
 noise-level and below the threshold. Size is the accepted result: the 40-file
 structured subtotal fell **10.98%**, with representative low-cardinality files
 improving 16.37% to 50.39%. The all-41 ALPH total fell only 0.41% because the
 incompressible random plane dominates it. All 41 outputs decoded to the exact
 source alpha through pinned `dwebp`.
 
-From the latest-main I1 baseline through I3, whole time is down **12.66%**,
-ALPH-only time is down **55.52%**, complete size is down 0.26%, and ALPH size is
+From the latest-main I1 code baseline through I3, whole time is down **12.89%**,
+ALPH-only time is down **55.42%**, complete size is down 0.26%, and ALPH size is
 down 0.41% across all files.
 
 ## Rejected and non-material experiments
@@ -223,8 +223,8 @@ The next accepted architecture should target at least one measurable 10% gap:
    with PSNR/SSIM or exact-alpha gates, alpha-cardinality buckets, p50/p95
    latency, and peak RSS. No architecture should be tuned only to conformance
    fixtures.
-3. **Whole-image 50% throughput target:** current throughput is 41.15% above
-   libwebp. Reaching exactly 50% requires only another 5.9% Rust time reduction,
+3. **Whole-image 50% throughput target:** current throughput is 42.87% above
+   libwebp. Reaching exactly 50% requires only another 4.8% Rust time reduction,
    which is below the project's standalone significance rule. It should be
    bundled with a >=10% density, p95, memory, or broader-dataset improvement.
 
@@ -257,5 +257,8 @@ Every accepted iteration must pass:
 Before a benchmark worktree is created, record `git rev-parse main`, refresh
 the local `main` reference when needed, create the worktree from that exact
 revision, and verify that the recorded `main` commit is its ancestor. This
-series used latest `main` `5e54dd37c14cc0c810d5a2283b644161ddb2a9b2` as
-its base; stale worktree measurements are not eligible for this table.
+series was created from then-latest `main`
+`5e54dd37c14cc0c810d5a2283b644161ddb2a9b2`. Before promotion, `main` advanced
+by the documentation-only `a8a7371a76ac829b0cf73f62b99f8c22a04c5132`;
+the branch was rebased onto it and the oracle plus all three I3 timing runs were
+repeated. Stale worktree measurements are not eligible for this table.
