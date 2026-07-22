@@ -85,6 +85,8 @@ struct ColorTransformPlan {
 mod single_plan;
 #[path = "encoder/spatial_cluster.rs"]
 mod spatial_cluster;
+#[path = "encoder/spatial_packet_writer.rs"]
+mod spatial_packet_writer;
 #[path = "encoder/spatial_plan.rs"]
 mod spatial_plan;
 #[path = "encoder/spatial_writer.rs"]

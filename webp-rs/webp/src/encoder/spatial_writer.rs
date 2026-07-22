@@ -2,6 +2,7 @@
 
 use super::single_plan::SinglePlan;
 use super::spatial_cluster::token_span;
+use super::spatial_packet_writer::PackedTokenWriter;
 use super::spatial_plan::{SpatialPlan, SpatialProfile};
 use super::{
     BitWriter, EncodeError, EntropyFrequencies, EntropyTables, EntropyToken, FIRST_CACHE_SYMBOL,
@@ -135,15 +136,16 @@ fn encode_spatial(prepared: &Prepared, profile: SpatialProfile) -> Result<Vec<u8
     for frequencies in plan.frequencies() {
         tables.push(write_five_tables(&mut bits, frequencies)?);
     }
+    let mut packed = PackedTokenWriter::from_prefix(bits, prepared.tokens.len())?;
     let mut pixel = 0_usize;
     for &token in &prepared.tokens {
         let group = plan.group_for_pixel(pixel);
-        write_token(&mut bits, token, &tables[group])?;
+        packed.write_token(token, &tables[group])?;
         pixel = pixel
             .checked_add(token_span(token))
             .ok_or_else(EncodeError::output_size_overflow)?;
     }
-    wrap_vp8l(bits.into_bytes())
+    wrap_vp8l(packed.finish()?)
 }
 
 fn write_fast_prefix(bits: &mut BitWriter, prepared: &Prepared) -> Result<(), EncodeError> {

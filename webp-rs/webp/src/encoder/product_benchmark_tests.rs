@@ -21,6 +21,8 @@ enum Layout {
     LowLatency,
     CompactControl,
     LowLatencyControl,
+    CompactWriterControl,
+    LowLatencyWriterControl,
     LibwebpM6,
 }
 
@@ -256,6 +258,8 @@ fn encode_layout(source: &Source, layout: Layout) -> Result<Vec<u8>, String> {
                     | Layout::Single
                     | Layout::CompactControl
                     | Layout::LowLatencyControl
+                    | Layout::CompactWriterControl
+                    | Layout::LowLatencyWriterControl
                     | Layout::LibwebpM6 => unreachable!(),
                 },
             };
@@ -274,9 +278,150 @@ fn encode_layout(source: &Source, layout: Layout) -> Result<Vec<u8>, String> {
                 profile,
             )
         }
+        Layout::CompactWriterControl | Layout::LowLatencyWriterControl => {
+            let profile = match layout {
+                Layout::CompactWriterControl => spatial_plan::SpatialProfile::Compact,
+                Layout::LowLatencyWriterControl => spatial_plan::SpatialProfile::LowLatency,
+                _ => unreachable!(),
+            };
+            encode_profile_writer_control(source, profile)
+        }
         Layout::LibwebpM6 => return Err("libwebp m6 is decode-only".to_owned()),
     };
     result.map_err(|error| format!("{} {}: {error}", source.id, layout_name(layout)))
+}
+
+/// Reconstructs the latest-main spatial path entirely inside the benchmark
+/// harness so the final test binary can compare writers without production
+/// feature flags or audit hooks.
+fn encode_profile_writer_control(
+    source: &Source,
+    profile: spatial_plan::SpatialProfile,
+) -> Result<Vec<u8>, EncodeError> {
+    validate_input(source.width, source.height, &source.rgba)?;
+    let width = usize::try_from(source.width).map_err(|_| EncodeError::input_size_overflow())?;
+    let height = usize::try_from(source.height).map_err(|_| EncodeError::input_size_overflow())?;
+    let (tokens, frequencies) = collect_entropy_tokens(&source.rgba, width, true, false, 0)?;
+    let single = single_plan::SinglePlan::build(&frequencies)?;
+    let candidate = encode_spatial_writer_control(source, width, height, &tokens, profile)?;
+    if candidate.len() < single.riff_bytes() {
+        Ok(candidate)
+    } else {
+        let mut bits = BitWriter::new();
+        write_fast_prefix_control(&mut bits, source)?;
+        single.write_main_prefix(&mut bits)?;
+        write_tokens_control(&mut bits, &tokens, single.tables())?;
+        wrap_vp8l(bits.into_bytes())
+    }
+}
+
+fn encode_spatial_writer_control(
+    source: &Source,
+    width: usize,
+    height: usize,
+    tokens: &[EntropyToken],
+    profile: spatial_plan::SpatialProfile,
+) -> Result<Vec<u8>, EncodeError> {
+    let plan = spatial_plan::SpatialPlan::build(tokens, width, height, 0, profile)?;
+    let mut bits = BitWriter::new();
+    write_fast_prefix_control(&mut bits, source)?;
+    write_bits(&mut bits, 0, 1)?;
+    write_bits(&mut bits, 1, 1)?;
+    write_bits(&mut bits, u32::from(profile.wire_block_bits()), 3)?;
+    write_group_map_control(&mut bits, &plan)?;
+
+    let mut tables = Vec::new();
+    tables
+        .try_reserve_exact(plan.frequencies().len())
+        .map_err(|_| EncodeError::allocation_failed())?;
+    for frequencies in plan.frequencies() {
+        tables.push(write_five_tables_control(&mut bits, frequencies)?);
+    }
+    let mut pixel = 0_usize;
+    for &token in tokens {
+        let group = plan.group_for_pixel(pixel);
+        write_token_control(&mut bits, token, &tables[group])?;
+        pixel = pixel
+            .checked_add(spatial_cluster::token_span(token))
+            .ok_or_else(EncodeError::output_size_overflow)?;
+    }
+    wrap_vp8l(bits.into_bytes())
+}
+
+fn write_fast_prefix_control(bits: &mut BitWriter, source: &Source) -> Result<(), EncodeError> {
+    write_vp8l_header(
+        bits,
+        source.width,
+        source.height,
+        source.rgba.chunks_exact(4).any(|pixel| pixel[3] != u8::MAX),
+    )?;
+    write_bits(bits, 1, 1)?;
+    write_bits(bits, 2, 2)?;
+    write_bits(bits, 0, 1)
+}
+
+fn write_group_map_control(
+    bits: &mut BitWriter,
+    plan: &spatial_plan::SpatialPlan,
+) -> Result<(), EncodeError> {
+    let byte_count = plan
+        .group_map()
+        .len()
+        .checked_mul(4)
+        .ok_or_else(EncodeError::output_size_overflow)?;
+    let mut rgba = Vec::new();
+    rgba.try_reserve_exact(byte_count)
+        .map_err(|_| EncodeError::allocation_failed())?;
+    for &group in plan.group_map() {
+        rgba.extend_from_slice(&[0, group, 0, 0]);
+    }
+    let (tokens, frequencies) = collect_entropy_tokens(&rgba, plan.map_width(), false, false, 0)?;
+    write_bits(bits, 0, 1)?;
+    let tables = write_five_tables_control(bits, &frequencies)?;
+    write_tokens_control(bits, &tokens, &tables)
+}
+
+fn write_five_tables_control(
+    bits: &mut BitWriter,
+    frequencies: &EntropyFrequencies,
+) -> Result<EntropyTables, EncodeError> {
+    Ok(EntropyTables {
+        green: write_adaptive_table(bits, &frequencies.green[..frequencies.green_len])?,
+        red: write_adaptive_table(bits, &frequencies.red)?,
+        blue: write_adaptive_table(bits, &frequencies.blue)?,
+        alpha: write_adaptive_table(bits, &frequencies.alpha)?,
+        distance: write_adaptive_table(bits, &frequencies.distance)?,
+    })
+}
+
+fn write_tokens_control(
+    bits: &mut BitWriter,
+    tokens: &[EntropyToken],
+    tables: &EntropyTables,
+) -> Result<(), EncodeError> {
+    for &token in tokens {
+        write_token_control(bits, token, tables)?;
+    }
+    Ok(())
+}
+
+fn write_token_control(
+    bits: &mut BitWriter,
+    token: EntropyToken,
+    tables: &EntropyTables,
+) -> Result<(), EncodeError> {
+    match token {
+        EntropyToken::Cache(index) => {
+            write_table_symbol(bits, &tables.green, FIRST_CACHE_SYMBOL + index)
+        }
+        EntropyToken::Literal(rgba) => {
+            write_table_symbol(bits, &tables.green, usize::from(rgba[1]))?;
+            write_table_symbol(bits, &tables.red, usize::from(rgba[0]))?;
+            write_table_symbol(bits, &tables.blue, usize::from(rgba[2]))?;
+            write_table_symbol(bits, &tables.alpha, usize::from(rgba[3]))
+        }
+        EntropyToken::Copy { length } => write_lz77_copy(bits, tables, length),
+    }
 }
 
 fn read_source(path: &Path) -> Result<Source, String> {
@@ -330,6 +475,8 @@ fn parse_layout(value: &str) -> Result<Layout, String> {
         "low-latency" => Ok(Layout::LowLatency),
         "compact-control" => Ok(Layout::CompactControl),
         "low-latency-control" => Ok(Layout::LowLatencyControl),
+        "compact-writer-control" => Ok(Layout::CompactWriterControl),
+        "low-latency-writer-control" => Ok(Layout::LowLatencyWriterControl),
         "libwebp-m6" => Ok(Layout::LibwebpM6),
         _ => Err(format!("unsupported layout {value}")),
     }
@@ -343,6 +490,8 @@ const fn layout_name(layout: Layout) -> &'static str {
         Layout::LowLatency => "low-latency",
         Layout::CompactControl => "compact-control",
         Layout::LowLatencyControl => "low-latency-control",
+        Layout::CompactWriterControl => "compact-writer-control",
+        Layout::LowLatencyWriterControl => "low-latency-writer-control",
         Layout::LibwebpM6 => "libwebp-m6",
     }
 }
