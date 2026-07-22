@@ -1,0 +1,37 @@
+{
+  "task": "P22 independent VP8L metric-only search / final-plan materialization recovery experiment",
+  "root_task": "019f8321-035e-7211-8f53-987e18891c8c",
+  "branch": "codex/vp8l-metric-only-plan-search",
+  "base": "4280a59a1a7a22d1e312b9de131b46873688c008",
+  "head": "2a48807b74bd2e190d4959a8fdbfd714a6c81eca",
+  "worktree": "/Users/lance/.codex/worktrees/c5fc/webp",
+  "a_binary_sha256": "6847299b3c09c3709ff8ec46680a7eccb3fbbcfbbe2994455c31b9746d6c20df",
+  "p18_binary_sha256": "2e5f7b11b959de3cb25a251649ee7ffa87528b0346d92fdfbb03547da5f5e570",
+  "corpus_manifest_sha256": "9feb09f469753c43864011aa6f00cfc5ee1bd48da5aac8f9b16d105890e14f86",
+  "screen_manifest_sha256": "474587feabe3178268b2eab6f7a166501d8ecc3d637a76bd412f4233dfa7b913",
+  "profiles": {
+    "compact": {
+      "images": 102,
+      "aggregate_bytes": 599398064,
+      "p18_size_and_stream_hash_identity": "102/102",
+      "aggregate_stream_checksum": "0ad271f1634fbdfd",
+      "raw_sha256": {
+        "a": "a4b9b663148f9d802edd1b21780d10595e3c2cea872ece45b56a778749bd9fa0",
+        "p18": "07f0ec8572ebe89628a44e3ec28c4ff30944e75006cc75e915d6a67e89b08ef4"
+      }
+    },
+    "low-latency": {
+      "images": 102,
+      "aggregate_bytes": 601400998,
+      "p18_size_and_stream_hash_identity": "102/102",
+      "aggregate_stream_checksum": "cb88130c798bbe3d",
+      "raw_sha256": {
+        "a": "4e62b54fb61651464a921b478fdbf0eff0990c7e0ba8046614a1e06309036424",
+        "p18": "07bf13ac09c718ae8c88a165a4b7d51fa79c8654b2ebbf6866024b0a3b775c64"
+      }
+    }
+  },
+  "p18_size_and_stream_hash_identity": "204/204",
+  "stderr_bytes": 0,
+  "gate": true
+}

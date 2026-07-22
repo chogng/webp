@@ -1,0 +1,88 @@
+{
+  "task": "P22 independent VP8L metric-only search / final-plan materialization recovery experiment",
+  "root_task": "019f8321-035e-7211-8f53-987e18891c8c",
+  "branch": "codex/vp8l-metric-only-plan-search",
+  "base": "4280a59a1a7a22d1e312b9de131b46873688c008",
+  "measurement_head": "688452ecfd119b6c5018174d5cc7791517f92ab7",
+  "binary_sha256": "c271208f7a296588a4c7a892c22877e44a4c5c057a5f990857ebb73bb631b318",
+  "p18_binary_sha256": "2e5f7b11b959de3cb25a251649ee7ffa87528b0346d92fdfbb03547da5f5e570",
+  "manifest_sha256": "9feb09f469753c43864011aa6f00cfc5ee1bd48da5aac8f9b16d105890e14f86",
+  "identity": {
+    "a_b": "204/204",
+    "public": "204/204",
+    "p18": "204/204",
+    "eb_selector": "204/204",
+    "final_selector": "204/204",
+    "strict_fallback": "204/204",
+    "stderr_bytes": 0
+  },
+  "profiles": {
+    "compact": {
+      "aggregate_bytes": 599398064,
+      "spatial_planner_writer_exact": "306/306",
+      "single_planner_writer_exact": "102/102",
+      "growth": "0/0",
+      "selected": {"B": 1, "R": 101}
+    },
+    "low-latency": {
+      "aggregate_bytes": 601400998,
+      "spatial_planner_writer_exact": "408/408",
+      "single_planner_writer_exact": "102/102",
+      "growth": "336/336",
+      "selected": {"E": 1, "B": 2, "R": 20, "Split": 79}
+    }
+  },
+  "census": {
+    "field_order": [
+      "full_plans_built",
+      "final_materializations",
+      "plan_parts_clones",
+      "prefix_bytes",
+      "table_entries",
+      "estimated_plan_heap_bytes"
+    ],
+    "compact": {
+      "a": {
+        "E": [102, 0, 0, 1422551, 2322, 11989822],
+        "B": [102, 0, 0, 1309077, 2128, 10994812],
+        "R": [102, 0, 0, 1390751, 2267, 11708102],
+        "Growth": [0, 0, 0, 0, 0, 0],
+        "FinalMaterialization": [0, 0, 0, 0, 0, 0],
+        "maximum_live": {"plans": 3, "tables": 141, "prefix_bytes": 84372, "estimated_heap_bytes": 725604}
+      },
+      "b": {
+        "E": [102, 0, 0, 1422551, 2322, 11989822],
+        "B": [102, 0, 0, 1309077, 2128, 10994812],
+        "R": [102, 0, 0, 1390751, 2267, 11708102],
+        "Growth": [0, 0, 0, 0, 0, 0],
+        "FinalMaterialization": [102, 102, 0, 1390751, 2267, 11708102],
+        "maximum_live": {"plans": 1, "tables": 49, "prefix_bytes": 29292, "estimated_heap_bytes": 252124}
+      }
+    },
+    "low-latency": {
+      "a": {
+        "E": [102, 0, 0, 780112, 1231, 6377992],
+        "B": [102, 0, 0, 754413, 1187, 6152357],
+        "R": [102, 0, 0, 798249, 1262, 6536993],
+        "Growth": [336, 0, 0, 2805461, 4459, 23080289],
+        "FinalMaterialization": [0, 0, 0, 0, 0, 0],
+        "maximum_live": {"plans": 3, "tables": 48, "prefix_bytes": 29844, "estimated_heap_bytes": 248100}
+      },
+      "b": {
+        "E": [102, 0, 0, 780112, 1231, 6377992],
+        "B": [102, 0, 0, 754413, 1187, 6152357],
+        "R": [102, 0, 0, 798249, 1262, 6536993],
+        "Growth": [336, 0, 0, 2805461, 4459, 23080289],
+        "FinalMaterialization": [102, 102, 0, 994486, 1598, 8260014],
+        "maximum_live": {"plans": 1, "tables": 16, "prefix_bytes": 9948, "estimated_heap_bytes": 82700}
+      }
+    }
+  },
+  "raw_sha256": {
+    "phase_r": "5a84b8aa1a34d6b8f681c40f1d4aeb2503fd1e75391c7e900fa04f988b4a56f7",
+    "census": "24ff2d7d464b83eb0a50a68885c938f8dca46bc7347a3809bfd5a96966c36923",
+    "p18_compact": "157b54c656ced1e2fd71852ed3685286a49d90d7ce0db67beaaa23f1bcec9466",
+    "p18_low_latency": "8f8df18c6d0ef3ee0de3dc67eb629f07f60ef5583cd3f4d4f7c039d119b41ef0"
+  },
+  "gate": true
+}

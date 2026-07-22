@@ -1,0 +1,15 @@
+{
+  "task": "P22 independent VP8L metric-only search / final-plan materialization recovery experiment",
+  "root_task": "019f8321-035e-7211-8f53-987e18891c8c",
+  "branch": "codex/vp8l-metric-only-plan-search",
+  "base": "4280a59a1a7a22d1e312b9de131b46873688c008",
+  "measurement_head": "688452ecfd119b6c5018174d5cc7791517f92ab7",
+  "phase_r_mechanism_identity_census": "pass",
+  "recovery_screen": "fail",
+  "failed_gate": "LowLatency B was 0.08064106384150563% slower with 31/41 per-image median regressions; required >=3.0% improvement and 0/41 regressions",
+  "product_phase_a": "not run: prohibited by recovery stop rule",
+  "product_screen": "not run: prohibited by recovery stop rule",
+  "formal_102x5": "not run: prohibited by recovery stop rule",
+  "final_product_gates": "not run: prohibited by recovery stop rule",
+  "decision": "reject"
+}
