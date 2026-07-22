@@ -8,8 +8,8 @@
 | libwebp 基准 | pinned libwebp m0+m3+m6 | 102 / 306 | 1 | 823,204,804 | 3,022,297,644 | 14,363 ms | 57.3 | 210.4 | 52.6 | 基准 | 三种标准流合计 | 306/306 | `733c91e`；[backend record](</Users/lance/.codex/worktrees/4c95/webp/tools/vp8l-backend-bakeoff/RESULTS.md>) |
 | 标准 VP8L 纪录 | 当前 Rust，m0+m3+m6 | 102 / 306 | 1 | 823,204,804 | 3,022,297,644 | 14,009 ms | 58.8 | 215.7 | 53.9 | **快 2.5%**，同输入同轮次 | 相同 | 306/306 | main lineage；最初记录于 `eca32b4` |
 | 标准 VP8L 自编码流纪录 | Rust `fast_no_cache` | 102 / 102 | 1 | 724,306,686 | 1,007,432,548 | 2,613 ms | 277.2 | 385.5 | 96.4 | 约快 45.3%†，相对 m6 C 基准 | +173.302% | 102/102，两套 decoder | `codex/vp8l-fast-decode-profile@232a32c`；[report](</Users/lance/.codex/worktrees/c68f/webp/docs/vp8l-fast-decode-research.md>) |
-| 标准 VP8L 自编码 Pareto | Rust `FastDecodeCompact` | 102 / 102 | 1 | 617,958,802 | 1,007,432,548 | 4,034 ms | 153.2 | 249.7 | 62.4 | 同流比 pinned C 快 24.4%†；相对 m6 C 快 32.4%† | +133.174% | E35 产品流 306/306 byte identity；E33 两套 decoder 408/408；Default 不变 | decode `9776da40`；encode `97d6f1f4`；[decode report](../../experiments/vp8l-coarse-spatial-product/REPORT.md)；[encode report](../../experiments/vp8l-exact-cost-product/REPORT.md) |
-| 标准 VP8L 自编码 Pareto | Rust `FastDecodeLowLatency` | 102 / 102 | 1 | 625,321,072 | 1,007,432,548 | 4,010 ms | 156.0 | 251.3 | 62.8 | 同流比 pinned C 快 24.1%†；相对 m6 C 快 32.8%† | +135.952% | E35 产品流 306/306 byte identity；E33 两套 decoder 408/408；Default 不变 | decode `9776da40`；encode `97d6f1f4`；[decode report](../../experiments/vp8l-coarse-spatial-product/REPORT.md)；[encode report](../../experiments/vp8l-exact-cost-product/REPORT.md) |
+| 标准 VP8L 自编码 Pareto | Rust `FastDecodeCompact` | 102 / 102 | 1 | 617,958,802 | 1,007,432,548 | 4,034 ms | 153.2 | 249.7 | 62.4 | 同流比 pinned C 快 24.4%†；相对 m6 C 快 32.4%† | +133.174% | E37 产品流 306/306 byte identity；E33 两套 decoder 408/408；Default 不变 | decode `9776da40`；encode `b3b96fdc`；[decode report](../../experiments/vp8l-coarse-spatial-product/REPORT.md)；[encode report](../../experiments/vp8l-packed-writer-product/REPORT.md) |
+| 标准 VP8L 自编码 Pareto | Rust `FastDecodeLowLatency` | 102 / 102 | 1 | 625,321,072 | 1,007,432,548 | 4,010 ms | 156.0 | 251.3 | 62.8 | 同流比 pinned C 快 24.1%†；相对 m6 C 快 32.8%† | +135.952% | E37 产品流 306/306 byte identity；E33 两套 decoder 408/408；Default 不变 | decode `9776da40`；encode `b3b96fdc`；[decode report](../../experiments/vp8l-coarse-spatial-product/REPORT.md)；[encode report](../../experiments/vp8l-packed-writer-product/REPORT.md) |
 | 私有兼容表示实用档纪录 | FDEC Zstd-1 / RGB / Row-Sub，融合输出 | 102 / 102 | 1 | 663,622,132 | 1,007,432,548 | 923.689 ms | 718.4 | 1,090.7 | 272.7 | 约快 80.7%†；同轮 Rust m6 快 81.8% | +150.404% | 102/102；libwebp fallback 102/102 | `codex/fdec-hot-path-migration@ba4b530`；[report](</Users/lance/.codex/worktrees/a386/webp/docs/fdec-hot-path-migration.md>) |
 | 私有兼容表示极速档纪录 | FDEC LZ4 / RGB / none，融合输出 | 102 / 102 | 1 | 935,997,910 | 1,007,432,548 | **416.581 ms** | 2,246.9 | 2,418.3 | 604.6 | 约快 91.3%†；同轮 Rust m6 快 91.8% | +253.179% | 102/102；libwebp fallback 102/102 | `codex/fdec-hot-path-migration@ba4b530`；[report](</Users/lance/.codex/worktrees/a386/webp/docs/fdec-hot-path-migration.md>) |
 | 单图流水线纪录 | entropy producer + transform consumer | 102 / 306 | 2 | 823,204,804 | 3,022,297,644 | 9,375 ms | 87.8 | 322.4 | 80.6 | 快 34.7% | 相同 | 306/306 | `codex/vp8l-single-image-pipeline@66356c6` |
@@ -25,8 +25,8 @@
 | --- | ---: | ---: | ---: | ---: | --- | --- | ---: | ---: |
 | pinned libwebp m6 | 未测 | n/a | n/a | 未分离 | aggregate live-allocation 下界 835,656,644 B | pinned C static library | 基准 | 由标准 VP8L 覆盖 |
 | Rust `fast_no_cache` | 未保留可比 encode 计时 | n/a | n/a | 未分离 | 799,277,056 B RSS | 默认 safe Rust workspace | 未实测 | 本轮 CLIC 为 opaque |
-| `FastDecodeCompact` | **10,199.847 ms**；相对 latest-main control -28.389% | 680,790,322 B single；精确计价后逐图严格回退 | n/a；普通标准 VP8L | 未分离 | 正式 encode 进程 1,216.22 MiB；control 1,292.97 MiB | safe Rust；无新增依赖/线程；release rlib +25,856 B / +6.302%；main `97d6f1f4` | n/a | 标准 VP8L；306/306 产品流 exact；透明/metadata 通过 |
-| `FastDecodeLowLatency` | **9,905.461 ms**；相对 latest-main control -28.966% | 680,790,322 B single；精确计价后逐图严格回退 | n/a；普通标准 VP8L | 未分离 | 正式 encode 进程 1,216.41 MiB；control 1,289.41 MiB | safe Rust；无新增依赖/线程；release rlib +25,856 B / +6.302%；main `97d6f1f4` | n/a | 标准 VP8L；306/306 产品流 exact；透明/metadata 通过 |
+| `FastDecodeCompact` | **7,874.026 ms**；相对 same-binary latest-main writer control -27.005% | 680,790,322 B single；精确计价后逐图严格回退 | n/a；普通标准 VP8L | 未分离 | 正式 encode 进程 1,143.25 MiB；control 1,215.27 MiB | safe Rust；无新增依赖/线程/unsafe；release rlib +17,504 B / +4.011%；main `b3b96fdc` | n/a | 标准 VP8L；latest-main/E36 各 306/306 byte identity；双 decoder exact |
+| `FastDecodeLowLatency` | **7,638.855 ms**；相对 same-binary latest-main writer control -26.561% | 680,790,322 B single；精确计价后逐图严格回退 | n/a；普通标准 VP8L | 未分离 | 正式 encode 进程 1,153.55 MiB；control 1,215.53 MiB | safe Rust；无新增依赖/线程/unsafe；release rlib +17,504 B / +4.011%；main `b3b96fdc` | n/a | 标准 VP8L；latest-main/E36 各 306/306 byte identity；双 decoder exact |
 | FDEC Zstd-Sub fused | 2,176.514 ms | 265,020,980 B | 398,596,613 B compressed；398,601,152 B complete chunk | 21,790,720 B | 旧 harness RSS 718,323,712 B | `zstd-sys` C/FFI；整个 research feature 令最新 release binary +280,768 B / +44.54% | 136.9 MB/s | promoted RGB：0/28 alpha；RGBA screen 待新协议 |
 | FDEC LZ4 fused | 1,210.423 ms | 265,020,980 B | 670,972,393 B compressed；670,976,930 B complete chunk | **13,238,272 B** | 旧 harness RSS 988,921,856 B | `lz4_flex` pure safe Rust；与 Zstd 合并 feature 的 binary 成本同上 | 162.3 MB/s | promoted RGB：0/28 alpha；RGBA screen 待新协议 |
 | 单图流水线 | n/a | n/a | n/a | 原 residual history + 最多约 792 KiB | 未保留统一 RSS | safe Rust；固定 1 个 consumer thread | n/a | 标准 decoder 覆盖 |
@@ -111,7 +111,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 
 ## 与本任务关联的工作树索引
 
-根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 36 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断或通过实验 gate 后另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
+根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 37 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断或通过实验 gate 后另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
 
 | ID | 实验 | 分支 / HEAD | 实验 base | 当前工作树与结果 | 决定 |
 | --- | --- | --- | --- | --- | --- |
@@ -151,16 +151,15 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 | E34 | exact-cost single-write 实验 | `codex/vp8l-exact-cost-single-write@a8570f47`；候选 `a89e0f73`；证据 `c0b6544e` | `5362912a` | [report](</Users/lance/.codex/worktrees/b99f/webp/experiments/vp8l-exact-cost-single-write/REPORT.md>)；[raw/reproducer](</Users/lance/.codex/worktrees/b99f/webp/experiments/vp8l-exact-cost-single-write>)；[b99f](</Users/lance/.codex/worktrees/b99f/webp>)；task `019f8825-e240-7f42-a04c-c1fa77b80476` | **通过实验 gate**：Compact/LowLatency -28.823%/-29.110%，306/306 byte identity，转 E35 latest-main 产品迁移 |
 | E35 | exact-cost single-write 产品迁移 | `codex/vp8l-exact-cost-product@4803b2d`；代码 `6ed10e55`；证据 `6369ddcd` | `130aa1f3` | [report](../../experiments/vp8l-exact-cost-product/REPORT.md)；[raw/reproducer](../../experiments/vp8l-exact-cost-product)；[6368](</Users/lance/.codex/worktrees/6368/webp>)；task `019f885a-c777-70c2-83c1-f622b78e3363` | **已线性迁入 main**：代码 `97d6f1f4`、证据 `00f02468`、whitespace policy `61aa5899`；两档 -28.389%/-28.966%，306/306 byte identity 与双 decoder exact |
 | E36 | packed token writer 实验 | `codex/vp8l-packed-token-writer@6000af0a`；候选 `dfc0cf6f`；证据 `1f8635c1` | `7eca2b83` | [report](</Users/lance/.codex/worktrees/b8f0/webp/experiments/vp8l-packed-token-writer/REPORT.md>)；[raw/reproducer](</Users/lance/.codex/worktrees/b8f0/webp/experiments/vp8l-packed-token-writer>)；[b8f0](</Users/lance/.codex/worktrees/b8f0/webp>)；task `019f8890-c433-7013-b862-00f8c5f4221a` | **通过实验 gate**：最终 binary 上 Compact/LowLatency -27.657%/-28.119%，306/306 byte identity 与双 decoder exact，转 latest-main 产品迁移 |
+| E37 | packed token writer 产品迁移 | `codex/vp8l-packed-writer-product@a7cde726`；代码 `9435fbd0`；证据 `a7cde726` | `0ee428dc` | [report](../../experiments/vp8l-packed-writer-product/REPORT.md)；[raw/reproducer](../../experiments/vp8l-packed-writer-product)；[5e00](</Users/lance/.codex/worktrees/5e00/webp>)；task `019f88d1-ed7a-7573-8898-d78525870e70` | **已线性迁入 main**：代码 `b3b96fdc`、证据 `80113c1e`、whitespace policy `fabcbf9c`；两档 -27.005%/-26.561%，latest-main/E36 各 306/306 byte identity 与双 decoder exact |
 
 ### latest-main 迁移链
 
-E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08，最终作为 E33 线性迁入 main。P09/E34 又从创建时最新 `main@5362912a23a39175758796e07f45af3ee79143b1` 独立建树；通过 25% gate 后，没有直接把研究树合入，而是从届时最新 `main@130aa1f347ae1193463f35205b5bd98b4031bc7c` 新建 E35，重新理解并迁移最小产品实现。E35 最终作为 `97d6f1f4`/`00f02468`/`61aa5899` 线性进入 main。P11/E36 则从创建时最新 `main@7eca2b83c2b9338ab4f15a58755e6e0acc970bf0` 独立建树；研究树已证明 packed token writer 的端到端收益和 wire identity，但不携带 census/phase instrumentation 直接进入 main。P12 已从创建时最新 `main@0ee428dc0bee9c035f051b4ccaa846dabe394ca8` 新建独立产品树，重建最小实现而不整体 cherry-pick 研究提交。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
+E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08，最终作为 E33 线性迁入 main。P09/E34 又从创建时最新 `main@5362912a23a39175758796e07f45af3ee79143b1` 独立建树；通过 25% gate 后，没有直接把研究树合入，而是从届时最新 `main@130aa1f347ae1193463f35205b5bd98b4031bc7c` 新建 E35，重新理解并迁移最小产品实现。E35 最终作为 `97d6f1f4`/`00f02468`/`61aa5899` 线性进入 main。P11/E36 则从创建时最新 `main@7eca2b83c2b9338ab4f15a58755e6e0acc970bf0` 独立建树；研究树已证明 packed token writer 的端到端收益和 wire identity，但没有把 census/phase instrumentation 带进产品。P12/E37 随后从创建时最新 `main@0ee428dc0bee9c035f051b4ccaa846dabe394ca8` 新建独立产品树，重建最小 packet sink；产品代码、完整证据和 raw whitespace policy 已分别作为 `b3b96fdc`/`80113c1e`/`fabcbf9c` 线性迁入 main。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
 
 ### 进行中的 latest-main 编码优化
 
-| 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
-| --- | --- | --- | --- | --- |
-| P12 | packed token writer latest-main 产品迁移 | `codex/vp8l-packed-writer-product`；`0ee428dc0bee9c035f051b4ccaa846dabe394ca8` | [5e00](</Users/lance/.codex/worktrees/5e00/webp>)；task `019f88d1-ed7a-7573-8898-d78525870e70`；结果目录 `experiments/vp8l-packed-writer-product` | 已证明创建时 HEAD/base/branch 精确；只迁移最小 production packet sink，删除研究 hooks；同 binary 正式两档 >=20%、306/306 latest-main/E36 byte identity、双 decoder exact、资源/二进制/错误/质量 gate 后才可迁入 main |
+E37 已完成并迁入；下一棵实验树只会从本次账本提交后的最新本地 `main` 创建，并在创建后登记分支、精确 base、工作树、task 与固定结果目录。
 
 ## 每次优化的结果与结论
 
@@ -468,18 +467,30 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 - Default/Compact/LowLatency 共 306/306 与 base 在长度、SHA 和全字节上一致；项目 decoder 306/306 完整 RGBA exact，pinned libwebp `733c91e` 也是 306/306 exact。workspace debug/release all-targets、Clippy `-D warnings`、fmt、rustdoc/doctest 全部通过；未修改工具链或安装新 target。
 - 分支 `codex/vp8l-packed-token-writer`：base `7eca2b83`，候选 `dfc0cf6f`，证据 `1f8635c1`，最终报告/HEAD `6000af0a`；工作树 [b8f0](</Users/lance/.codex/worktrees/b8f0/webp>)，task `019f8890-c433-7013-b862-00f8c5f4221a`，[完整报告](</Users/lance/.codex/worktrees/b8f0/webp/experiments/vp8l-packed-token-writer/REPORT.md>)。候选 amend 前旧 binary `7c2ba1f0…` 的数据只保留为 preliminary，顶层结论只使用上述最终 binary 重跑结果。
 
+### E37：packed token writer latest-main 产品迁移
+
+优化点：不整体 cherry-pick E36 的研究实现，而从创建时 latest local `main@0ee428dc` 重建最小产品路径。私有 `spatial_packet_writer` 独占 LSB-first packet、64-bit accumulator、checked reserve/capacity 与错误语义；`spatial_writer` 只保留 token/table orchestration。census、phase variants、benchmark hooks 和宽泛 dead-code 豁免均未进入生产代码。
+
+- 最终完整仓库 archive release test binary SHA-256 为 `247305b53187841383afb7a39a872f1292728e7a114b0d5541547b101da524fe`。41 图三轮 screen 中 Compact 4.503202 -> 3.347753 s（-25.658%），LowLatency 4.390787 -> 3.264446 s（-25.652%），两档均 0/41 回退。
+- 102 图五轮正式：Compact 10.787120 -> **7.874026 s**（独立中位 -27.005%，配对 -26.828%），LowLatency 10.401583 -> **7.638855 s**（独立 -26.561%，配对 -26.249%），两档均 0/102 逐图中位回退。Compact round 5 的 7.929905 s 是保留的 3×MAD outlier；LowLatency 无 3×MAD outlier，没有删除任何样本。
+- 正式 process wall/CPU/RSS：Compact control 16.046536/16.000232 s/1,215.27 MiB，product 13.139456/13.085052 s/1,143.25 MiB；LowLatency control 15.719175/15.628885 s/1,215.53 MiB，product 12.922736/12.876665 s/1,153.55 MiB。RSS 分别降低 72.02/61.98 MiB。
+- release rlib 436,344 -> 453,848 B（+17,504 B/+4.011%）；包含 test-only same-binary control 的 release test binary 1,481,328 -> 1,501,056 B（+19,728 B/+1.332%）。实现保持 safe Rust，无新增依赖、线程、unsafe、API、profile、Default、metadata、animation 或 wire 变化。
+- latest-main/product 与 product/E36 各自都是 Default/Compact/LowLatency 共 306/306 长度、SHA 和完整字节一致；项目 decoder 各 306/306 RGBA exact，产品 pinned libwebp `733c91e` 也是 306/306 exact。完整仓库 archive 的 debug/release all-targets、Clippy `-D warnings`、fmt、rustdoc/doctest 全部通过。
+- 只把最终完整仓库 archive binary 的结果写入 headline。错误 cwd archive、zsh 特殊 `path` 导致的 non-run、pre-manifest partial、workspace-subtree archive 的 screen/formal/identity、缺 root fixtures 的 validation 与覆盖日志重建均作为失效运行完整保存在 [invalidated-runs](../../experiments/vp8l-packed-writer-product/invalidated-runs) 和具名 `raw/invalidated-*` 目录，不因无效或无收益而丢弃。
+- 分支 `codex/vp8l-packed-writer-product`：base `0ee428dc`，代码 `9435fbd0`，证据/最终 HEAD `a7cde726`；工作树 [5e00](</Users/lance/.codex/worktrees/5e00/webp>)，task `019f88d1-ed7a-7573-8898-d78525870e70`，[完整报告](../../experiments/vp8l-packed-writer-product/REPORT.md)。对应 main 线性提交为代码 `b3b96fdc`、证据 `80113c1e`、raw whitespace policy `fabcbf9c`。
+
 ## 下一阶段：优先寻找更强且更通用的新架构
 
 标准 VP8L 的局部优化已经给出一致信号：Huffman、predictor、LZ77、PGO、单个 copy kernel 各自只有个位数收益或以明显 rate/latency 回退换取收益。后续优先级应从“继续打磨一个旧循环”转向能够同时改变表示、依赖图和输出流水线的架构方案。
 
-### 第一优先：packed token writer 产品迁移
+### 第一优先：流式 tokenization 与空间规划融合
 
-- E36 已在最终 binary 上证明两档 27.7%–28.1% 改善，且通过完整 wire 和双 decoder gate；它已不是待证明的微优化，而是待收敛的产品架构。
-- P12 已从创建时最新 `main@0ee428dc0bee9c035f051b4ccaa846dabe394ca8` 建立，分支 `codex/vp8l-packed-writer-product`，工作树 [5e00](</Users/lance/.codex/worktrees/5e00/webp>)，task `019f88d1-ed7a-7573-8898-d78525870e70`。所有产品结果固定写入 `experiments/vp8l-packed-writer-product`，由本任务独立评估后再决定是否集成。
-- P12 重新理解并迁移最小生产路径，不整体 cherry-pick E36 研究提交。产品代码只保留 packet 不变量、buffered sink、checked reserve/capacity 和必需边界测试，删除 census、phase layouts、benchmark-only hooks 和宽泛 dead-code 豁免。
-- 模块边界按独立责任划分：packet sink 拥有 accumulator、LSB-first wire packet 和容量错误语义，`spatial_writer` 只做 token/table orchestration；依赖保持单向，生产模块保持 500 行以下，新测试放在具名 sibling file。
-- 产品 gate 将使用同一最终 binary：41 图三轮 screen 后跑 102 图五轮，Compact/LowLatency 都必须至少改善 20%，目标绝对中位不高于 8.5 s，且逐图中位无回退。latest-main/product 与 product/E36 都必须 306/306 完整 byte identity，项目 decoder 和 pinned libwebp 都必须 306/306 完整 RGBA exact。
-- 只有同时通过 wall/CPU/RSS、release rlib/test binary、error semantics、workspace debug/release all-targets、Clippy、fmt 和 rustdoc/doctest 后才线性迁入 main；不得改变 cluster、tokenization、profile 选择、Default/API、wire syntax、依赖、unsafe 或线程模型。
+- E37 之后，候选 writer 已从约 5.3–5.5 s 降到约 2.4 s；此前约 2.84–2.87 s 的 `SpatialPlan::build` 成为最显著的剩余阶段。当前管线先生成完整 residual buffer，再生成 token，随后为 block signature 与 group frequencies 再扫描 token；这是数据所有权和 pass 数量的问题，不是并发或单条指令问题。
+- 下一假设是让 profile-aware token producer 在流式生成 residual/token 时同步产出空间规划所需的充分统计量。最低档只融合 block census，进阶档在内存有界时持有 per-block exact frequencies 并按最终 assignment 合并，从而消除一至两次全 token 扫描；必须保持 copy 归属、Boyer–Moore majority 顺序、cluster seed、Huffman frequencies 和最终 wire 完全不变。
+- Phase A 必须先分别量化 residual materialization、tokenization、block census、seed/rank/assign、group-frequency pass、tables 与 packed writer，给出可回收上界；实现阶段逐个隔离 streaming-only、census fusion 和 per-block merge，不能把不相关算法改动混入一个数字。
+- 正式同 binary gate 目标为 Compact/LowLatency 都至少改善 10%，候选绝对中位分别不高于 7.1/6.9 s，且 0/102 逐图中位回退。这个目标若成立，按 E33 14.668/14.253 s 的历史产品起点，两档累计编码时间将超过 50% 改善。
+- 必须完成 latest-main/candidate 306/306 byte identity、项目 decoder 与 pinned libwebp 各 306/306 RGBA exact，并报告 process wall/CPU/RSS、额外峰值内存、rlib/test binary、错误语义和全部 stable quality gates。若 dense per-block 统计导致 RSS 增量超过 64 MiB 或 5%，必须改用更紧凑布局或拒绝该变体。
+- 研究保持 safe、单线程、无新增依赖，不改变 Default/API/profile 决策、cluster 算法、token parse、标准 VP8L wire、metadata 或 animation；成功后仍需从届时最新 `main` 另建产品迁移树，不能直接把研究 hooks 合入。
 
 ### 第二优先：统一的 Fast Representation v2
 
