@@ -1,10 +1,14 @@
-| Encoder / iteration | Revision | Exact alpha | Whole-image median (3 x 10) ↓ | Throughput ↑ | Cost ↓ | Change from prior Rust | Time vs paired libwebp | Rust ALPH-only median ↓ | ALPH throughput ↑ | ALPH cost ↓ | ALPH change from prior |
+| Encoder / iteration | Revision | Exact alpha | Whole-image median ↓ | Throughput ↑ | Cost ↓ | Change from prior Rust | Time vs paired libwebp | Rust ALPH-only median ↓ | ALPH throughput ↑ | ALPH cost ↓ | ALPH change from prior |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| pinned libwebp | `733c91e` | 41/41 | **10029.278 ms** | 6.365 MPix/s | 157.110 ns/pixel | reference | reference | n/a: no public standalone ALPH encoder | n/a | n/a | n/a |
+| pinned libwebp (I1-I3 historical pair, 3 x 10) | `733c91e` | 41/41 | **10029.278 ms** | 6.365 MPix/s | 157.110 ns/pixel | reference | reference | n/a: no public standalone ALPH encoder | n/a | n/a | n/a |
 | Rust I1: latest-main code baseline | `a8a7371` (`5e54dd3` code) | 41/41 | 8058.452 ms | 7.922 MPix/s | 126.237 ns/pixel | baseline | -18.79% | 1786.003 ms | 35.742 MPix/s | 27.978 ns/pixel | baseline |
 | Rust I2: batched LSB writer | `86ea22b` | 41/41 | 7122.629 ms | 8.962 MPix/s | 111.577 ns/pixel | **-11.61%** | -28.14% | 879.106 ms | 72.615 MPix/s | 13.771 ns/pixel | **-50.78%** |
 | Rust I2f: ownership/filter/parser cleanup | pre-I3 checkpoint | 41/41 | 7022.180 ms | 9.091 MPix/s | 110.003 ns/pixel | -1.41% | -29.27% | 800.482 ms | 79.747 MPix/s | 12.540 ns/pixel | -8.94% |
 | Rust I3: plane codes + indexed alpha | `b32d350` | **41/41** | **7019.944 ms** | **9.094 MPix/s** | **109.968 ns/pixel** | -0.03% | **-30.01%** | **796.203 ms** | **80.176 MPix/s** | **12.473 ns/pixel** | -0.53% |
+| Rust I5 reference control (same binary, 5 x 10) | `1c16ebe8` behavior | 224/224 gate | 6798.402 ms | 9.390 MPix/s | 106.498 ns/pixel | same-binary reference | not mixed with isolated pair | 816.001 ms | 78.230 MPix/s | 12.783 ns/pixel | same-binary reference |
+| Rust I5: packed token output (same binary, 5 x 10) | `77842c1c` | **224/224** | **6636.077 ms** | **9.620 MPix/s** | **103.955 ns/pixel** | -2.388% | not mixed with isolated pair | **659.907 ms** | **96.735 MPix/s** | **10.338 ns/pixel** | **-19.129%** |
+| pinned libwebp (I5 isolated pair, 3 x 10) | `733c91e` | 224/224 gate | 9752.954 ms | 6.545 MPix/s | 152.781 ns/pixel | boundary reference | reference | n/a: no public standalone ALPH encoder | n/a | n/a | n/a |
+| Rust I5 paired whole boundary (3 x 10) | `77842c1c` | 224/224 gate | 6894.267 ms | 9.259 MPix/s | 108.000 ns/pixel | separate boundary run | **-29.311%** | deliberately not reused | n/a | n/a | see formal row |
 
 | Encoder / iteration | ALPH bytes / suite ↓ | ALPH bpp ↓ | ALPH gap to libwebp | ALPH change from prior | Complete WebP bytes / suite ↓ | WebP gap to libwebp | WebP change from prior |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -13,6 +17,7 @@
 | Rust I2 | 4,135,772 | 5.1830 | +0.91% | 0.00% | 6,636,088 | +1.94% | 0.00% |
 | Rust I2f | 4,135,741 | 5.1830 | +0.91% | -0.00% | 6,636,056 | +1.94% | -0.00% |
 | Rust I3 | **4,118,622** | **5.1615** | **+0.50%** | -0.41% all files / **-10.98% structured** | **6,618,910** | **+1.67%** | -0.26% |
+| Rust I5 | **4,118,622** | **5.1615** | **+0.50%** | 0.00%; byte-identical to reference | **6,618,910** | **+1.67%** | 0.00%; byte-identical to reference |
 
 # ALPH encoder benchmark and optimization record
 
@@ -23,12 +28,15 @@ Sub-10% compatible changes may be folded into an architectural iteration, but
 are recorded as marginal rather than presented as wins. Regressions remain in
 the table.
 
-At the current operating point Rust uses **30.01% less whole-image time** than
-libwebp, which is **42.87% higher throughput**. It is close to, but does not yet
-claim, the 50% throughput target. Complete output is 1.67% larger and ALPH is
-0.50% larger. There is no honest cross-library ALPH-only speed ratio because
-libwebp does not expose a public standalone ALPH encoder; its public whole-image
-API is the comparison boundary.
+At the current product operating point the isolated paired boundary has Rust
+using **29.311% less whole-image time** than libwebp, or **41.46% higher
+throughput**. The same-binary formal gate separately measures **-19.129%
+ALPH-only** and -2.388% whole time. Historical and I5 boundary rows are not
+cross-compared because they came from different measurement sessions. Complete
+output remains 1.67% larger and ALPH 0.50% larger; I5 changes no bytes. There is
+no honest cross-library ALPH-only speed ratio because libwebp does not expose a
+public standalone ALPH encoder; its public whole-image API is the comparison
+boundary.
 
 ## ALPH 实验总账
 
@@ -56,7 +64,7 @@ API is the comparison boundary.
 | A11 | compact single-best-match traceback：每位置只保留 implicit literal + one-best copy，消除 A10 K-list/depth64 rich discovery | `codex/alpha-compact-traceback@9ee9336c`；analyzer `7fa3d806`；Phase-A evidence `80cd30da`；candidate `4a2d0f19` | 创建于 `ec0e624c`；登记后多次主线前进，最终完整重跑到 `17e4a2b858cabbe567717e4ee8d8f01eabe327bf` | [`9538` worktree](</Users/lance/.codex/worktrees/9538/webp>)；task `019f88c3-301c-7473-a659-4e2584636017` | Phase A 按规则选 R：structured `138,762 -> 120,336`（**-13.279%**），real -13.199%、synthetic -12.405%，336/336 `dwebp` exact；discovery 比 A10 少 98.823%；报告 `9ee9336c:reports/alpha-compact-traceback/README.md` | **Phase A 通过 / Phase B reject**；56/56 production size exact，但 ALPH-only **48.33x**、whole 7.56x、RSS 1.88x 回退；default encoder 不变 | 顶部表不变；保留四 variant ablation、R 固定选择、default-off candidate、final-base raw/hash/gate 日志 |
 | A12 | byte-identical greedy LZ hot loop：safe word-at-a-time LCP 与 rolling 3-byte skipped hashes，保持 hash overwrite、token、Huffman 和输出字节完全不变 | `codex/alpha-byte-identical-greedy-hotloop@990e0b20` | 精确创建于 `a648cbd8b23b323209c6d4d750924eb003bd6a07`；登记后重放到测量基线 `5e6b549abd5b9e7ad4f0b89ceda81da8a8e97e3a` | [`169c` worktree](</Users/lance/.codex/worktrees/169c/webp>)；task `019f88fd-6e65-7e60-997b-35d1f7712a6d` | 5 轮 same-binary：parse 硬上限 31.174%，但 L/H/LH 可信 ALPH ceiling 仅 2.854% / 2.113% / **4.878%**；355/355 plane token exact；报告 `990e0b20:reports/alpha-byte-identical-greedy-hotloop/README.md` | **Phase-A reject / 不实现**；无 production candidate，不跑 formal/q-matrix/RSS/libwebp；default encoder 不变 | 顶部表不变；保留 31 项 raw/hash、source/codegen audit、per-file 负值与 10% 早停证据 |
 | A13 | byte-identical packed ALPH entropy-token writer：把 literal/copy 的 Huffman + extra 段预组为 bounded packet，以 persistent safe accumulator 批量 flush | `codex/alpha-packed-token-writer@ac1d30d6`；Phase A `dfd1eff6`；candidate `302904b0`；evidence `2552cdda` | 创建于 `180eafd4`；登记后正式基线 `e655ab9a79c018176992d200f3cd79a3cc6c73a8` | [`8d9d` worktree](</Users/lance/.codex/worktrees/8d9d/webp>)；task `019f8919-78ee-70b2-8be9-9e9deb9e7e80` | 41×10×5 ALPH `895.748 -> 743.931 ms`（**-16.949%**），whole -3.644%、CPU -4.257%、RSS median -3.450%；224/224 q-matrix byte/project/`dwebp` exact；报告 `ac1d30d6:reports/alpha-packed-token-writer/README.md` | **研究通过 / 建议推广**；但 15-file 仅 -7.078%，且 review 发现模块双向依赖与 `encode.rs` 532 行；由 A14 latest-main 产品化重放 | 暂不进入顶部表；保留 136 项 checksum、P +4.731% 反优化、泛化/小文件限制与全部 invalidated runs |
-| A14 | A13 packed token writer 产品化：从 latest main 手工迁移 persistent sink，把 syntax/token-output 依赖改成单向并让 `encode.rs` 回到模块行数目标内 | `codex/alpha-packed-token-writer-product`；HEAD 待实现 | 精确产品基线 `26e7ae822105ea8805d69228ad2d359a2d569108`；`HEAD = main = merge-base` | [`6821` worktree](</Users/lance/.codex/worktrees/6821/webp>)；task `019f8962-85b6-7f11-97fa-8fa053c9687f` | **已登记 / 待实现**；工作树、index 干净，已核验 A13 provenance；尚未产生候选或测量 | **pending**；必须重现 >=10% primary gate、224-case exactness、泛化/资源/代码体积与全部门禁才推广 | 本次提交登记精确 latest-main base；候选、raw 数据、差距和决定完成后回填 |
+| A14 | A13 packed token writer 产品化：从 latest main 手工迁移 persistent sink，把 syntax/token-output 依赖改成单向并让 `encode.rs` 回到模块行数目标内 | `codex/alpha-packed-token-writer-product@759417c6`；code `77842c1c`；evidence `ec05d41e` | intake `26e7ae82`；登记后精确产品/测量基线 `1c16ebe826ea57adaf2293bf44bdc36175401a8b` | [`6821` worktree](</Users/lance/.codex/worktrees/6821/webp>)；task `019f8962-85b6-7f11-97fa-8fa053c9687f` | 41×10×5 ALPH `816.001 -> 659.907 ms`（**-19.129%**），whole -2.388%、CPU -3.985%、RSS -3.665%、0/41 ALPH regressions；224/224 exact；报告 `759417c6:reports/alpha-packed-token-writer-product/README.md` | **已推广**；15-file 仅 -8.063%、real4 -3.825%，rlib +15.121%，限制明确保留 | code/evidence/audit 已 fast-forward 到 `main@759417c6`；本提交刷新顶部表、迭代日志、反优化和研究目标 |
 
 ### A01 / A02 已完成结果明细
 
@@ -442,23 +450,43 @@ alpha/webp/oracle 与全部现有 fuzz target build 通过。Example binary +432
 
 A13 formal 完成后 `main` 前进到 `3474599d`；同时 root review 发现候选让
 `encode.rs` 达 532 行，且 `encode` 与 `packed_token_writer` 相互引用实现细节。
-因此 A13 是通过的架构证据，不直接合并；A14 必须从新的 latest main 手工迁移，
-把 syntax/token-output 依赖改为单向并重新跑 screen/formal，才进入顶部表。
+因此 A13 只作为通过的架构证据，没有直接合并；随后 A14 已从新的 latest main
+手工迁移，把 syntax/token-output 依赖改为单向并完整重跑 screen/formal 后推广。
 
-### A14 latest-main 产品化登记
+### A14 latest-main 产品化与正式结果
 
-A14 的 worktree 创建请求发出时 `main` 为 `d38bd330`；在它完成 intake、挂载唯一
-分支前，`main` 又加入一笔 VP8L 总账提交。因此真正的产品基线按规则锁定为更晚的
-`26e7ae822105ea8805d69228ad2d359a2d569108`，而不是创建请求时的旧值。登记时
-`HEAD`、本地 `main` 和 merge-base 三者完全相等，工作树与 index 均干净。
+A14 的 worktree 创建请求发出时 `main` 为 `d38bd330`；intake 挂分支前追到
+`26e7ae82`，root 登记后又严格重放到最终测量基线
+`1c16ebe826ea57adaf2293bf44bdc36175401a8b`。screen、formal 和最终建议前均重新
+读取本地 `main`；它始终是 merge-base。A13 不在分支祖先链，产品代码是手工迁移。
 
-本轮不 cherry-pick A13 原型。实现必须从该基线手工迁移已证明的 bit-order、packet
-width 与 persistent-accumulator 不变量；`encode` 只保留编排，prefix/syntax 与
-token-output owner 形成单向依赖，并把 production module 控制回 500 行目标内。
-登记后先做 41-file 3×10 screen；过 10% 才运行 5×10 formal、15-file 泛化、
-56×q0/70/99/100（224 case）逐字节与 pinned-`dwebp` oracle、CPU/RSS、binary/rlib
-体积、libwebp whole boundary、workspace/Clippy/fmt/Bazel/fuzz 全门禁。原始证据与
-报告目标为 `reports/alpha-packed-token-writer-product/README.md`。
+依赖边界最终为 `encode -> encode_token_output -> encode_lz77/encode_huffman`。
+`encode` 只保留校验、filter/palette、频率和表编排；新 owner 持有 variant、cached/
+replayed token traversal、完整 packet 组合和 persistent sink。三个 production module
+分别为 294 / 368 / 206 行，reference 与 P 控制仅存在于 doc-hidden 非默认 feature。
+
+| A14 final-code evidence | Reference | P | Packed | Packed change / tail |
+|---|---:|---:|---:|---:|
+| 41×10×3 screen ALPH | 832.087 ms | 837.499 ms | 670.273 ms | **-19.447%**；3/41 regressions，worst +5.051% |
+| screen whole | 6916.822 ms | 6886.425 ms | 6764.310 ms | -2.205%；14/41 regressions，worst +9.967% |
+| 41×10×5 formal ALPH | 816.001 ms | 825.730 ms | 659.907 ms | **-19.129%**；0/41 regressions，worst -2.948% |
+| formal whole | 6798.402 ms | 6793.995 ms | 6636.077 ms | -2.388%；1/41 regression，worst +1.047% |
+| process CPU median | 8.408838 s | n/a | 8.073714 s | -3.985% |
+| peak RSS median | 110,870,528 B | n/a | 106,807,296 B | -3.665% |
+
+独立 15-file ×5 泛化仍不能混入 headline：all ALPH `396.341 -> 364.385 ms`
+（-8.063%），real4 -3.825%，synthetic11 -10.724%，但 15/15 ALPH median 均改善；
+whole -0.685%。56 文件 × q0/70/99/100 的 **224/224** reference/product ALPH、完整
+WebP、项目 decoder 与 pinned `dwebp@733c91e` 全部一致。隔离 whole boundary 的
+Rust / libwebp median 为 `6894.267 / 9752.954 ms`，Rust time -29.311%；这不是跨库
+ALPH identity 或 standalone ALPH speed 声明。
+
+Default example 仅 +160 B（+0.021%），alpha rlib +36,944 B（+15.121%）。Workspace
+debug/release、default/feature Clippy `-D warnings`、fmt、Bazel/oracle、12 个 fuzz target
+build、codegen owner 和 207 项 SHA-256 全过。第一次完整数据因 test-only lint 修正后
+二进制 hash 改变而全部作废并重跑；Bazel sandbox、错误 libwebp path、初次 fmt 与
+Clippy 失败均保留在 `FAILURES.md`。代码、证据、最终 audit 为 `77842c1c` /
+`ec05d41e` / `759417c6`，已经线性 fast-forward 到 `main`。
 
 ### 总账更新规则
 
@@ -747,8 +775,24 @@ persistent sink cut formal ALPH-only time by 16.95%, while P alone regressed
 the independent real/synthetic aggregate reaches only 7.08%. The experiment
 also exposed a productization boundary: its otherwise valid prototype leaves
 `encode.rs` above the module target and introduces a two-way dependency with
-the packet module. A14 must migrate the same invariant onto latest main with a
-directional module graph and reproduce the performance before promotion.
+the packet module.
+
+### I5 - product packed token output (A14; `77842c1c` / `759417c6`)
+
+A14 manually rebuilt the passing invariant from registered latest main. The
+directional `encode_token_output` owner precomposes each legal literal/copy
+packet and appends it through one checked persistent accumulator; ordinary
+builds retain no reference/P branch. `encode.rs` fell to 294 lines and no
+lower module imports orchestration internals.
+
+The final-code 41×10×5 gate cut ALPH-only time **19.129%**, whole time 2.388%,
+process CPU 3.985%, and median peak RSS 3.665%. It had zero ALPH per-file
+regressions and preserved all 224 quality-matrix ALPH/WebP bytes and decoder
+results. P alone regressed 1.192%, independently reproducing that packet
+precomposition is not the win. The broader 15-file aggregate remains below
+the materiality gate at -8.063%, especially real4 at -3.825%; promotion is for
+the measured 41-file owner, not a universal 19% claim. The product, all valid
+and invalidated raw data, and audit are now on `main`.
 
 ## Rejected and non-material experiments
 
@@ -779,7 +823,7 @@ primary headline measurements.
 | multi-edge iterative shortest-path parser | A10 fixed K=20 frontier, neutral + three Huffman-cost DP rounds, actual serialization over 56 files | structured **-13.814%** and zero expansion, but corrected production probe ALPH-only **4,832x** / whole 723x / RSS 11.35x | reject Phase B; retain density ceiling and default-off implementation, never enable rich frontier |
 | compact single-best traceback | A11 R/RP4/RP8/RPH4 ablation with global lowest-discovery selection | selected R structured **-13.279%**, discovery -98.823% vs A10 and 336/336 `dwebp`; production ALPH-only **48.33x** / whole 7.56x | reject Phase B; compact storage solves discovery scale but not repeated parse/table evaluation cost |
 | byte-identical greedy LZ hot loop | A12 five-rotation production-trace replay with safe word-LCP / rolling skipped-hash ablation | parse hard bound 31.174%，but L/H/LH realistic ALPH ceilings only 2.854% / 2.113% / **4.878%**；355/355 token exact | reject Phase A; no production candidate or microbenchmark-only promotion claim |
-| packet precomposition through ordinary `BitWriter` | A13 P control, same token packets/tables as PS | formal ALPH-only **+4.731%**；generalization all/real/synthetic -0.099/-1.005/+0.245% | reject P; packet composition only matters when the persistent sink also removes segment state updates |
+| packet precomposition through ordinary `BitWriter` | A13 P control and A14 final-code P reproduction, same token packets/tables as packed | A13 formal **+4.731%**；A14 formal **+1.192%** ALPH-only | reject P twice; packet composition only matters when the persistent sink also removes segment state updates |
 
 ## Research basis and next architecture targets
 
@@ -832,18 +876,20 @@ The next accepted architecture should target at least one measurable 10% gap:
    entropy-token sink: prove legal literal/copy packet widths and LSB order,
    precompose each token's Huffman and extra-bit segments, and bulk-append them
    through a safe bounded accumulator. The recently productized VP8L packed
-   writer was mechanism evidence, not transferred benchmark evidence. A13's
-   formal -16.949% and 224/224 exactness clear the research gate, but A14 must
-   now reproduce them from actual latest main while fixing the prototype's
-   module direction/size before the code and a new top-table row are promoted.
+   writer was mechanism evidence, not transferred benchmark evidence. A14 has
+   now reproduced and productized the mechanism from registered latest main:
+   formal -19.129%, 224/224 exactness, directional modules, and no ALPH tail
+   regressions. This serialization owner is closed as a shipped iteration;
+   future work must attack a distinct owner or broaden the real-image result.
 2. **Real-image evidence:** add a pinned, licensed translucent PNG/WebP corpus
    with PSNR/SSIM or exact-alpha gates, alpha-cardinality buckets, p50/p95
    latency, and peak RSS. No architecture should be tuned only to conformance
    fixtures.
-3. **Whole-image 50% throughput target:** current throughput is 42.87% above
-   libwebp. Reaching exactly 50% requires only another 4.8% Rust time reduction,
-   which is below the project's standalone significance rule. It should be
-   bundled with a >=10% density, p95, memory, or broader-dataset improvement.
+3. **Whole-image 50% throughput target:** the current isolated paired boundary
+   is 41.46% above libwebp. Reaching exactly 50% requires another 5.69% Rust
+   time reduction, which is below the project's standalone significance rule.
+   It should be bundled with a >=10% density, p95, memory, or broader-dataset
+   improvement.
 
 ## Resource behavior
 
@@ -855,8 +901,10 @@ The next accepted architecture should target at least one measurable 10% gap:
 - Quality-100 input is borrowed. Lower qualities own their quantized plane.
 - Indexed planes retain a packed row buffer at 1/2, 1/4, or 1/8 of the source
   size depending on palette cardinality, plus at most 16 palette entries.
-- Peak RSS is not yet emitted by v3 and remains a required metric for the next
-  real-image benchmark revision.
+- I5 reserves a checked worst-case token-output capacity once, then performs no
+  per-token grow. On formal 41-file runs median peak RSS fell from 110,870,528
+  to 106,807,296 bytes (-3.665%); future real-image revisions must keep emitting
+  CPU and RSS rather than infer them from allocator capacity.
 
 ## Correctness and acceptance gates
 
@@ -866,8 +914,10 @@ Every accepted iteration must pass:
 - exact pinned-`dwebp` decode for all 41 alpha-quality-100 files;
 - Rust/`dwebp` agreement for the quality 0, 70, and 99 reduction matrix;
 - workspace tests, clippy with warnings denied, formatting, and Bazel tests;
-- three ten-iteration v3 runs on the same pinned corpus, oracle, host, and
-  release profile;
+- at least three ten-iteration v3 runs on the same pinned corpus, oracle, host,
+  and release profile, with CPU and peak RSS for promotion candidates;
+- a 56-file q0/q70/q99/q100 byte/project-decoder/pinned-`dwebp` matrix for
+  writer or serialization changes;
 - explicit size, speed, and regression reporting, including rejected results
   when no primary metric improves by at least 10%.
 
