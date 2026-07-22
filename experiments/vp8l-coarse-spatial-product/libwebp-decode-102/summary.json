@@ -1,0 +1,369 @@
+{
+  "operations": {
+    "decode": {
+      "comparisons": {
+        "compact": {
+          "independent_median_ratio_percent": -10.56755643623043,
+          "paired_ratio_percent": {
+            "mad": 0.09959210518007922,
+            "median": -10.575796480921761,
+            "median_without_outliers": -10.571676458576096,
+            "three_mad_outlier_rounds": [
+              4
+            ],
+            "values": [
+              -10.575796480921761,
+              -10.808188821014731,
+              -10.476204375741682,
+              -11.859306159579464,
+              -10.56755643623043
+            ]
+          },
+          "per_image_ratio_percentiles": {
+            "p0": -20.354801184433168,
+            "p10": -16.829310611805564,
+            "p100": 18.428612152709256,
+            "p50": -10.720265869287637,
+            "p90": -5.525834184542049
+          },
+          "worst_image": {
+            "image": "clic-validation-077",
+            "ratio_percent": 18.428612152709256
+          }
+        },
+        "default": {
+          "independent_median_ratio_percent": -8.942010621850816,
+          "paired_ratio_percent": {
+            "mad": 0.3931604695014421,
+            "median": -8.942010621850816,
+            "median_without_outliers": -8.942010621850816,
+            "three_mad_outlier_rounds": [
+              2,
+              4
+            ],
+            "values": [
+              -8.548850152349374,
+              -6.852981970881167,
+              -8.997963140594967,
+              -10.283439618786128,
+              -8.942010621850816
+            ]
+          },
+          "per_image_ratio_percentiles": {
+            "p0": -20.592745346869712,
+            "p10": -16.55797588001992,
+            "p100": 15.224875556432682,
+            "p50": -8.459219668363465,
+            "p90": -1.0744851735971652
+          },
+          "worst_image": {
+            "image": "clic-validation-077",
+            "ratio_percent": 15.224875556432682
+          }
+        },
+        "low-latency": {
+          "independent_median_ratio_percent": -11.494148058536013,
+          "paired_ratio_percent": {
+            "mad": 0.4818994299006789,
+            "median": -11.307802515431897,
+            "median_without_outliers": -11.286595021506411,
+            "three_mad_outlier_rounds": [
+              4
+            ],
+            "values": [
+              -11.307802515431897,
+              -11.789701945332576,
+              -10.76542767505131,
+              -12.80066407212569,
+              -11.265387527580927
+            ]
+          },
+          "per_image_ratio_percentiles": {
+            "p0": -21.585290894999865,
+            "p10": -17.84927931121189,
+            "p100": 17.40670497015675,
+            "p50": -11.416829817586805,
+            "p90": -6.259061131766035
+          },
+          "worst_image": {
+            "image": "clic-validation-009",
+            "ratio_percent": 17.40670497015675
+          }
+        }
+      },
+      "layouts": {
+        "compact": {
+          "aggregate_wall_ns": {
+            "mad": 1505000,
+            "median": 5335206000,
+            "median_without_outliers": 5336637000,
+            "three_mad_outlier_rounds": [
+              1,
+              2
+            ],
+            "values": [
+              5323506000,
+              5323176000,
+              5336637000,
+              5336711000,
+              5335206000
+            ]
+          },
+          "cpu_ns": {
+            "mad": 9168000,
+            "median": 5570309000,
+            "median_without_outliers": 5571844500.0,
+            "three_mad_outlier_rounds": [
+              2
+            ],
+            "values": [
+              5573380000,
+              5540619000,
+              5570309000,
+              5548676999,
+              5579477000
+            ]
+          },
+          "max_rss_bytes": {
+            "mad": 311296,
+            "median": 1716191232,
+            "median_without_outliers": 1716191232,
+            "three_mad_outlier_rounds": [
+              2,
+              4
+            ],
+            "values": [
+              1716191232,
+              1717207040,
+              1716191232,
+              1717190656,
+              1715879936
+            ]
+          },
+          "process_wall_ns": {
+            "mad": 36800375,
+            "median": 5662764125,
+            "median_without_outliers": 5662764125,
+            "three_mad_outlier_rounds": [],
+            "values": [
+              5699564500,
+              5578245500,
+              5662764125,
+              5587445917,
+              5685731792
+            ]
+          }
+        },
+        "default": {
+          "aggregate_wall_ns": {
+            "mad": 7423000,
+            "median": 5432180000,
+            "median_without_outliers": 5432153000.0,
+            "three_mad_outlier_rounds": [
+              2
+            ],
+            "values": [
+              5444172000,
+              5559232000,
+              5424757000,
+              5432126000,
+              5432180000
+            ]
+          },
+          "cpu_ns": {
+            "mad": 34571000,
+            "median": 5685760000,
+            "median_without_outliers": 5668474500.0,
+            "three_mad_outlier_rounds": [
+              2
+            ],
+            "values": [
+              5685760000,
+              5811878000,
+              5644703000,
+              5688928000,
+              5651189000
+            ]
+          },
+          "max_rss_bytes": {
+            "mad": 65536,
+            "median": 1759608832,
+            "median_without_outliers": 1759576064,
+            "three_mad_outlier_rounds": [
+              1,
+              2
+            ],
+            "values": [
+              1760313344,
+              1760165888,
+              1759543296,
+              1759608832,
+              1759576064
+            ]
+          },
+          "process_wall_ns": {
+            "mad": 129245666,
+            "median": 5823090084,
+            "median_without_outliers": 5823090084,
+            "three_mad_outlier_rounds": [],
+            "values": [
+              5843417375,
+              5952335750,
+              5666012333,
+              5823090084,
+              5690512416
+            ]
+          }
+        },
+        "libwebp-m6": {
+          "aggregate_wall_ns": {
+            "mad": 4489000,
+            "median": 5965627000,
+            "median_without_outliers": 5963382500.0,
+            "three_mad_outlier_rounds": [
+              4
+            ],
+            "values": [
+              5953093000,
+              5968234000,
+              5961138000,
+              6054764000,
+              5965627000
+            ]
+          },
+          "cpu_ns": {
+            "mad": 4520000,
+            "median": 6126984000,
+            "median_without_outliers": 6126851000,
+            "three_mad_outlier_rounds": [
+              2,
+              4
+            ],
+            "values": [
+              6126851000,
+              6145967000,
+              6122464000,
+              6161534999,
+              6126984000
+            ]
+          },
+          "max_rss_bytes": {
+            "mad": 262144,
+            "median": 1364508672,
+            "median_without_outliers": 1364377600.0,
+            "three_mad_outlier_rounds": [
+              1
+            ],
+            "values": [
+              1366261760,
+              1364656128,
+              1364230144,
+              1364246528,
+              1364508672
+            ]
+          },
+          "process_wall_ns": {
+            "mad": 89329209,
+            "median": 6238741208,
+            "median_without_outliers": 6238741208,
+            "three_mad_outlier_rounds": [],
+            "values": [
+              6238741208,
+              6239685333,
+              6141437209,
+              6328070417,
+              6145990542
+            ]
+          }
+        },
+        "low-latency": {
+          "aggregate_wall_ns": {
+            "mad": 13647000,
+            "median": 5279929000,
+            "median_without_outliers": 5279929000,
+            "three_mad_outlier_rounds": [],
+            "values": [
+              5279929000,
+              5264597000,
+              5319396000,
+              5279714000,
+              5293576000
+            ]
+          },
+          "cpu_ns": {
+            "mad": 32597001,
+            "median": 5531356999,
+            "median_without_outliers": 5531356999,
+            "three_mad_outlier_rounds": [],
+            "values": [
+              5531356999,
+              5477847000,
+              5563954000,
+              5489585000,
+              5541922000
+            ]
+          },
+          "max_rss_bytes": {
+            "mad": 344064,
+            "median": 1723023360,
+            "median_without_outliers": 1722851328.0,
+            "three_mad_outlier_rounds": [
+              2
+            ],
+            "values": [
+              1722630144,
+              1724317696,
+              1723121664,
+              1723023360,
+              1722679296
+            ]
+          },
+          "process_wall_ns": {
+            "mad": 35092458,
+            "median": 5659363750,
+            "median_without_outliers": 5668815375,
+            "three_mad_outlier_rounds": [
+              2,
+              4
+            ],
+            "values": [
+              5659363750,
+              5493849250,
+              5694456208,
+              5507257291,
+              5668815375
+            ]
+          }
+        }
+      }
+    }
+  },
+  "run": {
+    "baseline": "libwebp-m6",
+    "binary": "/private/tmp/libwebp_vp8l_product_bench_070b",
+    "binary_bytes": 283552,
+    "binary_sha256": "2f8b6bb53b3f1bf639f92fb84e84c337b8848e3d9102962e6a7e7e529ed9eb32",
+    "completed_unix_ns": 1784694883825650000,
+    "decoder": "pinned libwebp WebPDecodeRGBA",
+    "expected": "/private/tmp/vp8l-coarse-spatial-product-070b/expected",
+    "formal": true,
+    "generated": "/private/tmp/vp8l-coarse-spatial-product-070b",
+    "layouts": [
+      "libwebp-m6",
+      "default",
+      "compact",
+      "low-latency"
+    ],
+    "lock": "/private/tmp/webp-vp8l-libwebp-product-benchmark.lock",
+    "lock_pid": 53611,
+    "operations": [
+      "decode"
+    ],
+    "order": "forward on odd rounds, reverse on even rounds",
+    "pinned_revision": "733c91e461c18cf1127c9ed0a80dccbcfed599d3",
+    "preloaded": true,
+    "rounds": 5,
+    "started_unix_ns": 1784694744233238000,
+    "timed_validation": "full RGBA memcmp and full RGBA FNV-1a"
+  }
+}

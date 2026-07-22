@@ -1,0 +1,26 @@
+{
+  "lock": "/private/tmp/webp-vp8l-product-benchmark.lock",
+  "lock_pid": 49966,
+  "started_unix_ns": 1784694240203229000,
+  "binary": "/Users/lance/.codex/worktrees/070b/webp/webp-rs/target/release/deps/webp-c98418ff6eb0ddf3",
+  "binary_sha256": "c3de441ad9d1a34a05aa5120ee78ecf74f6783f59868c794e51a196e1e5f3fe7",
+  "binary_bytes": 1448224,
+  "rounds": 5,
+  "order": "forward on odd rounds, reverse on even rounds",
+  "layouts": [
+    "single",
+    "default",
+    "compact",
+    "low-latency",
+    "libwebp-m6"
+  ],
+  "operations": [
+    "decode"
+  ],
+  "formal": true,
+  "input": "/Users/lance/Desktop/webp/third_party/benchdata/clic/vp8l-lossless-exact",
+  "generated": "/private/tmp/vp8l-coarse-spatial-product-070b",
+  "preloaded": true,
+  "checksum": "full output bytes (encode) or full RGBA bytes (decode)",
+  "completed_unix_ns": 1784694382184402000
+}
