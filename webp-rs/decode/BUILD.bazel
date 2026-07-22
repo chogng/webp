@@ -6,6 +6,8 @@ webp_rust_crate(
     crate_name = "webp_decode",
     rustc_flags = [
         '--cfg=feature="decode"',
+        # The encoding crate consumes decode's temporary private writer bridge.
+        '--cfg=feature="encode"',
         '--cfg=feature="animation"',
     ],
 )
@@ -26,6 +28,7 @@ rust_test(
     crate_root = "tests/external_upstream_corpus.rs",
     srcs = ["tests/external_upstream_corpus.rs"],
     edition = "2024",
+    compile_data = ["//:test_data"],
     data = ["//:external_corpus_data"],
     deps = [
         ":decode",

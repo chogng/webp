@@ -547,7 +547,8 @@ serialization 和 coefficient serialization 拆分，不得只按行数机械切
 | `webp/src/info.rs` | `inspection.rs` |
 | `webp/src/lib.rs` | 保持路径，只收敛为文档、声明与公共 re-export |
 | `webp/examples/**` | 原文件名和路径保留 |
-| `webp/tests/**` | 原文件名和路径保留 |
+| `webp/tests/public_api.rs` | 保留为兼容门面的公共 API 契约测试 |
+| `webp/tests/**` 中的 codec 与 corpus 测试 | 按行为 owner 分别迁到 `decode/tests/**` 或 `encode/tests/**` |
 
 ### 4.6 README、Cargo 与 Bazel
 
