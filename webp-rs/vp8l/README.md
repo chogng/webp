@@ -163,7 +163,7 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 
 | 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
 | --- | --- | --- | --- | --- |
-| — | 当前无进行中实验 | 下一棵必须从归档 E39 后的届时最新 local `main` 创建 | 待创建时回填 branch/worktree/task/base | 禁止从 P14 研究 HEAD 直接续做或带入其 instrumentation |
+| P15 | exact-cost multi-proposal + one-pass entropy-aware refinement | `codex/vp8l-entropy-aware-spatial-clustering`；`0e91e379aef2cfac1189472a3dd0627060f892b8` | [3cd9](</Users/lance/.codex/worktrees/3cd9/webp>)；task `019f899d-1871-7453-8450-630ffe00ecd1`；结果目录 `experiments/vp8l-entropy-aware-spatial-clustering` | 创建时 worktree HEAD/local main/merge-base 已精确相等；Phase A 要求 E/B exact planner 与实际位长逐项一致，只做一次 fixed Huffman-cost reassignment；双档 aggregate bytes <=E37 才可进 41 图 screen |
 
 ## 每次优化的结果与结论
 
