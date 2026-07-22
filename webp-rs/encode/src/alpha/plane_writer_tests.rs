@@ -1,11 +1,14 @@
 //! Tests for complete alpha payload writing.
 
 use super::*;
-use crate::CompatibilityProfile;
-use crate::DecodeLimits;
-use crate::alpha::AlphaFilter;
-use crate::alpha::decode::decode;
-use crate::alpha::parse_header;
+use crate::LossyEncodeOptions;
+use crate::encode_lossy_rgba_with_alpha_options;
+use webp_container::AlphaCompression;
+use webp_container::AlphaFilter;
+use webp_container::AlphaHeader;
+use webp_container::AlphaPreprocessing;
+use webp_decode::DecodeOptions;
+use webp_decode::decode;
 
 #[cfg(feature = "alpha-benchmark-internals")]
 use crate::alpha::BenchmarkWriterVariant;
@@ -20,17 +23,26 @@ fn round_trip(compression: AlphaCompression, filter: AlphaFilter) {
         filter: filter.into(),
         quality: 100,
     };
-    let payload = encode(&SAMPLES, 4, 3, options).expect("encode alpha plane");
+    let rgba = SAMPLES
+        .iter()
+        .flat_map(|&alpha| [17, 34, 51, alpha])
+        .collect::<Vec<_>>();
+    let encoded = encode_lossy_rgba_with_alpha_options(
+        4,
+        3,
+        &rgba,
+        LossyEncodeOptions { quality: 75 },
+        options,
+    )
+    .expect("encode alpha plane");
     assert_eq!(
-        decode(
-            &payload,
-            4,
-            3,
-            CompatibilityProfile::SpecStrict,
-            &DecodeLimits::default(),
-        )
-        .expect("decode encoded alpha plane"),
-        SAMPLES
+        decode(&encoded, &DecodeOptions::default())
+            .expect("decode encoded alpha plane")
+            .rgba
+            .chunks_exact(4)
+            .map(|pixel| pixel[3])
+            .collect::<Vec<_>>(),
+        SAMPLES,
     );
 }
 
@@ -57,12 +69,13 @@ fn header_serialization_preserves_every_field() {
     };
     let payload = encode(&vec![37; 64 * 64], 64, 64, options).unwrap();
     assert_eq!(
-        parse_header(&payload, CompatibilityProfile::SpecStrict).unwrap(),
-        crate::alpha::AlphaHeader {
+        AlphaHeader {
             compression: options.compression,
             filter: AlphaFilter::Gradient,
             preprocessing: AlphaPreprocessing::LevelReduction,
         }
+        .to_byte(),
+        payload[0],
     );
 }
 
@@ -116,10 +129,14 @@ fn lossless_falls_back_to_raw_when_compression_expands() {
     )
     .unwrap();
     assert_eq!(
-        parse_header(&payload, CompatibilityProfile::SpecStrict)
-            .unwrap()
-            .compression,
-        AlphaCompression::Raw
+        payload[0] & 0b11,
+        AlphaHeader {
+            compression: AlphaCompression::Raw,
+            filter: AlphaFilter::None,
+            preprocessing: AlphaPreprocessing::None,
+        }
+        .to_byte()
+            & 0b11
     );
 }
 
@@ -139,7 +156,6 @@ fn best_filter_selects_the_smallest_lossless_payload() {
         },
     )
     .unwrap();
-    let header = parse_header(&payload, CompatibilityProfile::SpecStrict).unwrap();
     let smallest_fixed = [
         AlphaFilter::None,
         AlphaFilter::Horizontal,
@@ -163,7 +179,7 @@ fn best_filter_selects_the_smallest_lossless_payload() {
     })
     .min()
     .unwrap();
-    assert_eq!(header.compression, AlphaCompression::Lossless);
+    assert_eq!(payload[0] & 0b11, 1, "payload uses lossless ALPH");
     assert_eq!(payload.len(), smallest_fixed);
 }
 

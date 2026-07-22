@@ -310,10 +310,6 @@ fn write_bits(writer: &mut BitWriter, value: u32, count: u8) -> Result<(), Alpha
         .map_err(|_| AlphaEncodeError::AllocationFailed)
 }
 
-#[cfg(all(
-    test,
-    feature = "alpha-benchmark-internals",
-    not(feature = "alpha-benchmark-internals")
-))]
+#[cfg(test)]
 #[path = "plane_writer_tests.rs"]
 mod tests;
