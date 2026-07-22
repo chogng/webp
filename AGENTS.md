@@ -1,3 +1,5 @@
+the upstream `../codex`
+
 # Module organization
 
 - Keep `lib.rs` focused on crate documentation, private module declarations, and explicit public re-exports.
@@ -6,7 +8,7 @@
 - Keep module dependencies directional. If two proposed modules need each other's implementation details, revise the boundary or keep the implementation together.
 - Prefer private modules and the narrowest practical visibility for cross-module items.
 - Move implementation documentation and private tests with the module that owns the invariant. Keep cross-module behavior tests with the orchestration or public API layer.
-- Target production modules below 500 lines, excluding tests. When a module approaches 800 lines, split it only when there is another real responsibility, or document why it remains cohesive.
+- Review production modules over 500 lines, excluding tests, for separable responsibilities, with extra scrutiny near 800. Split only to improve cohesion, not merely to reduce line count.
 
 # Toolchain
 
