@@ -177,6 +177,56 @@ fn encoder_selects_and_round_trips_a_strong_global_color_transform() {
 }
 
 #[test]
+fn color_transform_wire_size_matches_block_image_at_boundaries() {
+    for (width, height) in [
+        (127, 129),
+        (128, 128),
+        (129, 127),
+        (129, 129),
+        (511, 129),
+        (512, 128),
+        (513, 127),
+    ] {
+        let rgba = correlated_color_input(width, height, false);
+        assert!(
+            select_color_transform(&rgba).is_some(),
+            "{width} by {height} must exercise the color transform"
+        );
+        let encoded = encode_lossless_rgba(width, height, &rgba)
+            .expect("encode color-transform boundary case");
+        assert_eq!(
+            (encoded[25] >> 3) & 0b111,
+            COLOR_TRANSFORM_BLOCK_BITS - 2,
+            "wire size stores the block exponent minus VP8L's mandatory two"
+        );
+        assert_eq!(
+            decode(&encoded, &DecodeOptions::default())
+                .expect("decode color-transform boundary case")
+                .rgba,
+            rgba,
+            "{width} by {height}"
+        );
+    }
+}
+
+#[test]
+fn negative_color_transform_coefficients_round_trip() {
+    let rgba = correlated_color_input(129, 129, true);
+    let plan = select_color_transform(&rgba).expect("select negative color transform");
+    assert!(
+        plan.green_to_red < 0 || plan.green_to_blue < 0 || plan.red_to_blue < 0,
+        "input must exercise a negative coefficient"
+    );
+    let encoded = encode_lossless_rgba(129, 129, &rgba).expect("encode negative transform");
+    assert_eq!(
+        decode(&encoded, &DecodeOptions::default())
+            .expect("decode negative transform")
+            .rgba,
+        rgba
+    );
+}
+
+#[test]
 fn bounded_lossy_vp8_api_encodes_opaque_macroblocks_at_explicit_quality() {
     let mut rgba = Vec::new();
     for y in 0_u8..16 {
@@ -309,4 +359,20 @@ fn non_palette_copy_input() -> (usize, usize, Vec<u8>) {
         }
     }
     (width, 17, rgba)
+}
+
+fn correlated_color_input(width: u32, height: u32, negative: bool) -> Vec<u8> {
+    let mut rgba = Vec::with_capacity((width * height * 4) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            let green = x.wrapping_add(y.wrapping_mul(3)) as u8;
+            let (red, blue) = if negative {
+                (green.wrapping_neg(), green.wrapping_neg().wrapping_add(7))
+            } else {
+                (green.wrapping_add(3), green.wrapping_sub(5))
+            };
+            rgba.extend_from_slice(&[red, green, blue, u8::MAX]);
+        }
+    }
+    rgba
 }

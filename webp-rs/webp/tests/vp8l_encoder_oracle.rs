@@ -34,6 +34,31 @@ fn literal_vp8l_output_round_trips_through_pinned_libwebp() {
 }
 
 #[test]
+fn color_transform_block_boundaries_round_trip_through_pinned_libwebp() {
+    let Some(dwebp) = pinned_dwebp() else {
+        eprintln!("skip VP8L color-transform oracle: fetch the pinned libwebp oracle");
+        return;
+    };
+    let scratch = ScratchDirectory::new("vp8l-color-transform-boundaries");
+    for (case, (width, height)) in [
+        (127, 129),
+        (128, 128),
+        (129, 127),
+        (129, 129),
+        (511, 129),
+        (512, 128),
+        (513, 127),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let rgba = correlated_color_input(width, height);
+        let actual = decode_with_oracle(&dwebp, &scratch, 200 + case, width, height, &rgba);
+        assert_eq!(actual, rgba, "pinned dwebp differs at {width} by {height}");
+    }
+}
+
+#[test]
 fn metadata_muxed_vp8l_output_decodes_through_pinned_libwebp() {
     let Some(dwebp) = pinned_dwebp() else {
         eprintln!("skip metadata mux oracle: fetch the pinned libwebp oracle");
@@ -127,6 +152,17 @@ fn non_palette_copy_case() -> (u32, u32, Vec<u8>) {
         }
     }
     (32, 17, rgba)
+}
+
+fn correlated_color_input(width: u32, height: u32) -> Vec<u8> {
+    let mut rgba = Vec::with_capacity((width * height * 4) as usize);
+    for y in 0..height {
+        for x in 0..width {
+            let green = x.wrapping_add(y.wrapping_mul(3)) as u8;
+            rgba.extend_from_slice(&[green.wrapping_add(3), green, green.wrapping_sub(5), u8::MAX]);
+        }
+    }
+    rgba
 }
 
 fn alpha_cases() -> Vec<(u32, u32, Vec<u8>)> {

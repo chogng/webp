@@ -275,7 +275,7 @@ fn encode_vp8l_payload(
     if let Some(plan) = color_transform {
         write_bits(&mut bits, 1, 1)?; // Color transform follows.
         write_bits(&mut bits, 1, 2)?; // VP8L color transform type.
-        write_bits(&mut bits, u32::from(COLOR_TRANSFORM_BLOCK_BITS), 3)?;
+        write_bits(&mut bits, u32::from(COLOR_TRANSFORM_BLOCK_BITS - 2), 3)?;
         write_color_transform_image(&mut bits, width, height, plan)?;
     }
     write_bits(&mut bits, 1, 1)?; // Subtract-green transform follows.
