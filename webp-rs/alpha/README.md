@@ -45,7 +45,8 @@ API is the comparison boundary.
 | A00 | benchmark v3、批量 bit writer、二维距离码与低基数 color-indexing | `codex/alpha-architecture@123961f`；核心提交 `d796657` / `86ea22b` / `b32d350` | 创建于 `5e54dd3`；推广前重放到 `a8a7371` | `/private/tmp/webp-alpha-arch-5e54dd3`；根任务 | 41 文件正式 3 x 10；Rust 整图吞吐比 libwebp 高 42.87%；ALPH-only 比基线少 55.42%；structured ALPH 少 10.98%；全门禁通过 | **已推广** | 已进入顶部表、迭代日志和 `main@123961f` |
 | A01 | row/RLE parser + 三档 cost planner；采样后可直接选 parser，模糊区按完整 bitstream 成本择优 | `codex/alpha-cost-planner@909fc85`；latest-main 代码 `7039e8c` / `0613c88`；`6eb4d2a` 为 O(pixels) 反优化 | 创建于 `123961f`；最终重放到 `0e2ebb4db884893568470317cb922280baa2254f` | [`a2a2` worktree](</Users/lance/.codex/worktrees/a2a2/webp>)；task `019f8768-5da4-7622-952f-6958f53ecf71` | 41 文件正式 3 x 10：structured ALPH `138,762 -> 121,624`（**-12.35%**），距 libwebp `+0.92%`；整图 `7033.002 ms`（+0.09%），ALPH-only `747.279 ms`（-6.18%）；exact oracle、workspace、clippy、fmt、Bazel 全过；报告 `909fc85:reports/alpha-cost-planner/README.md` | **benchmark-only / 不推广**；A02 证明直接 RowRLE 快路径存在灾难性误选 | 不进入顶部表；保留 9 份 raw 日志、12.35% 局部收益和 `6eb4d2a` 反优化，作为 A03 的架构输入 |
 | A02 | 在可追溯真实透明图与分层 synthetic 语料上验证 A01 泛化、长尾和资源成本 | `codex/alpha-row-parser-generalization@12444f0`；candidate `b6eb728 -> 142c242`；harness `24fabe0` | 创建于 `e72ed3b`；正式测量前重放到 `0e2ebb4db884893568470317cb922280baa2254f` | [`8cdc` worktree](</Users/lance/.codex/worktrees/8cdc/webp>)；task `019f877a-a92f-7f12-bd00-9c853e7a76d8` | 4 real + 11 synthetic，5 x 5 交错：real ALPH aggregate **+438.98%**、WebP **+224.88%**；23/24 平面直接 RowRLE、0 次 Compare；Metal/icon/shadow 最坏 `+579.69% / +1347.48% / +2232.03%`；30/30 pinned-dwebp exact；报告 `12444f0:tools/alpha-generalization/REPORT.md` | **reject / generalization failure**；不合并候选代码 | 顶部表不变；manifest、runner、raw timing/RSS、逐文件/分类汇总和失败结论固化于 `12444f0` |
-| A03 | fallback-safe guarded planner：采样只生成候选，赢家由字节级成本证据决定；不确定/平局回 greedy | `codex/alpha-guarded-row-planner`；进行中 | 创建并核验于 `0e2ebb4db884893568470317cb922280baa2254f`；正式测量前须重放到届时最新 `main` | [`84c4` worktree](</Users/lance/.codex/worktrees/84c4/webp>)；task `019f8789-204c-7c41-8dda-e591b37c8ab8` | **进行中**：三个 A02 反例已恢复到 main 的 `80,196 / 2,972 / 3,097` ALPH bytes；研究 token/frequency state 复用、Huffman + extra-bit 精确成本与数学可证的提前回退下界 | 未决；必须同时保持 structured `>=10%` 收益、消除逐文件长尾并通过正式速度/资源/兼容门禁 | 新架构独立验证；无论成功或失败都回填代码 HEAD、完整 41-file 与泛化数据、报告和 raw evidence |
+| A03 | fallback-safe guarded planner：探针只生成候选，greedy 永远保底；RowRLE 仅凭最终字节成本获胜 | `codex/alpha-guarded-row-planner@4f99d8d`；代码 `21e0d15` | 创建于 `0e2ebb4`；正式测量前重放到 `ea346ff50fbc03f821eecfe8cce905419c75d070` | [`84c4` worktree](</Users/lance/.codex/worktrees/84c4/webp>)；task `019f8789-204c-7c41-8dda-e591b37c8ab8` | structured ALPH **-12.351%** 且三个 A01 反例 0% 回退；但 v3 ALPH-only **+15.153%**，4-real ALPH 仅 -3.414% 且 ALPH-only p50 **+39.089%**；全门禁通过；报告 `4f99d8d:reports/alpha-guarded-row-planner/README.md` | **reject / 安全但 CPU 成本过高** | 不进入顶部表；保留 exact-selection 不变量、全部 3 x 10 / 5 x 5 / RSS / oracle raw evidence，供 A04 降低候选执行数 |
+| A04 | filter-first exact portfolio：先完成全部 greedy/filter baseline，只对 top-1/top-k shortlist 运行 RowRLE | `codex/alpha-filter-first-portfolio`；进行中 | 创建并核验于 `ea346ff50fbc03f821eecfe8cce905419c75d070`；任何正式实现数据前须重放到届时最新 `main` | [`a11f` worktree](</Users/lance/.codex/worktrees/a11f/webp>)；task `019f87a6-663b-79a0-b644-c30407d4c28d` | **阶段 A**：top-1 oracle 暂时完整保留 structured -12.35% 且零尺寸回退；额外 RowRLE 尝试 `20 -> 11`（-45%），尚未过 -50% gate；正在检查能否复用 greedy token 证据继续排除无收益尝试 | 未决；阶段 A 不过门则不实现 | 独立 latest-main 架构验证；最终无论正负都回填 oracle CSV、parse-count、报告、HEAD 和决定 |
 
 ### A01 / A02 已完成结果明细
 
@@ -72,6 +73,25 @@ A01 报告中原先的 promote 建议；A01 代码不进入 `main`，顶部 Pare
 | all-15 ALPH / WebP（诊断） | 1,374,569 / 4,193,334 bytes | 1,861,045 / 4,679,812 bytes | +35.39% / +11.60% | 不作为 real 泛化 headline |
 | process peak RSS p50 | 130.08 MiB | 129.84 MiB | -0.18% | 进程级，非 allocator live bytes |
 | exactness | 15/15 project；30/30 pinned `dwebp` | 全过 | random stress 正确 raw fallback | 正确性通过不等于压缩选择安全 |
+
+### A03 已完成结果明细
+
+A03 消除了 A02 的安全性缺陷，但也量化了严格 exact portfolio 的 CPU
+上限。它证明了“无误选”与“值得推广”是两个独立门槛；正确性和体积门槛通过，性能门槛失败。
+
+| A03 指标 | Baseline | Guarded candidate | 变化 / 对比 | 决定 |
+|---|---:|---:|---:|---|
+| v3 structured ALPH | 138,762 bytes | 121,624 bytes | **-12.351%**；距 libwebp +0.915% | 体积门槛通过 |
+| v3 all-41 ALPH | 4,118,622 bytes | 4,101,484 bytes | -0.416%；距 libwebp +0.077% | stress plane 主导总量 |
+| v3 complete WebP | 6,618,910 bytes | 6,601,768 bytes | -0.259%；距 libwebp +1.411% | 正向但不 material |
+| v3 whole p50 | 7127.238 ms | 7207.560 ms | +1.127%；libwebp 9910.045 ms | 整体仍比 libwebp 快 27.27% |
+| v3 ALPH-only p50 | 828.553 ms | 954.101 ms | **+15.153%** | reject CPU trade-off |
+| v3 process RSS p50 | 138.672 MiB | 139.500 MiB | +0.597% | 可接受但不抵消 CPU |
+| real ALPH，4 files | current main | -3.414% aggregate | p5/p50/p95/worst = -19.194/-8.763/0/0% | 未达 10% real gate |
+| real whole / ALPH-only p50 | reference | +5.905% / **+39.089%** | 无文件体积回退、CPU 明显回退 | reject |
+| synthetic ALPH，11 files | current main | -6.652% aggregate | p50 -16.582%，worst 0% | 与 real 分开；不得作 real headline |
+| selector | 24 planes | 1 GreedyOnly；23 exact compares；13 RowRLE wins | direct RowRLE = 0；misselection = 0 | 安全不变量成立 |
+| gates | release oracle 2/2、41 exact + q0/70/99、workspace、clippy、fmt、Bazel 15/15、fuzz | 全过 | default build 不启用 benchmark feature | 正确性通过，仍不推广 |
 
 ### 总账更新规则
 
@@ -269,6 +289,17 @@ The architecture lesson is now a stable invariant for A03: sampling may decide
 whether a parser candidate is worth constructing, but cannot by itself select
 the winning bitstream.
 
+A03 implemented that invariant with a reusable `EntropyPlan`: it builds greedy
+as the fallback, abandons mathematically dominated RowRLE walks through a
+monotonic Huffman lower bound, and exact-compares every surviving candidate
+using the real table headers, code widths, and extra bits. This removed every
+known size regression and retained the full 12.35% structured win. It also
+made the remaining cost explicit: ALPH-only regressed 15.15% on v3 and 39.09%
+at real-set p50. A03 is therefore retained as a correct architectural bound,
+not promoted. A04 moves candidate scheduling above individual entropy planes
+to test whether a greedy-first filter shortlist can retain the size win while
+avoiding most second parses.
+
 ## Rejected and non-material experiments
 
 Diagnostic probes below used the same code base and corpus stated in each row,
@@ -288,6 +319,7 @@ primary headline measurements.
 | full-plane three-way planner (`6eb4d2a`) | A01 formal 3 x 10 | structured -12.40%; whole +0.68%; ALPH-only **+9.01%** | reject O(pixels) planner scan |
 | bounded planner (`0613c88`) on 41-file gate | A01 formal 3 x 10 | structured **-12.35%**; whole +0.09%; ALPH-only -6.18% | benchmark-only pending generalization; superseded by A02 failure |
 | bounded planner on 4 real + 11 synthetic | A02 formal 5 x 5 | real ALPH **+438.98%**, real WebP **+224.88%**, worst synthetic ALPH **+2232.03%** | reject and do not merge; direct RowRLE selector is unsafe |
+| exact guarded planner (`21e0d15`) | A03 formal v3 3 x 10 + generalization 5 x 5 | structured **-12.35%**, zero size regressions; v3 ALPH-only **+15.15%**, real p50 **+39.09%** | reject promotion; retain exact-selection boundary as A04 input |
 
 ## Research basis and next architecture targets
 
