@@ -87,6 +87,27 @@ fn truncated_large_chunk_size_does_not_overrun() {
 }
 
 #[test]
+fn truncated_large_animation_subchunk_does_not_overrun() {
+    let vp8x = [1 << 1, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+    let mut anmf = vec![0; 16];
+    anmf.extend_from_slice(b"VP8L");
+    anmf.extend_from_slice(&u32::MAX.to_le_bytes());
+    anmf.push(0);
+    let bytes = riff(&[
+        (VP8X, &vp8x, None),
+        (ANIM, &[0; 6], None),
+        (ANMF, &anmf, Some(0)),
+    ]);
+
+    assert_eq!(
+        parse(&bytes, CompatibilityProfile::SpecStrict, &limits())
+            .unwrap_err()
+            .kind(),
+        ContainerErrorKind::UnexpectedEof
+    );
+}
+
+#[test]
 fn vp8x_parses_canvas_and_extracts_raw_metadata() {
     let vp8x = [0b0010_1100, 0, 0, 0, 4, 0, 0, 2, 0, 0];
     let bytes = riff(&[

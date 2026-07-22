@@ -10,6 +10,11 @@ use crate::ContainerErrorKind;
 use crate::Metadata;
 
 const MAX_ANIMATION_DURATION_MS: u32 = (1 << 24) - 1;
+const MAX_WIRE_DIMENSION: u32 = 1 << 24;
+
+const fn dimensions_fit_u24_minus_one(width: u32, height: u32) -> bool {
+    width != 0 && height != 0 && width <= MAX_WIRE_DIMENSION && height <= MAX_WIRE_DIMENSION
+}
 
 /// Opaque VP8L frame payload and its existing ANMF wire fields.
 #[doc(hidden)]
@@ -46,10 +51,10 @@ pub fn serialize_vp8l(
     if !has_metadata {
         return wrap_vp8l_chunks(payload, None, None, None, None);
     }
-    if width == 0 || height == 0 {
+    if !dimensions_fit_u24_minus_one(width, height) {
         return Err(error(
             ContainerErrorKind::InvalidDimensions,
-            "extended VP8L container requires nonzero dimensions",
+            "extended VP8L container dimensions exceed the VP8X wire range",
         ));
     }
 
@@ -101,10 +106,10 @@ pub fn serialize_vp8(
     output.extend_from_slice(&riff_size.to_le_bytes());
     output.extend_from_slice(b"WEBP");
     if let Some(alpha) = alpha {
-        if width == 0 || height == 0 {
+        if !dimensions_fit_u24_minus_one(width, height) {
             return Err(error(
                 ContainerErrorKind::InvalidDimensions,
-                "extended VP8 container requires nonzero dimensions",
+                "extended VP8 container dimensions exceed the VP8X wire range",
             ));
         }
         let mut vp8x = [0_u8; 10];
@@ -121,8 +126,7 @@ pub fn serialize_vp8(
 /// Serializes one existing VP8L ANMF payload.
 #[doc(hidden)]
 pub fn serialize_animation_frame(frame: AnimationFrameMux<'_>) -> Result<Vec<u8>, ContainerError> {
-    if frame.width == 0
-        || frame.height == 0
+    if !dimensions_fit_u24_minus_one(frame.width, frame.height)
         || frame.x & 1 != 0
         || frame.y & 1 != 0
         || frame.x > 0x01ff_fffe
@@ -159,10 +163,10 @@ pub fn serialize_animation(
     frames: &[Vec<u8>],
     metadata: Metadata<'_>,
 ) -> Result<Vec<u8>, ContainerError> {
-    if width == 0 || height == 0 {
+    if !dimensions_fit_u24_minus_one(width, height) {
         return Err(error(
             ContainerErrorKind::InvalidDimensions,
-            "animation canvas requires nonzero dimensions",
+            "animation canvas dimensions exceed the VP8X wire range",
         ));
     }
     let mut chunks_size = chunk_storage_len(10)?;
