@@ -20,8 +20,8 @@ regressions. Those results are not blended into the headline.
 | --- | --- |
 | Registered measurement base | `1c16ebe826ea57adaf2293bf44bdc36175401a8b` |
 | Product code | `77842c1c2021cc76a58ce283c4fa42604cab4048` |
-| Evidence/report | recorded by the following evidence commit |
-| Final | branch tip after the final audit commit |
+| Evidence/report | `ec05d41efcbf3b1f392057a016524adb8477adff` |
+| Final | branch tip containing the final main/checksum audit |
 
 The product code was migrated manually from the read-only A13 result. No A13
 commit was cherry-picked and no A13 ancestry is present. Before the screen,
