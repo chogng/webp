@@ -14,6 +14,8 @@ mod loop_filter;
 mod partitions;
 mod quantization;
 mod reconstruction;
+#[cfg(feature = "encode")]
+mod sharp_yuv;
 #[cfg(test)]
 mod test_support;
 mod transforms;

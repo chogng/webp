@@ -122,10 +122,10 @@ After factoring the search, candidate scoring still sent every luma-only or
 chroma-only candidate through full macroblock reconstruction. The encoder now
 dequantizes, inverse-transforms, predicts, and combines only the plane family
 being scored; only the selected luma/chroma pair receives a full reconstruction.
-RGBA-to-YUV preparation also fills each 2x2 luma group while accumulating its
-single chroma sample, avoiding a second read of every padded RGB pixel. Unit
-tests compare both plane-specific reconstruction paths with full reconstruction
-for all 16 mode pairs.
+The then-current RGBA-to-YUV preparation also filled each 2x2 luma group while
+accumulating its single chroma sample, avoiding a second read of every padded
+RGB pixel. Unit tests compare both plane-specific reconstruction paths with
+full reconstruction for all 16 mode pairs.
 
 Three five-iteration runs measured 276.972 ms, 270.770 ms, and 273.375 ms.
 The 273.375 ms median is 12.6% faster than the preceding 312.921 ms result and
@@ -212,6 +212,27 @@ bytes. A trial that changed intra16 selection from absolute error to squared
 error gained only 0.004--0.018 dB and added 412 bytes per matrix, so it was
 rejected. Future mode or quantization changes must improve this joint rate and
 distortion record rather than optimizing size alone.
+
+## VP8 SharpYUV product baseline
+
+The VP8 encoder now uses one private scalar SharpYUV path for all public lossy
+encoding. It implements the pinned algorithm's 8-bit sRGB/WebP-matrix profile
+with four reconstruction-aware iterations. The preceding 2x2 box sampler was
+removed rather than retained as a compatibility option. A high-chroma odd-size
+unit vector matches pinned libsharpyuv commit
+`733c91e461c18cf1127c9ed0a80dccbcfed599d3` byte-for-byte; the pinned `dwebp`
+public encoder oracle also passes at quality 0/75/100, with alpha, and across
+multiple macroblocks.
+
+Three five-iteration runs measured 473.650, 477.949, and 478.849 ms, with a
+477.949 ms median. Each matrix produces 190,174 bytes and checksum `195340`;
+the pinned libwebp default encoder produces 135,226 bytes, a 1.406x ratio.
+PSNR is 25.860, 37.389, and 48.277 dB at quality 0, 75, and 100. Relative to
+the preceding box baseline, q0/q75 move by +0.003/+0.013 dB, q100 by -0.373
+dB, output by +3.47%, and median time by +35.1%. This is a reviewed sampling
+semantic change: SharpYUV targets reconstructed 4:2:0 chroma edges and exact
+upstream algorithm parity, not monotonic aggregate RGB PSNR. The complete
+contract and rationale are recorded in `sharpyuv.md`.
 
 ## VP8 fused coefficient observation
 
@@ -542,7 +563,7 @@ within the same run to reduce host and load sensitivity.
 | VP8L conformance decode | `bash tools/benchmark-vp8l.sh 5` | Rust median <= 0.735 s, checksum `96355`, and <= 1.40x pinned-libwebp time |
 | VP8L CLIC decode | `bash tools/benchmark-vp8l-clic.sh 1 4` | aggregate Rust median <= 14.71 s and <= 1.03x pinned-libwebp time |
 | VP8L static encode | `bash tools/benchmark-vp8l-encode.sh 5` | Rust median <= 3.132 s, exact round trips, and output <= 1.35x pinned libwebp |
-| VP8 static encode | `bash tools/benchmark-vp8-encode.sh 5` | Rust median <= 371.341 ms, output <= 1.40x pinned libwebp, and PSNR floors 25.807/37.326/48.600 dB at quality 0/75/100 |
+| VP8 static encode | `bash tools/benchmark-vp8-encode.sh 5` | Rust median <= 501.847 ms, output <= 1.42x pinned libwebp, and PSNR floors 25.810/37.339/48.227 dB at quality 0/75/100 |
 | VP8/ALPH static encode | `bash tools/benchmark-alpha-encode.sh 10` | Rust median <= 7.40 s and <= 0.75x pinned-libwebp time, whole output <= 1.03x libwebp, all-file ALPH <= 1.01x libwebp, structured ALPH <= 1.17x libwebp, and exact pinned-`dwebp` alpha oracle on all 41 files |
 | VP8L-frame animation encode | `bash tools/benchmark-animation-encode.sh 5` | Rust median <= 95.409 ms, output <= 406,862 bytes per six-frame animation, and locked `webpmux`/`dwebp` acceptance |
 

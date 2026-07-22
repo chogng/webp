@@ -36,9 +36,9 @@ fn rgba_to_yuv420_pads_visible_edges_to_whole_macroblocks() {
     assert_eq!((yuv.y_stride, yuv.uv_stride), (16, 8));
     assert_eq!(yuv.y.len(), 16 * 16);
     assert_eq!(yuv.u.len(), 8 * 8);
-    assert_eq!(&yuv.y[..3], &[82, 144, 41]);
-    assert_eq!(yuv.y[3], 41, "right edge is replicated");
-    assert_eq!(yuv.y[16], 82, "bottom edge is replicated");
+    assert_eq!(&yuv.y[..3], &[81, 182, 64]);
+    assert_eq!(yuv.y[3], 64, "right edge is replicated");
+    assert_eq!(yuv.y[16], 81, "bottom edge is replicated");
     assert_eq!(
         rgba_to_yuv420(1, 1, &[]),
         Err(Vp8EncodeError::InvalidRgbaLength)

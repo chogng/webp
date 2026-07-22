@@ -112,6 +112,7 @@ Immediate isolated reruns passed, and the post-audit results above passed again
 with identical output bytes, checksums, and quality metrics. No threshold was
 changed.
 
-All section 8 architecture checks pass. The section 9 full demux API, general
-mux/editor, decoder-only feature product, and SharpYUV work remain explicitly
-unimplemented for separate follow-up tasks.
+All section 8 architecture checks passed at the migration freeze. The section 9
+full demux API, general mux/editor, decoder-only feature product, and SharpYUV
+work were explicitly left to separate follow-up tasks; all four were completed
+afterward and are tracked by `final-rust-architecture.md`.
