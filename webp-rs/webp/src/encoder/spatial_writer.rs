@@ -1,5 +1,6 @@
 //! Standard VP8L spatial-map serialization and complete-file selection.
 
+use super::single_plan::SinglePlan;
 use super::spatial_cluster::token_span;
 use super::spatial_plan::{SpatialPlan, SpatialProfile};
 use super::{
@@ -25,13 +26,58 @@ pub(super) fn encode_profile(
     profile: SpatialProfile,
 ) -> Result<Vec<u8>, EncodeError> {
     let prepared = prepare(width, height, rgba)?;
-    let single = encode_single(&prepared)?;
-    let candidate = encode_spatial(&prepared, profile)?;
+    encode_prepared(&prepared, profile).map(|(encoded, _)| encoded)
+}
+
+fn encode_profile_control(
+    prepared: &Prepared,
+    profile: SpatialProfile,
+) -> Result<Vec<u8>, EncodeError> {
+    let single = encode_single(prepared)?;
+    let candidate = encode_spatial(prepared, profile)?;
     Ok(if candidate.len() < single.len() {
         candidate
     } else {
         single
     })
+}
+
+#[derive(Clone, Copy)]
+enum SelectionKind {
+    Candidate,
+    Single,
+    Fallback,
+}
+
+fn encode_prepared(
+    prepared: &Prepared,
+    profile: SpatialProfile,
+) -> Result<(Vec<u8>, SelectionKind), EncodeError> {
+    encode_prepared_with_plan(prepared, profile, SinglePlan::build(&prepared.frequencies))
+}
+
+fn encode_prepared_with_plan(
+    prepared: &Prepared,
+    profile: SpatialProfile,
+    plan: Result<SinglePlan, EncodeError>,
+) -> Result<(Vec<u8>, SelectionKind), EncodeError> {
+    let plan = match plan {
+        Ok(plan) => plan,
+        Err(_) => {
+            return encode_profile_control(prepared, profile)
+                .map(|encoded| (encoded, SelectionKind::Fallback));
+        }
+    };
+    let candidate = encode_spatial(prepared, profile)?;
+    if candidate_wins(candidate.len(), plan.riff_bytes()) {
+        Ok((candidate, SelectionKind::Candidate))
+    } else {
+        encode_single_with_plan(prepared, &plan).map(|encoded| (encoded, SelectionKind::Single))
+    }
+}
+
+pub(super) const fn candidate_wins(candidate_bytes: usize, single_bytes: usize) -> bool {
+    candidate_bytes < single_bytes
 }
 
 fn prepare(width: u32, height: u32, rgba: &[u8]) -> Result<Prepared, EncodeError> {
@@ -55,6 +101,15 @@ fn encode_single(prepared: &Prepared) -> Result<Vec<u8>, EncodeError> {
     write_fast_prefix(&mut bits, prepared)?;
     let tables = write_main_entropy_image_prefix(&mut bits, &prepared.frequencies, 0)?;
     write_tokens(&mut bits, &prepared.tokens, &tables)?;
+    wrap_vp8l(bits.into_bytes())
+}
+
+fn encode_single_with_plan(prepared: &Prepared, plan: &SinglePlan) -> Result<Vec<u8>, EncodeError> {
+    let mut bits = BitWriter::new();
+    write_fast_prefix(&mut bits, prepared)?;
+    plan.write_main_prefix(&mut bits)?;
+    write_tokens(&mut bits, &prepared.tokens, plan.tables())?;
+    debug_assert_eq!(bits.bit_len(), plan.payload_bits());
     wrap_vp8l(bits.into_bytes())
 }
 
@@ -182,4 +237,90 @@ pub(super) fn encode_candidate_for_test(
 ) -> Result<Vec<u8>, EncodeError> {
     let prepared = prepare(width, height, rgba)?;
     encode_spatial(&prepared, profile)
+}
+
+#[cfg(test)]
+pub(super) fn encode_profile_control_for_test(
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+    profile: SpatialProfile,
+) -> Result<Vec<u8>, EncodeError> {
+    let prepared = prepare(width, height, rgba)?;
+    encode_profile_control(&prepared, profile)
+}
+
+#[cfg(test)]
+pub(super) struct SelectionStats {
+    pub(super) predicted_payload_bits: Option<usize>,
+    pub(super) predicted_payload_bytes: Option<usize>,
+    pub(super) predicted_riff_bytes: Option<usize>,
+    pub(super) losing_single_main_written: bool,
+    pub(super) estimator_fallback: bool,
+    pub(super) candidate_won: bool,
+}
+
+#[cfg(test)]
+pub(super) fn encode_profile_exact_for_test(
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+    profile: SpatialProfile,
+) -> Result<(Vec<u8>, SelectionStats), EncodeError> {
+    let prepared = prepare(width, height, rgba)?;
+    let plan = SinglePlan::build(&prepared.frequencies);
+    let estimates = plan
+        .as_ref()
+        .ok()
+        .map(|plan| (plan.payload_bits(), plan.payload_bytes(), plan.riff_bytes()));
+    let (encoded, kind) = encode_prepared_with_plan(&prepared, profile, plan)?;
+    Ok((encoded, selection_stats(kind, estimates)))
+}
+
+#[cfg(test)]
+pub(super) fn encode_profile_plan_fallback_for_test(
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+    profile: SpatialProfile,
+) -> Result<(Vec<u8>, SelectionStats), EncodeError> {
+    let prepared = prepare(width, height, rgba)?;
+    let (encoded, kind) =
+        encode_prepared_with_plan(&prepared, profile, Err(EncodeError::output_size_overflow()))?;
+    Ok((encoded, selection_stats(kind, None)))
+}
+
+#[cfg(test)]
+fn selection_stats(
+    kind: SelectionKind,
+    estimates: Option<(usize, usize, usize)>,
+) -> SelectionStats {
+    SelectionStats {
+        predicted_payload_bits: estimates.map(|values| values.0),
+        predicted_payload_bytes: estimates.map(|values| values.1),
+        predicted_riff_bytes: estimates.map(|values| values.2),
+        losing_single_main_written: !matches!(kind, SelectionKind::Candidate),
+        estimator_fallback: matches!(kind, SelectionKind::Fallback),
+        candidate_won: matches!(kind, SelectionKind::Candidate),
+    }
+}
+
+#[cfg(test)]
+pub(super) fn single_estimate_for_test(
+    width: u32,
+    height: u32,
+    rgba: &[u8],
+) -> Result<(usize, usize, usize, usize), EncodeError> {
+    let prepared = prepare(width, height, rgba)?;
+    let plan = SinglePlan::build(&prepared.frequencies)?;
+    let mut bits = BitWriter::new();
+    write_fast_prefix(&mut bits, &prepared)?;
+    plan.write_main_prefix(&mut bits)?;
+    write_tokens(&mut bits, &prepared.tokens, plan.tables())?;
+    Ok((
+        plan.payload_bits(),
+        bits.bit_len(),
+        plan.payload_bytes(),
+        plan.riff_bytes(),
+    ))
 }

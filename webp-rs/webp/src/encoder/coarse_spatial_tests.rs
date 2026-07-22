@@ -198,3 +198,36 @@ fn product_profiles_preserve_metadata_and_pixels() {
         );
     }
 }
+
+#[test]
+fn exact_selection_preserves_control_metadata_bytes() {
+    let width = 513;
+    let height = 129;
+    let rgba = patterned_rgba(width, height, true);
+    let metadata = Metadata {
+        iccp: Some(vec![0, 1, 2, 3, 4]),
+        exif: Some(vec![5, 6, 7]),
+        xmp: Some(b"exact-cost-metadata".to_vec()),
+    };
+    for profile in profiles() {
+        let exact = encode_lossless_rgba_with_metadata_and_options(
+            width,
+            height,
+            &rgba,
+            &metadata,
+            options(profile),
+        )
+        .expect("encode exact-cost metadata stream");
+        let control_riff = spatial_writer::encode_profile_control_for_test(
+            width,
+            height,
+            &rgba,
+            spatial_profile(profile),
+        )
+        .expect("encode control metadata payload");
+        let control_payload = copy_vp8l_payload(&control_riff).expect("copy control payload");
+        let control = wrap_vp8l_with_metadata(control_payload, width, height, true, &metadata)
+            .expect("wrap control metadata stream");
+        assert_eq!(exact, control, "{profile:?}");
+    }
+}

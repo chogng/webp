@@ -81,6 +81,8 @@ struct ColorTransformPlan {
     red_to_blue: i8,
 }
 
+#[path = "encoder/single_plan.rs"]
+mod single_plan;
 #[path = "encoder/spatial_cluster.rs"]
 mod spatial_cluster;
 #[path = "encoder/spatial_plan.rs"]
@@ -119,8 +121,9 @@ pub fn encode_lossless_rgba(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<
 /// [`encode_lossless_rgba`]. Fast-decode profiles emit standard VP8L and use a
 /// deterministic complete-file fallback when spatial Huffman groups do not
 /// make the file strictly smaller than the corresponding fast-no-cache
-/// single-group stream. They can be larger than the default profile and
-/// currently cost more to encode because both complete files are serialized.
+/// single-group stream. They can be larger than the default profile and use
+/// an exact same-profile single-stream cost before serializing only the
+/// selected complete file.
 ///
 /// ```
 /// use webp::{
@@ -760,6 +763,12 @@ fn write_adaptive_table(
     writer: &mut BitWriter,
     frequencies: &[u32],
 ) -> Result<EncodingTable, EncodeError> {
+    let (lengths, table) = prepare_adaptive_table(frequencies)?;
+    write_normal_table(writer, &lengths)?;
+    Ok(table)
+}
+
+fn prepare_adaptive_table(frequencies: &[u32]) -> Result<(Vec<u8>, EncodingTable), EncodeError> {
     let mut ranked = frequencies
         .iter()
         .copied()
@@ -784,8 +793,8 @@ fn write_adaptive_table(
         // The normal one-symbol form is valid for every alphabet and decodes
         // without consuming a data bit.
         lengths[symbol] = 1;
-        write_normal_table(writer, &lengths)?;
-        return canonical_table(&lengths);
+        let table = canonical_table(&lengths)?;
+        return Ok((lengths, table));
     }
 
     let floor_log = usize::BITS - 1 - ranked.len().leading_zeros();
@@ -801,8 +810,8 @@ fn write_adaptive_table(
             floor_log as u8 + 1
         };
     }
-    write_normal_table(writer, &lengths)?;
-    canonical_table(&lengths)
+    let table = canonical_table(&lengths)?;
+    Ok((lengths, table))
 }
 
 fn write_normal_table(writer: &mut BitWriter, lengths: &[u8]) -> Result<(), EncodeError> {

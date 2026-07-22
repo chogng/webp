@@ -19,6 +19,8 @@ enum Layout {
     Single,
     Compact,
     LowLatency,
+    CompactControl,
+    LowLatencyControl,
     LibwebpM6,
 }
 
@@ -43,6 +45,7 @@ fn run() -> Result<(), String> {
             parse_layout(&environment("VP8L_PRODUCT_LAYOUT")?)?,
             &environment("VP8L_PRODUCT_ROUND")?,
         ),
+        "audit-exact" => audit_exact(&input),
         _ => Err(format!("unsupported command {command}")),
     }
 }
@@ -173,6 +176,71 @@ fn bench_decode(input: &Path, layout: Layout, round: &str) -> Result<(), String>
     Ok(())
 }
 
+fn audit_exact(input: &Path) -> Result<(), String> {
+    println!(
+        "exact\tid\tprofile\tbytes\tstream_hash\tpredicted_bits\twritten_bits\tpredicted_payload_bytes\tpredicted_riff_bytes\tsingle_actual_riff_bytes\testimate_exact\tlosing_single_main_written\testimator_fallback\tcandidate_won\tcontrol_exact"
+    );
+    for path in input_paths(input)? {
+        let source = read_source(&path)?;
+        let (predicted_bits, written_bits, predicted_payload_bytes, predicted_riff_bytes) =
+            spatial_writer::single_estimate_for_test(source.width, source.height, &source.rgba)
+                .map_err(|error| format!("{} estimate: {error}", source.id))?;
+        let single =
+            spatial_writer::encode_single_for_test(source.width, source.height, &source.rgba)
+                .map_err(|error| format!("{} single: {error}", source.id))?;
+        let actual_payload_bytes = u32::from_le_bytes(
+            single[16..20]
+                .try_into()
+                .map_err(|_| format!("{}: invalid single RIFF", source.id))?,
+        ) as usize;
+        if predicted_bits != written_bits
+            || predicted_payload_bytes != actual_payload_bytes
+            || predicted_riff_bytes != single.len()
+        {
+            return Err(format!("{}: exact single estimate mismatch", source.id));
+        }
+        for (name, profile) in [
+            ("compact", spatial_plan::SpatialProfile::Compact),
+            ("low-latency", spatial_plan::SpatialProfile::LowLatency),
+        ] {
+            let control = spatial_writer::encode_profile_control_for_test(
+                source.width,
+                source.height,
+                &source.rgba,
+                profile,
+            )
+            .map_err(|error| format!("{} {name} control: {error}", source.id))?;
+            let (exact, stats) = spatial_writer::encode_profile_exact_for_test(
+                source.width,
+                source.height,
+                &source.rgba,
+                profile,
+            )
+            .map_err(|error| format!("{} {name} exact: {error}", source.id))?;
+            let control_exact = control == exact;
+            if !control_exact {
+                return Err(format!("{} {name}: control/exact mismatch", source.id));
+            }
+            println!(
+                "exact\t{}\t{name}\t{}\t{:016x}\t{}\t{}\t{}\t{}\t{}\t1\t{}\t{}\t{}\t{}",
+                source.id,
+                exact.len(),
+                fnv1a(&exact),
+                stats.predicted_payload_bits.unwrap_or_default(),
+                written_bits,
+                stats.predicted_payload_bytes.unwrap_or_default(),
+                stats.predicted_riff_bytes.unwrap_or_default(),
+                single.len(),
+                u8::from(stats.losing_single_main_written),
+                u8::from(stats.estimator_fallback),
+                u8::from(stats.candidate_won),
+                u8::from(control_exact),
+            );
+        }
+    }
+    Ok(())
+}
+
 fn encode_layout(source: &Source, layout: Layout) -> Result<Vec<u8>, String> {
     let result = match layout {
         Layout::Default => encode_lossless_rgba(source.width, source.height, &source.rgba),
@@ -184,10 +252,27 @@ fn encode_layout(source: &Source, layout: Layout) -> Result<Vec<u8>, String> {
                 profile: match layout {
                     Layout::Compact => LosslessEncodeProfile::FastDecodeCompact,
                     Layout::LowLatency => LosslessEncodeProfile::FastDecodeLowLatency,
-                    Layout::Default | Layout::Single | Layout::LibwebpM6 => unreachable!(),
+                    Layout::Default
+                    | Layout::Single
+                    | Layout::CompactControl
+                    | Layout::LowLatencyControl
+                    | Layout::LibwebpM6 => unreachable!(),
                 },
             };
             encode_lossless_rgba_with_options(source.width, source.height, &source.rgba, options)
+        }
+        Layout::CompactControl | Layout::LowLatencyControl => {
+            let profile = match layout {
+                Layout::CompactControl => spatial_plan::SpatialProfile::Compact,
+                Layout::LowLatencyControl => spatial_plan::SpatialProfile::LowLatency,
+                _ => unreachable!(),
+            };
+            spatial_writer::encode_profile_control_for_test(
+                source.width,
+                source.height,
+                &source.rgba,
+                profile,
+            )
         }
         Layout::LibwebpM6 => return Err("libwebp m6 is decode-only".to_owned()),
     };
@@ -243,6 +328,8 @@ fn parse_layout(value: &str) -> Result<Layout, String> {
         "single" => Ok(Layout::Single),
         "compact" => Ok(Layout::Compact),
         "low-latency" => Ok(Layout::LowLatency),
+        "compact-control" => Ok(Layout::CompactControl),
+        "low-latency-control" => Ok(Layout::LowLatencyControl),
         "libwebp-m6" => Ok(Layout::LibwebpM6),
         _ => Err(format!("unsupported layout {value}")),
     }
@@ -254,6 +341,8 @@ const fn layout_name(layout: Layout) -> &'static str {
         Layout::Single => "single",
         Layout::Compact => "compact",
         Layout::LowLatency => "low-latency",
+        Layout::CompactControl => "compact-control",
+        Layout::LowLatencyControl => "low-latency-control",
         Layout::LibwebpM6 => "libwebp-m6",
     }
 }
