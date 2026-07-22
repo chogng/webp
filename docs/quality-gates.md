@@ -219,10 +219,10 @@ Pinned libwebp measured 335.518 ms, 331.127 ms, and 335.493 ms, with a
 remaining duplicate work is the intentionally retained default/adapted boolean
 encoding required by the exact no-expansion decision.
 
-## ALPH encode benchmark record
+## Historical ALPH encode benchmark record (v1)
 
-The ALPH encoder is checked independently against the pinned `dwebp` oracle on
-all nine transparent `ALPH` vectors in `libwebp-test-data`. Each source is
+The original ALPH gate checked the pinned `dwebp` oracle on nine transparent
+`ALPH` vectors in `libwebp-test-data`. Each source was
 decoded to RGBA, re-encoded through the public Rust API with lossless alpha,
 and decoded by `dwebp`; all decoded alpha samples must match exactly. The test
 also requires at least one emitted payload to retain headerless-VP8L
@@ -248,7 +248,7 @@ coding as the next explicit optimization target; the timing result must not be
 presented as an isolated ALPH speedup because the two public RGB encoders also
 differ.
 
-## ALPH LZ77 and Huffman optimization record
+## Historical ALPH LZ77 and Huffman optimization record (v1)
 
 The follow-up encoder pass adds bounded greedy backward references, actual
 frequency-derived Huffman trees with a deterministic length-limited fallback,
@@ -270,6 +270,20 @@ The 699.131 ms median is 13.0% slower than the preceding 618.958 ms Rust
 baseline, an explicit reviewed tradeoff for closing most of the output-size
 gap. Rust remains 38.3% faster than pinned libwebp on the whole-image profile,
 and all exact and level-reduced `dwebp` oracle matrices remain unchanged.
+
+## ALPH benchmark v3 current record
+
+The canonical detailed ledger is
+[`webp-rs/alpha/README.md`](../webp-rs/alpha/README.md). Benchmark v3 covers all
+41 transparent upstream files, reports per-case content and size metrics plus
+MPix/s and ns/pixel, and times a separate Rust ALPH-only profile. Three
+ten-iteration runs at revision `1b6bfdb` measured a 7037.887 ms Rust
+whole-image median and a 9934.306 ms pinned-libwebp median. Rust therefore uses
+29.16% less time and delivers 41.15% higher throughput. Its ALPH-only median is
+794.383 ms, down 55.52% from the latest-main baseline. Complete Rust output is
+1.67% larger than libwebp and its ALPH total is 0.50% larger; on the 40-file
+structured subtotal, the indexed-alpha architecture reduces Rust ALPH size by
+10.98% from the baseline while remaining 15.14% above libwebp.
 
 ## VP8L entropy-path optimization record
 
@@ -517,7 +531,7 @@ within the same run to reduce host and load sensitivity.
 | VP8L CLIC decode | `bash tools/benchmark-vp8l-clic.sh 1 4` | aggregate Rust median <= 14.71 s and <= 1.03x pinned-libwebp time |
 | VP8L static encode | `bash tools/benchmark-vp8l-encode.sh 5` | Rust median <= 3.132 s, exact round trips, and output <= 1.35x pinned libwebp |
 | VP8 static encode | `bash tools/benchmark-vp8-encode.sh 5` | Rust median <= 371.341 ms, output <= 1.40x pinned libwebp, and PSNR floors 25.807/37.326/48.600 dB at quality 0/75/100 |
-| VP8/ALPH static encode | `bash tools/benchmark-alpha-encode.sh 50` | Rust median <= 735 ms, whole output <= 1.02x pinned libwebp, ALPH payload <= 1.12x pinned libwebp, and exact pinned-`dwebp` alpha oracle |
+| VP8/ALPH static encode | `bash tools/benchmark-alpha-encode.sh 10` | Rust median <= 7.40 s and <= 0.75x pinned-libwebp time, whole output <= 1.03x libwebp, all-file ALPH <= 1.01x libwebp, structured ALPH <= 1.17x libwebp, and exact pinned-`dwebp` alpha oracle on all 41 files |
 | VP8L-frame animation encode | `bash tools/benchmark-animation-encode.sh 5` | Rust median <= 95.409 ms, output <= 406,862 bytes per six-frame animation, and locked `webpmux`/`dwebp` acceptance |
 
 The CLIC decoder's measured 0.975x ratio is explicitly accepted for M9 because
