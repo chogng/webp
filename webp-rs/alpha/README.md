@@ -30,6 +30,52 @@ claim, the 50% throughput target. Complete output is 1.67% larger and ALPH is
 libwebp does not expose a public standalone ALPH encoder; its public whole-image
 API is the comparison boundary.
 
+## ALPH 实验总账
+
+这份总账以 `main` 上的本文件为唯一可见入口。独立对话和 worktree
+负责隔离研究代码、原始数据和失败原型，但不能成为唯一记录位置。新实验创建后立即登记；
+无论最终推广、仅保留 benchmark，还是完整回滚，都必须把分支、HEAD、基线、结果位置、
+正式轮次和决定回填这里。顶部性能表只收录刷新纪录或形成明确 Pareto 的结果，失败和
+未达 10% 门槛的实验仍永久留在本节。
+
+根任务：`019f86e7-a515-7fc3-aa8a-bafb53daf279`。
+
+| ID | 假设 / 架构 | 分支 / HEAD | latest-main base | 独立 worktree / task | 当前状态与证据 | 推广决定 | `main` 总账动作 |
+|---|---|---|---|---|---|---|---|
+| A00 | benchmark v3、批量 bit writer、二维距离码与低基数 color-indexing | `codex/alpha-architecture@123961f`；核心提交 `d796657` / `86ea22b` / `b32d350` | 创建于 `5e54dd3`；推广前重放到 `a8a7371` | `/private/tmp/webp-alpha-arch-5e54dd3`；根任务 | 41 文件正式 3 x 10；Rust 整图吞吐比 libwebp 高 42.87%；ALPH-only 比基线少 55.42%；structured ALPH 少 10.98%；全门禁通过 | **已推广** | 已进入顶部表、迭代日志和 `main@123961f` |
+| A01 | cost-aware ALPH planner：palette / color cache / row-RLE / bounded multi-candidate LZ77 等架构择优 | `codex/alpha-cost-planner@2ef16e3` | 创建于 `123961f`；`main` 前进后已重放到 `2ef16e396b12dc78e1086215185a73c3ff50e6a9`，祖先检查通过 | [`a2a2` worktree](</Users/lance/.codex/worktrees/a2a2/webp>)；task `019f8768-5da4-7622-952f-6958f53ecf71` | **进行中**：旧 base timing 已降级为 diagnostic，正在从 `2ef16e3` 重跑正式 3 x 10 基线并研究新架构；目标至少一个主要指标 >=10% | 未决；不得自行合并 | 已在 `main` 登记；结束后无论成功或失败都回填原始轮次、HEAD、报告和决定 |
+
+### 总账更新规则
+
+1. 创建实验前先记录最新 `main` 完整 SHA；工作树就绪后再次验证 `main`、`HEAD` 和祖先关系。
+2. 每个实验使用唯一 `codex/<topic>` 分支，不复用已完成实验分支，不长期停留在 detached HEAD。
+3. 实验任务只在独立 worktree 提交候选与报告；根任务负责读取结果、审查门槛，并将总账更新单独提交到 `main`。
+4. 正式数据必须包含三次完整轮次、全部主指标、pinned libwebp 同场结果、正确性与资源成本；未测指标明确写“未测”。
+5. 低于 10%、反优化、正确性失败或被其他结果支配的方案不进入顶部表，但必须保留总账行和结论，避免重复试错。
+6. 若实验期间 `main` 前进，旧测量只保留为历史诊断；候选必须重放到新的最新 `main` 并重新通过正式 benchmark 和 oracle 才能推广。
+
+每次完成实验时按以下字段回填：
+
+```text
+Date:
+Task/thread id:
+Hypothesis and owned invariant:
+Latest main base SHA:
+Branch / final HEAD:
+Worktree:
+Report and raw-data paths:
+Corpus identity / host / toolchain:
+All raw rounds and medians:
+Pinned libwebp paired result:
+ALPH bytes/bpp and complete WebP bytes:
+40-file structured subtotal and all-41 total:
+Peak RSS / working allocations / encode phases:
+Exact oracle / workspace / clippy / Bazel results:
+Rejected alternatives and regressions:
+Result: promote / benchmark-only / reject and roll back
+Top-table action: add / replace / none
+```
+
 ## Benchmark contract
 
 - Profile: lossy VP8 RGB at quality 75 plus lossless ALPH, fast alpha-filter
