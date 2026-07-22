@@ -51,7 +51,7 @@ API is the comparison boundary.
 | A06 | ALPH spatial entropy groups：不增加第二套 LZ parse，以标准 meta-Huffman map 聚类局部 green/distance 统计 | `codex/alpha-spatial-entropy-groups@103a277b`；analyzer `39d82d74` | 创建于 `39feb8dd`；正式测量前两次重放，最终基线 `f1ce6065cbbd11661561956c0d982e0a4cfddc27` | [`d454` worktree](</Users/lance/.codex/worktrees/d454/webp>)；task `019f87ea-a348-7062-833f-e32f04732803` | structured `138,762 -> 138,754`（**-0.005765%**），all-41 -0.080002%；real -22.120276% 但 99.3% 收益来自单图；56/56 project + pinned `dwebp` exact，零膨胀，最大 49 groups；报告 `103a277b:reports/alpha-spatial-entropy-groups/README.md` | **phase-A reject / 不实现**；完整流未达 10%，不进入 production/decode timing | 顶部表不变；保留 exact analyzer、逐 tile/component/per-file raw、SHA-256 与全部门禁日志 |
 | A07 | ALPH exact color cache：复用既有 greedy token 流，对标准 cache bits 1..11 做逐像素状态模拟与完整 bitstream 计价 | `codex/alpha-exact-color-cache@2f731fa8`；analyzer `b9940ff8` | 创建于 `5362912a`；三次主线前进后最终完整重跑到 `d70b0cbe42467f3942e26eee11546cecdd60a39a` | [`40fa` worktree](</Users/lance/.codex/worktrees/40fa/webp>)；task `019f8825-6465-74c3-a880-ea07b1870c26` | structured/all-41/real 均 **0.000000%**、0 cache winner；仅 synthetic `shadow-soft` -6.393284%，synthetic aggregate -0.015598%；56/56 baseline/project/`dwebp` exact，零膨胀；报告 `2f731fa8:reports/alpha-exact-color-cache/README.md` | **phase-A reject / 不实现**；96.66% hit 仍反优化，未过 10% | 顶部表不变；保留逐 bits/hit/component/owner raw、三次 rebase 历史、22/22 SHA-256 清单 |
 | A08 | optimal length-limited Huffman：量化当前超长树触发整树 `balanced_lengths` 的损失，以 package-merge 精确替代并按完整 payload 选择 | `codex/alpha-length-limited-huffman@5aa6a618`；analyzer `7dfa3ddc`；owner fixes `87595158` / `40822cbd` | 创建于 `8574b4ef`；登记和 A07 收口后最终完整重跑到 `e7891b27484ec0f66e86b46a2b1e9c8b981e77e5` | [`e754` worktree](</Users/lance/.codex/worktrees/e754/webp>)；task `019f8836-b206-7750-9b7e-8de995eeba06` | structured `138,762 -> 138,648`（**-0.082155%**）；real -19.621583%，但由 `metal-raytracing` 单图 -25.707018% 主导；56/56 baseline/project exact、112/112 `dwebp`、零膨胀；报告 `5aa6a618:reports/alpha-length-limited-huffman/README.md` | **phase-A reject / 不实现**；structured 未达 10%，不进入 production/decode timing | 顶部表不变；保留 package-merge/brute-force oracle、limit=15/7 owner waterfall、31 项 SHA 与 diagnostic 中断数据 |
-| A09 | ALPH palette co-occurrence ordering：在 <=16 色 palette 上重新分配 index，精确量化 palette delta、packed-symbol table RLE、hash-collision parse 与 partial rows | `codex/alpha-palette-cooccurrence`；进行中 | worktree 创建目标为当时最新 `6f2e07fb0a82c2f52334825feb8a5d6ffc83184a`；正式数据前须重放到本登记提交后的最新 `main` | [`dda9` worktree](</Users/lance/.codex/worktrees/dda9/webp>)；task `019f8858-35db-7191-8d13-76cffe852420` | **Phase A**：先证明 permutation 双射下不变/可变 owner；<=8 色穷举实际 bytes，9..16 色以 Modified-Zeng 与固定有界实际字节搜索评估；分 40 structured/all-41/4 real/11 synthetic | 未决；structured 净 ALPH 必须 >=10%，56-file exact fallback 零膨胀；过门后才实现 | 已登记；不得把 co-occurrence proxy 或未穷举 9..16 候选称为全局最优 |
+| A09 | ALPH palette co-occurrence ordering：在 <=16 色 palette 上重新分配 index，精确量化 palette delta、packed-symbol table RLE、hash-collision parse 与 partial rows | `codex/alpha-palette-cooccurrence@690dddfd`；analyzer `da28b8c0` | 创建于 `6f2e07fb`；登记后正式完整重跑到 `130aa1f347ae1193463f35205b5bd98b4031bc7c` | [`dda9` worktree](</Users/lance/.codex/worktrees/dda9/webp>)；task `019f8858-35db-7191-8d13-76cffe852420` | structured `138,762 -> 138,718`（**-0.031709%**）；all-41 -0.001068%、real -0.002852%、synthetic 0%；56/56 modeled/project exact、112/112 `dwebp`、零膨胀；报告 `690dddfd:reports/alpha-palette-cooccurrence/README.md` | **phase-A reject / 不实现**；只关闭 structured libwebp 差距的 0.241%，不进入 production/decode timing | 顶部表不变；保留 <=8 穷举、9..16 有界搜索、owner waterfall、26 项 SHA 与正式 raw evidence |
 
 ### A01 / A02 已完成结果明细
 
@@ -253,6 +253,39 @@ balanced penalty 为 165,225 bits，而 package 解仅比 unconstrained lower bo
 300 KiB。Feature tests 23/23、workspace、Clippy、fmt、Bazel 15/15、fuzz check
 与 31 项 SHA 全过。Phase A 未过，因此默认 encoder、q0/70/99、3 x 10 /
 5 x 5 与 decode-table timing 均未运行。
+
+### A09 阶段 A 结果明细
+
+A09 先证明了搜索边界：对固定长度的完整 packed tuple，palette index
+permutation 是双射，因此 tuple 频率、相等子串和理想无碰撞 LZ match 集合不变。
+真正可变的 owner 只有 palette delta subimage、主 green 表的 code-length RLE
+位置、数值哈希碰撞影响的单候选 greedy parse，以及行尾 partial tuple。最终候选
+始终以完整 ALPH 实际字节裁决，平局或扩张回到 numeric-ascending baseline。
+
+| A09 set | Files | Baseline ALPH | Exact fallback | Aggregate | p5 / p50 / p95 / worst | Search contribution |
+|---|---:|---:|---:|---:|---:|---:|
+| 40 structured | 40 | 138,762 B | 138,718 B | **-0.031709%** | -0.016926 / 0 / 0 / 0% | <=8 exact 1 B；9..16 bounded 43 B |
+| all 41 | 41 | 4,118,622 B | 4,118,578 B | -0.001068% | -0.016926 / 0 / 0 / 0% | 同上；complete WebP -36 B |
+| A02 real | 4 | 105,175 B | 105,172 B | -0.002852% | -0.052256 / 0 / 0 / 0% | bounded 1 winner / 3 B |
+| A02 synthetic | 11 | 1,269,394 B | 1,269,394 B | **0.000000%** | 0 / 0 / 0 / 0% | 0 winner |
+
+`p<=8` 的 31 个 palette/filter rows 穷举了 41,950 次完整序列化；`p=9..16`
+的 13 rows 以固定 seeds、beam width 4、每 row 至多 512 个候选完成 6,656 次
+完整序列化。后者只报告 best-found 与严格 125-bit 格式 floor，不把未穷举空间
+称为全局最优。12 个全集合 winner 的汇总 owner delta 为：palette +21 bits、
+全部 main tables -265 bits、main symbols +68 bits、length/distance extra -177 bits、
+padding -23 bits、hash collisions +388。44 个 rows 中 26 个既无 partial group
+也不改 tokenization，且 main-symbol/extra delta 全为零；实测与双射推导一致。
+
+Modeled ascending 与 main 56/56 byte-exact；项目 decoder 56/56，pinned `dwebp`
+baseline/candidate 112/112 exact，最坏膨胀 0。Feature tests 22/22、workspace、
+Clippy、fmt、Bazel、fuzz check 与 SHA-256 26/26 全过。Analyzer working bound
+为 v3/real/synthetic 4.22/12.10/12.13 MiB，process peak RSS 为
+139.80/79.00/58.36 MiB；正式 analyzer 用时约 4.8/1.4/84 s。Structured 只省
+44 bytes、仅关闭对 pinned libwebp 差距的 0.241%，所以没有 production commit，
+也没有用 analyzer 耗时冒充 production timing。Analyzer/evidence commits 为
+`da28b8c0` / `690dddfd`；完整报告与 raw hash 清单在
+`690dddfd:reports/alpha-palette-cooccurrence/`。
 
 ### 总账更新规则
 
@@ -502,6 +535,14 @@ limit-7 code-length fallbacks and saves 114 bytes. Package-merge is therefore a
 valid future option if broader real evidence shows repeated deep main trees,
 not a material owner for the current structured gate.
 
+A09 then exhausted the low-cardinality palette-ordering hypothesis at exact
+serialized-byte granularity. Complete tuple equality and frequency structure
+are permutation-invariant; the remaining palette-header, table-RLE, numeric
+hash-collision, and partial-row effects save only 44 structured bytes. Modified
+Zeng remains a legitimate seed for other palette codecs, but it is not a
+material ALPH architecture here. The next parser study must therefore change
+the match/parse frontier itself rather than relabel the same packed stream.
+
 ## Rejected and non-material experiments
 
 Diagnostic probes below used the same code base and corpus stated in each row,
@@ -527,6 +568,7 @@ primary headline measurements.
 | ALPH spatial entropy groups | A06 exact analyzer over 40 structured + random + 4 real + 11 synthetic | structured **-0.005765%** after fallback; independent complete streams expand +2.90% to +226.90%; 56/56 exact and zero expansion | reject at phase A; local Huffman gains cannot repay real group tables/map |
 | ALPH exact color cache | A07 actual serialization for bits 1..11 over 40 structured + random + 4 real + 11 synthetic | structured/all-41/real **0%** after fallback; 96.66% hit still expands; only one synthetic file -6.39% | reject at phase A; cache symbols fragment already-cheap green literals |
 | optimal length-limited Huffman | A08 package-merge + brute-force oracle over every real table owner | structured **-0.082155%**; real -19.621583% from one depth-16 green owner; 56/56 exact and zero expansion | reject at phase A; retain real-image owner evidence, no default solver |
+| ALPH palette co-occurrence ordering | A09 <=8 exhaustive + 9..16 fixed bounded actual-byte search over 40 structured + random + 4 real + 11 synthetic | structured **-0.031709%** / 44 B；real -0.002852%；synthetic 0%；112/112 `dwebp` exact and zero expansion | reject at phase A; permutation-invariant packed tuples leave only immaterial header/hash/partial-row effects |
 
 ## Research basis and next architecture targets
 
@@ -543,6 +585,10 @@ primary headline measurements.
   [Package-Merge paper](https://ics.uci.edu/~dhirschb/pubs/LenLimHuff.pdf)
   gives an optimal length-limited prefix-code construction. It should be tried
   only after diagnostics show Huffman lengths are a material owner.
+- Pinho and Neves' [palette-reordering survey](https://sweet.ua.pt/an/publications/2004b.pdf)
+  and Modified-Zeng work motivate A09's 4-neighbour ordering seed; A09's exact
+  WebP serialization shows why a predictive-codec index-difference objective
+  cannot substitute for this encoder's real LZ/Huffman cost.
 - The pinned libwebp implementation uses quality-scaled hash chains, explicit
   previous-pixel/previous-row candidates, several reference strategies, lazy
   reach decisions, plane codes, and raw fallback. These are algorithmic
@@ -561,15 +607,17 @@ The next accepted architecture should target at least one measurable 10% gap:
    still misses 10%. A06 has now ruled out spatial entropy groups on this
    structured target: even its exact independent complete streams cannot repay
    table/map cost. A07 has also ruled out the remaining standard color-cache
-   mechanism: its optimistic payload loses before header cost even with 96.66%
-   hits. A08 therefore moves below parser/format choices to the Huffman owner:
-   it will measure whether the current whole-tree balanced fallback on an
-   over-limit code discards material frequency information, then price optimal
-   package-merge lengths with the real table RLE and complete payload. A08
-   found only -0.082% structured, so the next independent standard-density
-   target is palette-index assignment: current ALPH orders <=16 values only by
-   numeric value, while a 4-neighbour co-occurrence ordering can change packed
-   index bytes and LZ/Huffman density without changing the decoded palette.
+   mechanism, A08 found only -0.082% from optimal length-limited Huffman, and
+   A09 found only -0.032% from palette ordering. The next distinct architecture
+   is a **single-pass bounded match frontier plus iterative entropy-cost shortest
+   path**: enumerate literals, run/previous-row, plane-distance, and a fixed
+   number of hash-chain matches once; choose one token path with actual
+   Huffman-aware costs instead of constructing both greedy and RowRLE streams.
+   Phase A must first produce an offline upper bound on the same 40 files. It
+   advances only if structured ALPH improves >=10% with exact fallback and the
+   bounded production design is at least 10% cheaper than A03's second-parser
+   work (or keeps ALPH CPU within the accepted main envelope). File labels and
+   corpus-specific thresholds are forbidden.
 2. **Real-image evidence:** add a pinned, licensed translucent PNG/WebP corpus
    with PSNR/SSIM or exact-alpha gates, alpha-cardinality buckets, p50/p95
    latency, and peak RSS. No architecture should be tuned only to conformance
