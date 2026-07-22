@@ -1,0 +1,7 @@
+check	status	command
+test-debug	pass	cargo test --workspace --all-targets
+test-release	pass	cargo test --release --workspace --all-targets
+clippy	pass	cargo clippy --workspace --all-targets -- -D warnings
+fmt	pass	cargo fmt --all -- --check
+rustdoc	pass	RUSTDOCFLAGS=-D warnings cargo doc -p webp --no-deps
+doctest	pass	cargo test -p webp --doc

@@ -1,0 +1,18 @@
+{
+  "left_label": "latest-main-0ee428dc",
+  "left_binary": "/private/tmp/vp8l-packed-writer-product-9435fbd0/base-full-target/release/deps/webp-018635ace19b190c",
+  "left_binary_sha256": "65f10c5b9e7f48abac9cfdedf2e28736100ce5a2197b40ab5f0de2ef303a6bf0",
+  "right_label": "product-9435fbd0",
+  "right_binary": "/private/tmp/vp8l-packed-writer-product-9435fbd0/product-full-target/release/deps/webp-018635ace19b190c",
+  "right_binary_sha256": "247305b53187841383afb7a39a872f1292728e7a114b0d5541547b101da524fe",
+  "corpus": "/Users/lance/Desktop/webp/third_party/benchdata/clic/vp8l-lossless-exact",
+  "oracle_binary": "/private/tmp/vp8l-packed-writer-product-9435fbd0/libwebp-compare",
+  "oracle_binary_sha256": "f7396d503fb343bd57d3848d0ce04b87f3485322fce6b0b912dda45ecf5ecb6e",
+  "layouts": [
+    "default",
+    "compact",
+    "low-latency"
+  ],
+  "project_decoder": "generate validates exact RGBA before writing each stream",
+  "oracle_decoder": "pinned libwebp WebPDecodeRGBA"
+}

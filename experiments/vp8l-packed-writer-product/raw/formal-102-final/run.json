@@ -1,0 +1,25 @@
+{
+  "lock": "/private/tmp/webp-vp8l-product-benchmark.lock",
+  "lock_pid": 24677,
+  "started_unix_ns": 1784709166390279000,
+  "binary": "/private/tmp/vp8l-packed-writer-product-9435fbd0/product-full-target/release/deps/webp-018635ace19b190c",
+  "binary_sha256": "247305b53187841383afb7a39a872f1292728e7a114b0d5541547b101da524fe",
+  "binary_bytes": 1501056,
+  "rounds": 5,
+  "order": "forward on odd rounds, reverse on even rounds",
+  "layouts": [
+    "compact-writer-control",
+    "compact",
+    "low-latency-writer-control",
+    "low-latency"
+  ],
+  "operations": [
+    "encode"
+  ],
+  "formal": true,
+  "input": "/Users/lance/Desktop/webp/third_party/benchdata/clic/vp8l-lossless-exact",
+  "generated": "/private/tmp/vp8l-packed-writer-product-9435fbd0/unused",
+  "preloaded": true,
+  "checksum": "full output bytes (encode) or full RGBA bytes (decode)",
+  "completed_unix_ns": 1784709513142637000
+}

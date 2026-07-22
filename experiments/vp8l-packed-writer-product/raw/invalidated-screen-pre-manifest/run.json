@@ -1,0 +1,24 @@
+{
+  "lock": "/private/tmp/webp-vp8l-product-benchmark.lock",
+  "lock_pid": 93745,
+  "started_unix_ns": 1784707568767347000,
+  "binary": "/private/tmp/vp8l-packed-writer-product-9435fbd0/product-archive-target/release/deps/webp-018635ace19b190c",
+  "binary_sha256": "04f3160e1a72a88fee8a7bd88cb124bfd9b4039d728a66b4869e23935c1b3622",
+  "binary_bytes": 1501056,
+  "rounds": 3,
+  "order": "forward on odd rounds, reverse on even rounds",
+  "layouts": [
+    "compact-writer-control",
+    "compact",
+    "low-latency-writer-control",
+    "low-latency"
+  ],
+  "operations": [
+    "encode"
+  ],
+  "formal": false,
+  "input": "/private/tmp/vp8l-packed-writer-product-9435fbd0/screen-input",
+  "generated": "/private/tmp/vp8l-packed-writer-product-9435fbd0/unused",
+  "preloaded": true,
+  "checksum": "full output bytes (encode) or full RGBA bytes (decode)"
+}
