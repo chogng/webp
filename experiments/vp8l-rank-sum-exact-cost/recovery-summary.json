@@ -1,0 +1,91 @@
+{
+  "task": "P24 independent VP8L allocation-free rank-sum exact-cost experiment",
+  "root_task": "019f8321-035e-7211-8f53-987e18891c8c",
+  "branch": "codex/vp8l-rank-sum-exact-cost",
+  "base": "230ce0bd1c201d2687261d97a525cec8f91aa215",
+  "measurement_head": "17d623f4e2d304edd2f398e894455641efef7649",
+  "worktree": "/Users/lance/.codex/worktrees/a5b2/webp",
+  "binary_sha256": "e8ccb712bd30c4486edf6502f172d1804f7682ffea12fcc903c2736f601df22b",
+  "manifest_sha256": "474587feabe3178268b2eab6f7a166501d8ecc3d637a76bd412f4233dfa7b913",
+  "round_order": "one warmup then F/R/F",
+  "retained_all_samples": true,
+  "valid_rerun_permitted": false,
+  "a_b_output_identity": "82/82",
+  "profiles": {
+    "compact": {
+      "a_aggregate_ns": [
+        2529713375,
+        2558378292,
+        2560324333
+      ],
+      "b_aggregate_ns": [
+        2465350875,
+        2507354458,
+        2512765333
+      ],
+      "a_median_ns": 2558378292,
+      "b_median_ns": 2507354458,
+      "independent_delta_pct": -1.9943819160579401,
+      "independent_improvement_pct": 1.9943819160579401,
+      "per_image_median_regressions": 4,
+      "regressions": [
+        {
+          "id": "clic-validation-005",
+          "delta_pct": 0.27212575731862787
+        },
+        {
+          "id": "clic-validation-007",
+          "delta_pct": 0.31725192110510364
+        },
+        {
+          "id": "clic-validation-022",
+          "delta_pct": 1.2876196632764407
+        },
+        {
+          "id": "clic-validation-023",
+          "delta_pct": 0.9520534056902724
+        }
+      ],
+      "gate": true
+    },
+    "low-latency": {
+      "a_aggregate_ns": [
+        2620144458,
+        2592931417,
+        2642414166
+      ],
+      "b_aggregate_ns": [
+        2528012792,
+        2542315500,
+        2517305083
+      ],
+      "a_median_ns": 2620144458,
+      "b_median_ns": 2528012792,
+      "independent_delta_pct": -3.516281925551755,
+      "independent_improvement_pct": 3.516281925551755,
+      "per_image_median_regressions": 0,
+      "regressions": [],
+      "gate": false
+    }
+  },
+  "stderr_bytes": 0,
+  "raw_sha256": {
+    "05-r1-compact-a.tsv": "8a8fb310b30ed6fcdba6d8f53d40a8844f6210fe430c98a57fdd0dd853a17d68",
+    "06-r1-compact-b.tsv": "f847aa4b1f86738331e0647a02b51a54d6698697493aa09d618ed80a476c7ed1",
+    "07-r1-low-latency-a.tsv": "724c6879955c4a8efba2e85030418ea4e7d4bdc42657866ea33a56ae0bbf40d1",
+    "08-r1-low-latency-b.tsv": "1b0bec9b204c1f74c93d7708fabf6c87923bad61b935e269093b13015f15ed95",
+    "09-r2-low-latency-b.tsv": "4e01c330542665e7fa65cd41956e47e52d523b0333b09c027031254412c26ecb",
+    "10-r2-low-latency-a.tsv": "32da5a44b332729a63a8eb008fdf32b63197948bc4da8b52f9faae9907f9bcde",
+    "11-r2-compact-b.tsv": "c4456ca56f7007dabe2fb0f825cf1dea8b3f44915962d9551b54ca9250183367",
+    "12-r2-compact-a.tsv": "c9389b79411ba6642196602b748d54b1c49770389a3301afdad4fce765adce12",
+    "13-r3-compact-a.tsv": "f3d172091094ac54145aa38f13346bad59f6797ec4fc338ed26870c9fb7d6afd",
+    "14-r3-compact-b.tsv": "5eae234907673fed535cf63d6aa1ece31f5df4bd47289f71ee5df0fe34df0cf4",
+    "15-r3-low-latency-a.tsv": "725ae6431feda08e9a7afab163ead709077d925460ba26b4b674bcf88ae5325a",
+    "16-r3-low-latency-b.tsv": "a4b0bf2de9d202c3701269d134efe676255529a77cbe43eb0d344a669983cc42",
+    "01-warmup-compact-a.tsv": "4493e05ee7c8816f20cb514546cf23552901c42c7c393046a0288a2a2caa5f3f",
+    "02-warmup-compact-b.tsv": "ff53a643def57b5fa53b3d34865553e0ecbf108aeca9281dec52a610d74c5d41",
+    "03-warmup-low-latency-a.tsv": "a36ee43db67479fe07ad9f2bb5dbda766821c52862db0f298aef012bc5340a65",
+    "04-warmup-low-latency-b.tsv": "45c694e15d2e0acd21905211fc6b18ae990892f123a13f7dc0e86114dd471379"
+  },
+  "gate": false
+}

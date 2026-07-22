@@ -1,0 +1,23 @@
+{
+  "task": "P24 independent VP8L allocation-free rank-sum exact-cost experiment",
+  "root_task": "019f8321-035e-7211-8f53-987e18891c8c",
+  "branch": "codex/vp8l-rank-sum-exact-cost",
+  "base": "230ce0bd1c201d2687261d97a525cec8f91aa215",
+  "worktree": "/Users/lance/.codex/worktrees/a5b2/webp",
+  "measurement_head": "17d623f4e2d304edd2f398e894455641efef7649",
+  "phase_r_binary_sha256": "e8ccb712bd30c4486edf6502f172d1804f7682ffea12fcc903c2736f601df22b",
+  "p18_binary_sha256": "2e5f7b11b959de3cb25a251649ee7ffa87528b0346d92fdfbb03547da5f5e570",
+  "external_sha256sums_sha256": "8d3ca8831a052e7c9536fc7fdd8a251cd053b2f218aca917ca9dd764d1416bab",
+  "phase_r_mechanism_identity_census": "pass",
+  "recovery_screen": "fail",
+  "failed_gate": "LowLatency B improved 3.516281925551755%, below required 5.0%; per-image median regressions were 0/41",
+  "compact_recovery": "pass: B improved 1.9943819160579401%; 4/41 per-image regressions reported",
+  "a_b_output_identity": "82/82",
+  "stderr_bytes": 0,
+  "product_phase_a": "not run: prohibited by recovery stop rule",
+  "product_screen": "not run: prohibited by recovery stop rule",
+  "formal_102x5": "not run: prohibited by recovery stop rule",
+  "final_product_gates": "not run: prohibited by recovery stop rule",
+  "release_route": "retained A",
+  "decision": "reject"
+}
