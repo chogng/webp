@@ -7,3 +7,27 @@
 # Bazel output-tree convenience symlinks and local overrides.
 /.bazelrc.user
 /bazel-*
+
+# Reproducible experiment outputs. Keep reports, manifests, provenance,
+# reproducer/summarizer sources, and curated top-level summaries in Git; write
+# row-level measurements and command output to the reproducer's output path.
+/experiments/**/raw/
+/experiments/**/measurements/
+/experiments/**/screen-[0-9]*/
+/experiments/**/screen-compact/
+/experiments/**/screen-low-latency/
+/experiments/**/formal-[0-9]*/
+/experiments/**/comparative-decode-[0-9]*/
+/experiments/**/libwebp-decode-[0-9]*/
+/experiments/**/*.tsv
+/experiments/**/*.stderr
+/experiments/**/*.log
+/experiments/**/processes.jsonl
+/experiments/**/run.json
+/experiments/**/SHA256SUMS
+/experiments/**/assertions.txt
+/experiments/**/decoder-*.txt
+/experiments/**/invalidated-runs/**/*.txt
+/experiments/**/invalidated-runs/**/*.json
+/experiments/**/__pycache__/
+/experiments/**/*.pyc

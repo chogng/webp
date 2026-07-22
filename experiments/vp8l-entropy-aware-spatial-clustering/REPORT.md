@@ -192,18 +192,13 @@ failure did, and alone requires the same formal/product rejection.
 
 - `phase-a-summary.json` and `gate-summary.json`: machine-readable decisions,
   exact rates, independent/paired medians, per-image rows, resources, and MAD;
-- `raw/phase-a-102`: every exact-cost and timing row;
-- `raw/screen-41-*`: all final encode/decoder rounds, processes, resources,
-  complete-output hashes, and correctness;
-- `raw/identity-306-final`: three-archive identity and 918 pinned-C rows;
-- `raw/validation-final`: correctly rooted seven-command quality logs;
-- `raw/reproduction-final.log`, `raw/reproduction-final-status.txt`, and
-  `reproduction-summary.json`: repository-root one-command reproduction;
-- `invalidated-runs`: every failed or superseded invocation, preserved and
-  named;
-- `raw/formal-102x5-not-run.txt`: explicit gate-driven stop;
-- `reproduce.sh` and `SHA256SUMS`: one-command archive validation and relative
-  evidence hashes.
+- `reproduction-summary.json`: repository-root one-command reproduction;
+- `invalidated-runs`: explanations of failed or superseded invocations;
+- `reproduce.sh` and `summarize.py`: regeneration of Phase A, screen,
+  identity, validation, hard-stop, and checksum output below `raw/`.
+
+Row-level data, process samples, logs, and the generated `SHA256SUMS` remain in
+the selected reproduction output directory and are intentionally not tracked.
 
 The narrow positive result is that exact block ownership plus one rate-aware
 reassignment can retain large encode gains and improve aggregate rate. It is

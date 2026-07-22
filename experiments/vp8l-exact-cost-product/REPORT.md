@@ -213,15 +213,15 @@ code, security model, thread model, or toolchain policy changed.
 
 Primary evidence:
 
-- `exact-audit-102.tsv` — full estimator and selection audit;
-- `identity-306.tsv` — latest-main/product/P09 length, SHA-256, and byte identity;
-- `oracle-306.tsv` — pinned libwebp full-RGBA results;
-- `screen-compact/`, `screen-low-latency/`, and `formal-102/` — complete raw
-  measurements, process records, and run metadata;
 - `gate-summary.json` and `gate-summary.md` — robust independent and paired
   statistics without outlier removal;
-- `binary-delta.tsv` — release artifact sizes;
-- `SHA256SUMS` — hashes for every committed evidence file.
+- `reproduce.sh` and `summarize.py` — regeneration of the estimator audit,
+  identity and oracle rows, screen/formal measurements, process records,
+  binary deltas, summaries, and output checksums.
+
+The row-level TSVs, measurement directories, process metadata, and generated
+`SHA256SUMS` live in the selected reproduction output directory and are not
+tracked by Git.
 
 Reproduce all product evidence with:
 

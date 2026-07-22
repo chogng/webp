@@ -137,16 +137,13 @@ files.
 
 - `phase-a-summary.json`: machine-readable rate, exactness, timing, memory,
   tail, and gate summary;
-- `raw/phase-a-102-final-screen-binary/phase-a.tsv`: final-binary 204
-  image/profile rows and every split candidate; stderr is empty;
-- the other three `raw/phase-a-102*` directories: superseded fairness runs with
-  identical non-timing fields;
-- `raw/corpus-manifest-102.tsv`, `MANIFEST.md`: locked inputs and hashes;
-- `raw/binary-artifacts-phase-a.tsv`: exact binary/rlib sizes and hashes;
 - `screen-summary.json`: complete screen samples, medians, MAD/outliers,
   per-image timing/rate, RSS, correctness, and gate decisions;
-- `raw/screen-41-*-final`: final encode/decode/correctness evidence;
-- `raw/validation-final`: proportionate feature/default test, clippy, fmt, and
-  stable toolchain logs;
-- `raw/reproduction-final-status.txt`: successful isolated one-click replay;
-- `invalidated-runs`: all invalid or superseded harness attempts and reasons.
+- `MANIFEST.md`, `DESIGN.md`, `TAILS.md`, and `provenance.txt`: locked inputs,
+  rules, tail analysis, and source identity;
+- `invalidated-runs`: explanations of invalid or superseded harness attempts;
+- `reproduce.sh` and `summarize.py`: regeneration of the row-level Phase A,
+  screen, correctness, validation, and checksum output below `raw/`.
+
+The generated `raw/` tree and its `SHA256SUMS` are intentionally kept in the
+selected reproduction output directory rather than committed to Git.

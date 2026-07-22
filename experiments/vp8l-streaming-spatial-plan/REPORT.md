@@ -232,14 +232,12 @@ well, without changing token order, spatial ownership, or wire decisions.
 ## Evidence and reproduction
 
 - `gate-summary.json`: Phase A and all retained screen samples/resources/gates.
-- `raw/phase-a-102/`: per-image phase attribution.
-- `raw/screen-41-variants-f5e5bee5/`: valid initial failed implementation.
-- `raw/screen-41-variants-815df546/`: corrected four-way screen.
-- `raw/screen-41-materialized-cf-292c1d74/`: final diagnostic.
-- `raw/identity-306-final/`: 306 byte rows and 918 oracle rows.
-- `raw/final-artifacts/` and `raw/validation-final/`: size and quality evidence.
 - `invalidated-runs/INVALIDATED_RUNS.md`: interruption/setup audit.
-- `SHA256SUMS`: relative checksums for every committed evidence file.
+- `reproduce.sh` and `summarize.py`: regeneration of per-image Phase A,
+  all screens, identity/oracle rows, artifact/validation output, and checksums.
+
+The generated `raw/` tree and `SHA256SUMS` stay in the selected reproduction
+output directory and are intentionally not committed.
 
 From the repository root, `experiments/vp8l-streaming-spatial-plan/reproduce.sh`
 rebuilds every relevant full archive, reruns Phase A and all three screens,

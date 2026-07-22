@@ -1,5 +1,0 @@
-kind	bytes	sha256	provenance
-candidate-test-binary	2220144	298abf0e1a02ba698367ef73c50b5347da737edac35d9456b76badda52b428ee	P16 source, release test binary
-pinned-libwebp-static	654720	72cf7bdbb989aa7df4e90be40d5bbeeac837e78b89b3eb6eb71cad98d43c15e4	libwebp 733c91e, temporary CMake Release build
-pinned-compare	283312	6baeb1435e24a7149971836617878045862742f49ea6f0cd96d9d690c417bf49	tools/libwebp_vp8l_product_compare.c plus pinned static library
-pinned-bench	283536	2346484c001b91aeae44614b3679095849a8b55a27e105a1c4b2f2c42706c025	tools/libwebp_vp8l_product_bench.c plus pinned static library

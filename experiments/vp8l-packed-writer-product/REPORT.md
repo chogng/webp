@@ -236,15 +236,15 @@ listed there is mixed into `gate-summary.json` or this decision.
 
 Primary evidence:
 
-- `raw/screen-41-final/`: final 41x3 samples and process resources;
-- `raw/formal-102-final/`: final 102x5 samples and process resources;
-- `raw/identity-latest-main-product/`: 306-item base/product identity and
-  product decoder/oracle checks;
-- `raw/identity-product-e36/`: 306-item product/E36 identity checks;
-- `raw/validation/`: final stable quality logs;
-- `raw/corpus-manifest-102.tsv` and `raw/screen-manifest-41.tsv`;
-- `gate-summary.json`, `binary-artifacts.tsv`, `provenance.txt`, and
-  `SHA256SUMS`.
+- `gate-summary.json` and `provenance.txt`: reviewed aggregate gates and source
+  identity;
+- `invalidated-runs`: the durable explanation of invalid or superseded runs;
+- `reproduce.sh` and `summarize.py`: regeneration of screen/formal samples,
+  process resources, identity/oracle rows, validation logs, manifests, binary
+  inventory, and output checksums.
+
+Those generated raw artifacts and their `SHA256SUMS` remain in the selected
+reproduction output directory rather than Git.
 
 `reproduce.sh` rebuilds all three binaries from complete archives, verifies
 manifests before acquiring the benchmark lock, reruns the final screen/formal

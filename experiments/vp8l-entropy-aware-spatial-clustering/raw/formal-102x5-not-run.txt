@@ -1,5 +1,0 @@
-formal_102x5_run=false
-reason=41-image screen failed LowLatency per-image rate and Rust decoder gates
-rate_failure=clic-validation-008 +4.33820699831271% > +2%
-rust_decoder_failure=aggregate median +1.1793884476264394% > +1%
-policy=no formal benchmark and no product migration after any screen failure

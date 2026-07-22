@@ -1,3 +1,0 @@
-Formal 102x5 was not run. The fair 41-image same-binary screen rejected P16:
-Compact encode median regressed by 79.086400% and 40/41 image medians
-regressed, instead of improving by at least 10% with 0/41 regressions.

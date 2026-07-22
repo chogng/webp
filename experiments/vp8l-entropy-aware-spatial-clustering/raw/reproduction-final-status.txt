@@ -1,8 +1,0 @@
-command=./experiments/vp8l-entropy-aware-spatial-clustering/reproduce.sh
-cwd=/Users/lance/.codex/worktrees/3cd9/webp
-exit_status=0
-output=/private/tmp/vp8l-entropy-aware-spatial-clustering-reproduction
-output_file_count_excluding_sha256sums=128
-output_sha256sums_sha256=70b7f41acd6a1a328afd90ae4525195a50a43b64a44804758cbb8d5250093e62
-formal_102x5_run=false
-decision=reject-screen-rate

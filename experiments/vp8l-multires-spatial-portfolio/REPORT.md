@@ -148,13 +148,13 @@ failure, all exactness denominators, and the 99/3 resolution split. Its output
 
 - `phase-a-summary.json`: machine-readable decision, exactness, rates,
   selector semantics, timing, memory, and artifact deltas;
-- `raw/phase-a-102/phase-a.tsv`: final 102-image row-level exact evidence;
-- `raw/final-binary-rebuild.tsv`: committed-source binary SHA proof;
-- `invalidated-runs`: superseded Phase A and malformed artifact inventory;
-- `raw/screen-41-not-run.txt` and `raw/formal-102x5-not-run.txt`: hard-stop
-  records;
-- `reproduce.sh`, `summarize.py`, and `SHA256SUMS`: one-command
-  reproduction and relative evidence hashes.
+- `invalidated-runs`: explanations of the superseded Phase A and malformed
+  artifact inventory;
+- `reproduce.sh` and `summarize.py`: regeneration of row-level Phase A,
+  binary identity, hard-stop records, and relative output checksums.
+
+Generated raw data and `SHA256SUMS` remain in the selected reproduction output
+directory and are intentionally not committed.
 
 From the repository root:
 

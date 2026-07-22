@@ -239,28 +239,11 @@ Stable Rust 1.97.1 passed:
 - Python helper bytecode compilation and reproducer `bash -n`.
 
 No nightly toolchain, unsafe Rust, new dependency, or production concurrency
-was introduced. The committed raw evidence includes all measurement files,
-process records, robust summaries, exact stream census, decoder oracle output,
-default before/after hashes, and stream-identity audit.
+was introduced.
 
-Primary evidence SHA-256:
-
-- `streams-102.tsv`:
-  `57961c33496d674b614b88c1c5ec33eee79f63baf20cf9780da0fc6a1ba29ec1`
-- `oracle-408.tsv`:
-  `c6c113966bdb81ded723112da67575439e46b0c1a9cd6245baa4579abfb0197c`
-- `stream-identity-306.tsv`:
-  `55c00684a42083d39af4ad25b10def2d0eb54583930ca1d08adeb45a3c2ab774`
-- formal `processes.jsonl`:
-  `bc5d4c698ee4bfe518752af9cb8b604d82758b147647cd0879ab772c57664a8b`
-- formal `summary.json`:
-  `fe2b1a43670694f9ad3cfe639020ae457d04b7ed8be2252502ded8d26649f53c`
-- comparative `summary.json`:
-  `68bf62d79c2bd83cef0e4a6b323077d2343948f2311a742149ddbca6f8878e78`
-- pinned C decoder `processes.jsonl`:
-  `158e9ce2af1fb1099bb31812dd81758ea8274eed99c14bd29398fd39a1633432`
-- pinned C decoder `summary.json`:
-  `03f331042ddbb2da95afe5030882b4271b118f41857f6b4542b23251ef8aa9e5`
-
-See `reproduce.sh` for the current-tree generation, pinned oracle, screen,
-formal gate, comparative decode, and summarization commands.
+`reproduce.sh` regenerates the stream census, decoder oracle output, default
+before/after hashes, stream-identity audit, row-level measurements, process
+records, and robust summaries in its output directory. These generated files
+are intentionally not committed; this report retains the reviewed conclusions
+and the script retains the exact current-tree generation, pinned-oracle,
+screen, formal-gate, comparative-decode, and summarization commands.

@@ -230,19 +230,12 @@ for additional signature search.
 
 - `gate-summary.json`: machine-readable Phase A, screen, decode, MAD, and B
   prescreen results;
-- `raw/phase-a-102/` and `raw/phase-b-102/`: complete offline rows;
-- `raw/screen-41-exact-symbol*`: all E encode and decoder rounds/resources;
-- `raw/correctness-exact-symbol/` and `raw/identity-306-final/`: project and C
-  decoder evidence plus Default identity;
-- `raw/final-artifacts/` and `raw/validation-final/`: artifact and quality
-  evidence;
-- `invalidated-runs/`: pre-screen review note, the incompatible identity
-  helper output, and the rustdoc wrapper error;
-- `SHA256SUMS`: 147 relative checksums covering every other final file in this
-  repository experiment directory; it excludes only itself and was verified
-  from this directory with `shasum -a 256 -c SHA256SUMS`;
-- `raw/reproduction-output-sha256.txt`: the SHA-256 of the separate
-  `/private/tmp/p14-reproduction-final/SHA256SUMS`; it identifies the external
-  reproduction output manifest and does not replace the repository manifest;
-- `reproduce.sh`: one-command archive rebuild, evidence verification, and
-  quality reproduction.
+- `invalidated-runs/`: explanations of the incompatible identity helper and
+  rustdoc wrapper error;
+- `reproduce.sh` and `summarize.py`: one-command archive rebuild and
+  regeneration of Phase A/B rows, screen/decoder samples, identity, validation,
+  and checksums.
+
+The complete row-level and process output, including its generated
+`SHA256SUMS`, stays in the selected reproduction output directory rather than
+the source repository.

@@ -1,4 +1,0 @@
-exit_status=0
-decision=reject-phase-a
-screen_41_run=false
-formal_102x5_run=false

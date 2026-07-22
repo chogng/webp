@@ -93,8 +93,6 @@ find "$p13_corpus" -maxdepth 1 -type f -name '*-m6.webp' -print | sort |
   done > "$p13_manifest"
 test "$(wc -l < "$p13_manifest")" -eq 102
 test "$(shasum -a 256 "$p13_manifest" | cut -d ' ' -f 1)" = "$p13_manifest_sha"
-cmp "$p13_manifest" \
-  "$p13_repo/experiments/vp8l-packed-writer-product/raw/corpus-manifest-102.tsv"
 
 p13_screen_input="$p13_scratch/screen-input"
 mkdir "$p13_screen_input"
@@ -104,8 +102,6 @@ done < <(head -n 41 "$p13_manifest")
 head -n 41 "$p13_manifest" > "$p13_output/raw/screen-manifest-41.tsv"
 test "$(shasum -a 256 "$p13_output/raw/screen-manifest-41.tsv" | cut -d ' ' -f 1)" = \
   "$p13_screen_manifest_sha"
-cmp "$p13_output/raw/screen-manifest-41.tsv" \
-  "$p13_repo/experiments/vp8l-packed-writer-product/raw/screen-manifest-41.tsv"
 
 VP8L_PRODUCT_COMMAND=audit-streaming-spatial-phases VP8L_PRODUCT_INPUT="$p13_corpus" \
   "$p13_candidate_binary" --exact \

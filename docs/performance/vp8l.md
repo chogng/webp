@@ -483,7 +483,7 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 - 正式 process wall/CPU/RSS：Compact control 16.046536/16.000232 s/1,215.27 MiB，product 13.139456/13.085052 s/1,143.25 MiB；LowLatency control 15.719175/15.628885 s/1,215.53 MiB，product 12.922736/12.876665 s/1,153.55 MiB。RSS 分别降低 72.02/61.98 MiB。
 - release rlib 436,344 -> 453,848 B（+17,504 B/+4.011%）；包含 test-only same-binary control 的 release test binary 1,481,328 -> 1,501,056 B（+19,728 B/+1.332%）。实现保持 safe Rust，无新增依赖、线程、unsafe、API、profile、Default、metadata、animation 或 wire 变化。
 - latest-main/product 与 product/E36 各自都是 Default/Compact/LowLatency 共 306/306 长度、SHA 和完整字节一致；项目 decoder 各 306/306 RGBA exact，产品 pinned libwebp `733c91e` 也是 306/306 exact。完整仓库 archive 的 debug/release all-targets、Clippy `-D warnings`、fmt、rustdoc/doctest 全部通过。
-- 只把最终完整仓库 archive binary 的结果写入 headline。错误 cwd archive、zsh 特殊 `path` 导致的 non-run、pre-manifest partial、workspace-subtree archive 的 screen/formal/identity、缺 root fixtures 的 validation 与覆盖日志重建均作为失效运行完整保存在 [invalidated-runs](../../experiments/vp8l-packed-writer-product/invalidated-runs) 和具名 `raw/invalidated-*` 目录，不因无效或无收益而丢弃。
+- 只把最终完整仓库 archive binary 的结果写入 headline。错误 cwd archive、zsh 特殊 `path` 导致的 non-run、pre-manifest partial、workspace-subtree archive 的 screen/formal/identity、缺 root fixtures 的 validation 与覆盖日志重建均在 [invalidated-runs](../../experiments/vp8l-packed-writer-product/invalidated-runs) 保留原因与影响；逐次 raw 输出由复现器写入外部结果目录，不进入 Git。
 - 分支 `codex/vp8l-packed-writer-product`：base `0ee428dc`，代码 `9435fbd0`，证据/最终 HEAD `a7cde726`；工作树 [5e00](</Users/lance/.codex/worktrees/5e00/webp>)，task `019f88d1-ed7a-7573-8898-d78525870e70`，[完整报告](../../experiments/vp8l-packed-writer-product/REPORT.md)。对应 main 线性提交为代码 `b3b96fdc`、证据 `80113c1e`、raw whitespace policy `fabcbf9c`。
 
 ### E38：流式 tokenization 与空间统计融合
@@ -506,7 +506,7 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 - E 的 41 图同 binary 交错 screen：Compact 3.541526 -> **2.318275 s**（-34.540%），LowLatency 3.501564 -> **2.234421 s**（-36.188%），两档都是 0/41 编码回退。但 aggregate bytes 增加 0.423%/0.388%，最差单图 +5.841%/+5.058%，两档各有 8/41 超过 +2%，因而在高速度收益下仍硬性失败 rate gate。
 - 唯一允许的 B 检查点不再搜参：将每通道 256 个 exact count 固定汇总成 8 个 32-symbol bin，取最大质量 bin。102 图 rate 预检查仍为 Compact +0.389%、LowLatency +0.419%，分别 15/102 和 14/102 超 +2%，最差 +6.422%/+7.503%。因此 B 不跑 screen，不允许第三种 signature，两个候选均未进 102×5 formal。
 - Default 在 base/E37/P14-B 三个 archive 之间 102/102 全字节一致；Default/Compact/LowLatency 共 918/918 通过项目 decoder 与 pinned libwebp `733c91e` 完整 RGBA exact。七项 stable 质量门坎全通过；release rlib +37,736 B，研究 test binary +55,856 B。最坏 16384² 的 exact counters 为 32.781/16.391 MiB，screen RSS 为 +0.118%/-1.965%，内存不是拒绝原因。
-- 两个失效运行也被保留：早期 verifier 错误要求 fast-profile byte identity，以及一次 rustdoc shell 引号错误。它们都未开始或未正确表达目标验证，不影响 codec 正确性结论。一键复现已实际 exit 0，仓库内 `SHA256SUMS` 覆盖除自身外的 147 个最终文件并已全部校验。
+- 两个失效运行的说明也被保留：早期 verifier 错误要求 fast-profile byte identity，以及一次 rustdoc shell 引号错误。它们都未开始或未正确表达目标验证，不影响 codec 正确性结论。一键复现已实际 exit 0，并在外部输出目录生成和校验该次运行自己的 `SHA256SUMS`。
 - E 若只用 screen 比例叠加 E37，会得到相对 E33 的 64.861%/65.801% 投影；它不是 formal 测量，且候选未过 rate gate，所以不进顶部性能表、不声称产品突破。产品决策是拒绝 E/B 代码，仅保留“exact-frequency ownership 足够快，但 assignment objective 必须改变”这一架构结论。
 - 分支 `codex/vp8l-frequency-owned-clustering`：base `3474599d`，E `c38e98aa`，对称 A/B `6703a163`，Phase A `9832274c`，B `2d529c33`，报告 `bb7002e9`，最终 checksum/HEAD `3468fcff`；工作树 [6d5d](</Users/lance/.codex/worktrees/6d5d/webp>)，task `019f8960-1a51-75a3-aec4-f99a1e7fb5de`，[完整报告与复现器](../../experiments/vp8l-frequency-owned-clustering/REPORT.md)。
 
