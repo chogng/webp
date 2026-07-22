@@ -49,8 +49,8 @@ if [[ "${#inputs[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-cargo build --release -p webp --example encode_bench --manifest-path "$root/webp-rs/Cargo.toml"
-"$root/target/release/examples/encode_bench" "$iterations" "${inputs[@]}"
+cargo run --release -p webp --example encode_bench \
+  --manifest-path "$root/webp-rs/Cargo.toml" -- "$iterations" "${inputs[@]}"
 
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/webp-vp8l-encode-bench.XXXXXX")"
 trap 'rm -rf "$scratch"' EXIT

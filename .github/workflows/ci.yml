@@ -21,6 +21,7 @@ jobs:
         working-directory: webp-rs
       - run: cargo test --workspace
         working-directory: webp-rs
+      - run: bash tools/benchmark-smoke.sh
       - uses: bazelbuild/setup-bazelisk@v3
       - run: bash tools/check-module-bazel-lock.sh
       - run: bazel test --test_output=errors --test_tag_filters=-external-corpus //...

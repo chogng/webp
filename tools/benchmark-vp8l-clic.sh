@@ -109,18 +109,20 @@ trap cleanup EXIT HUP INT TERM
 native="$scratch/libwebp_decode_bench"
 cc -O3 -I"$oracle/src" "$root/tools/libwebp_decode_bench.c" \
   "$oracle/build/libwebp.a" -o "$native"
-cargo build --release -p webp --example decode_bench --manifest-path "$root/webp-rs/Cargo.toml"
-rust="$root/target/release/examples/decode_bench"
+run_rust() {
+  cargo run --release -p webp --example decode_bench \
+    --manifest-path "$root/webp-rs/Cargo.toml" -- "$iterations" "$@"
+}
 
 echo "oracle_commit=$actual_commit sources=$source_count streams=$actual_count"
 echo "aggregate (all cwebp methods)"
 all_inputs=("$output_root"/*.webp)
 "$native" "$iterations" "${all_inputs[@]}"
-"$rust" "$iterations" "${all_inputs[@]}"
+run_rust "${all_inputs[@]}"
 
 for method in 0 3 6; do
   echo "method=$method"
   method_inputs=("$output_root"/*-m"$method".webp)
   "$native" "$iterations" "${method_inputs[@]}"
-  "$rust" "$iterations" "${method_inputs[@]}"
+  run_rust "${method_inputs[@]}"
 done

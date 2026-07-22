@@ -20,6 +20,18 @@ labelled complete.
    allocation, peak retained working data, and the top CPU or allocation
    hotspots. New limits must be exercised by tests.
 
+Before a full benchmark, run the lightweight runner smoke check:
+
+```sh
+bash tools/benchmark-smoke.sh
+```
+
+It validates benchmark script syntax, rejects manually resolved Cargo target
+paths, builds every Rust benchmark example, and runs each locally
+self-contained example once. CI runs the same smoke check; full corpus
+measurements remain separate because they require pinned external data and
+measure performance rather than correctness.
+
 When a pinned oracle exists, the performance report must also include an
 in-process comparison using equivalent decode work. Matching the oracle's
 throughput is not an automatic requirement, but any material gap must have an

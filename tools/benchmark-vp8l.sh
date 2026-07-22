@@ -37,6 +37,6 @@ trap 'rm -rf "$scratch"' EXIT
 native="$scratch/libwebp_decode_bench"
 cc -O3 -I"$oracle/src" "$root/tools/libwebp_decode_bench.c" \
   "$oracle/build/libwebp.a" -o "$native"
-cargo build --release -p webp --example decode_bench --manifest-path "$root/webp-rs/Cargo.toml"
-"$root/target/release/examples/decode_bench" "$iterations" "${inputs[@]}"
+cargo run --release -p webp --example decode_bench \
+  --manifest-path "$root/webp-rs/Cargo.toml" -- "$iterations" "${inputs[@]}"
 "$native" "$iterations" "${inputs[@]}"
