@@ -160,7 +160,9 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 
 ### 进行中的 latest-main 编码优化
 
-E38 已关闭；下一棵实验树必须从包含本行和 E38 完整证据的届时最新本地 `main` 创建，并在此处登记后再进入实现。
+| 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
+| --- | --- | --- | --- | --- |
+| P14 | frequency-owned spatial clustering / exact marginal-mode signature | `codex/vp8l-frequency-owned-clustering`；`3474599d89804cb91357788e967826544903011c` | [6d5d](</Users/lance/.codex/worktrees/6d5d/webp>)；task `019f8960-1a51-75a3-aec4-f99a1e7fb5de`；结果目录 `experiments/vp8l-frequency-owned-clustering` | 创建时 worktree HEAD/local main/merge-base 已精确相等；先用 per-block exact frequencies 删除四路 Boyer–Moore census，41 图同 binary 要求双档 encode >=10%、0/41 回退、bytes <=+0.25% aggregate/+2% 单图、Rust/C decode <=+1%、RSS <=64 MiB/5%，全部通过才进 102×5 |
 
 ## 每次优化的结果与结论
 
