@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	decode	1	low-latency-frequency-owned	clic-validation-000	49597333	12192768	8066938	464ce5db301ecb19
+measurement	decode	1	low-latency-frequency-owned	clic-validation-001	37206375	9437184	6316134	ac6ff401cad1e56a
+measurement	decode	1	low-latency-frequency-owned	clic-validation-002	37071708	9437184	6018478	53073efbc9fbc324
+measurement	decode	1	low-latency-frequency-owned	clic-validation-003	37497542	9437184	6207232	2d0e74cba29a55a5
+measurement	decode	1	low-latency-frequency-owned	clic-validation-004	36800166	9437184	5448696	4545a7582ba384f7
+measurement	decode	1	low-latency-frequency-owned	clic-validation-005	37942208	9437184	5440792	d810c411c455be8c
+measurement	decode	1	low-latency-frequency-owned	clic-validation-006	36684375	9437184	5168234	f1f4f6e7dfa0083f
+measurement	decode	1	low-latency-frequency-owned	clic-validation-007	48037208	12192768	8167260	228a2c6b57b23249
+measurement	decode	1	low-latency-frequency-owned	clic-validation-008	30671083	7902720	4613778	dec398a774c113a2
+measurement	decode	1	low-latency-frequency-owned	clic-validation-009	31331833	7902720	5163514	6bc0d1593454772e
+measurement	decode	1	low-latency-frequency-owned	clic-validation-010	25631333	6441528	4205568	c9e307df409044b5
+measurement	decode	1	low-latency-frequency-owned	clic-validation-011	12490875	3011904	2025816	209831bda5d4627c
+measurement	decode	1	low-latency-frequency-owned	clic-validation-012	31302833	7990272	4944876	3670defafa50ea4e
+measurement	decode	1	low-latency-frequency-owned	clic-validation-013	31431334	7990272	5094868	1cd21726ef8f533f
+measurement	decode	1	low-latency-frequency-owned	clic-validation-014	33028834	7990272	5413832	c2a93c8908bfb686
+measurement	decode	1	low-latency-frequency-owned	clic-validation-015	31455792	7990272	5711100	c250b581a7aef503
+measurement	decode	1	low-latency-frequency-owned	clic-validation-016	32316708	7990272	4753110	93bac67a01bb76e9
+measurement	decode	1	low-latency-frequency-owned	clic-validation-017	48497250	12192768	6845600	5976bb2cf09b055b
+measurement	decode	1	low-latency-frequency-owned	clic-validation-018	31481917	7990272	5034674	01f4dfd39c9dcea8
+measurement	decode	1	low-latency-frequency-owned	clic-validation-019	31351625	7990272	5107722	baa5e95011876f48
+measurement	decode	1	low-latency-frequency-owned	clic-validation-020	36861250	9445376	6393320	dc09bc9dbb42193d
+measurement	decode	1	low-latency-frequency-owned	clic-validation-021	31207833	7834368	4818636	f6f48492d10740e0
+measurement	decode	1	low-latency-frequency-owned	clic-validation-022	36666042	9445376	5598040	09fa4e4fe6aa63d6
+measurement	decode	1	low-latency-frequency-owned	clic-validation-023	37333125	9445376	5834050	f8a29bed56822898
+measurement	decode	1	low-latency-frequency-owned	clic-validation-024	48266584	12192768	7434726	c4f8779afc3c9993
+measurement	decode	1	low-latency-frequency-owned	clic-validation-025	47609542	12192768	7956848	726fd24483d342a3
+measurement	decode	1	low-latency-frequency-owned	clic-validation-026	51345667	12451840	8267712	9c668909712280e2
+measurement	decode	1	low-latency-frequency-owned	clic-validation-027	46714125	11968000	7135708	6d7a3d538daf3164
+measurement	decode	1	low-latency-frequency-owned	clic-validation-028	50733541	11968000	7338048	6ac585fda881c351
+measurement	decode	1	low-latency-frequency-owned	clic-validation-029	46689042	12192768	6260622	df06568e13cc5010
+measurement	decode	1	low-latency-frequency-owned	clic-validation-030	46673792	11968000	8571114	aaa1f8d564d01733
+measurement	decode	1	low-latency-frequency-owned	clic-validation-031	48269625	12192768	7252942	13b35a79be3ad589
+measurement	decode	1	low-latency-frequency-owned	clic-validation-032	47246458	12192768	6909344	501e9493c3e82317
+measurement	decode	1	low-latency-frequency-owned	clic-validation-033	48331417	12192768	8502288	89041b7b8d7ab9ff
+measurement	decode	1	low-latency-frequency-owned	clic-validation-034	47983375	12289728	8333568	9ab537cee8a6f725
+measurement	decode	1	low-latency-frequency-owned	clic-validation-035	47702542	12289728	8255042	1c7cba4a5059cb2d
+measurement	decode	1	low-latency-frequency-owned	clic-validation-036	49572292	12289728	7596726	8a82094490cf3de6
+measurement	decode	1	low-latency-frequency-owned	clic-validation-037	49909042	12289728	7962198	3a910c171731cab6
+measurement	decode	1	low-latency-frequency-owned	clic-validation-038	47813625	12192768	8136526	ad437832dec9a2fb
+measurement	decode	1	low-latency-frequency-owned	clic-validation-039	47039708	12192768	7122814	79092bf051e7b7fa
+measurement	decode	1	low-latency-frequency-owned	clic-validation-040	48313125	12192768	7317914	f1cedda480b841a2
+aggregate	decode	1	low-latency-frequency-owned	41	1654849583	417812344	262746408	cdeaade87abac151
+test encoder::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 1.69s
+

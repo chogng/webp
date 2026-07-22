@@ -111,7 +111,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 
 ## 与本任务关联的工作树索引
 
-根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 38 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断或通过实验 gate 后另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
+根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 39 个 VP8L/FDEC 实验、验证与产品迁移任务；更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断或通过实验 gate 后另建 latest-main 产品迁移树，两棵树分别登记，避免把诊断提交误认成产品 HEAD。
 
 | ID | 实验 | 分支 / HEAD | 实验 base | 当前工作树与结果 | 决定 |
 | --- | --- | --- | --- | --- | --- |
@@ -153,16 +153,17 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 | E36 | packed token writer 实验 | `codex/vp8l-packed-token-writer@6000af0a`；候选 `dfc0cf6f`；证据 `1f8635c1` | `7eca2b83` | [report](</Users/lance/.codex/worktrees/b8f0/webp/experiments/vp8l-packed-token-writer/REPORT.md>)；[raw/reproducer](</Users/lance/.codex/worktrees/b8f0/webp/experiments/vp8l-packed-token-writer>)；[b8f0](</Users/lance/.codex/worktrees/b8f0/webp>)；task `019f8890-c433-7013-b862-00f8c5f4221a` | **通过实验 gate**：最终 binary 上 Compact/LowLatency -27.657%/-28.119%，306/306 byte identity 与双 decoder exact，转 latest-main 产品迁移 |
 | E37 | packed token writer 产品迁移 | `codex/vp8l-packed-writer-product@a7cde726`；代码 `9435fbd0`；证据 `a7cde726` | `0ee428dc` | [report](../../experiments/vp8l-packed-writer-product/REPORT.md)；[raw/reproducer](../../experiments/vp8l-packed-writer-product)；[5e00](</Users/lance/.codex/worktrees/5e00/webp>)；task `019f88d1-ed7a-7573-8898-d78525870e70` | **已线性迁入 main**：代码 `b3b96fdc`、证据 `80113c1e`、whitespace policy `fabcbf9c`；两档 -27.005%/-26.561%，latest-main/E36 各 306/306 byte identity 与双 decoder exact |
 | E38 | 流式 tokenization + spatial sufficient statistics | `codex/vp8l-streaming-spatial-plan@d2207f45`；S+C `daadb6f1`；F `f5e5bee5`；修正 `815df546`；诊断 `292c1d74`；证据 `a2295c3d` | `cec68762` | [report](../../experiments/vp8l-streaming-spatial-plan/REPORT.md)；[raw/reproducer](../../experiments/vp8l-streaming-spatial-plan)；[25a6](</Users/lance/.codex/worktrees/25a6/webp>)；task `019f8915-45d9-7a90-a843-4d0062ade22b` | **拒绝，不迁移代码**：修正版 S+C+F 两档 -2.658%/-3.191%，最强 materialized C+F -5.899%/-3.520%，均未过双档 10%/零回退 gate；306/306 byte identity、918/918 pinned C exact；完整负证据归档 main |
+| E39 | frequency-owned spatial clustering | `codex/vp8l-frequency-owned-clustering@3468fcff`；E `c38e98aa`；对称 A/B `6703a163`；B `2d529c33`；报告 `bb7002e9`；checksum `3468fcff` | `3474599d` | [report](../../experiments/vp8l-frequency-owned-clustering/REPORT.md)；[raw/reproducer](../../experiments/vp8l-frequency-owned-clustering)；[6d5d](</Users/lance/.codex/worktrees/6d5d/webp>)；task `019f8960-1a51-75a3-aec4-f99a1e7fb5de` | **拒绝，不迁移代码**：E 两档 encode -34.540%/-36.188% 但 aggregate bytes +0.423%/+0.388%、各 8/41 超 +2%；B 的 102 图 rate 仍 +0.389%/+0.419%；918/918 双 decoder exact，未过 rate gate，故不跑 formal |
 
 ### latest-main 迁移链
 
-E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08，最终作为 E33 线性迁入 main。P09/E34 又从创建时最新 `main@5362912a23a39175758796e07f45af3ee79143b1` 独立建树；通过 25% gate 后，没有直接把研究树合入，而是从届时最新 `main@130aa1f347ae1193463f35205b5bd98b4031bc7c` 新建 E35，重新理解并迁移最小产品实现。E35 最终作为 `97d6f1f4`/`00f02468`/`61aa5899` 线性进入 main。P11/E36 则从创建时最新 `main@7eca2b83c2b9338ab4f15a58755e6e0acc970bf0` 独立建树；研究树已证明 packed token writer 的端到端收益和 wire identity，但没有把 census/phase instrumentation 带进产品。P12/E37 随后从创建时最新 `main@0ee428dc0bee9c035f051b4ccaa846dabe394ca8` 新建独立产品树，重建最小 packet sink；产品代码、完整证据和 raw whitespace policy 已分别作为 `b3b96fdc`/`80113c1e`/`fabcbf9c` 线性迁入 main。P13/E38 从创建时最新 `main@cec68762e5ab6184bce275aeff5720ba3e6f96c7` 独立建树；它通过完整 screen 和复现证明“只融合 pass”不足以过 10% gate，因此没有 rebase、没有产品迁移，只把报告、raw 与复现器归档进 main。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
+E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438c2a891e96fb` 建树；E32 通过后没有直接合入，而是按规则从届时最新 `main@52c6b8fc64cd86b4fccd0f30fb996d825a6dd2ec` 新建 P08，最终作为 E33 线性迁入 main。P09/E34 又从创建时最新 `main@5362912a23a39175758796e07f45af3ee79143b1` 独立建树；通过 25% gate 后，没有直接把研究树合入，而是从届时最新 `main@130aa1f347ae1193463f35205b5bd98b4031bc7c` 新建 E35，重新理解并迁移最小产品实现。E35 最终作为 `97d6f1f4`/`00f02468`/`61aa5899` 线性进入 main。P11/E36 则从创建时最新 `main@7eca2b83c2b9338ab4f15a58755e6e0acc970bf0` 独立建树；研究树已证明 packed token writer 的端到端收益和 wire identity，但没有把 census/phase instrumentation 带进产品。P12/E37 随后从创建时最新 `main@0ee428dc0bee9c035f051b4ccaa846dabe394ca8` 新建独立产品树，重建最小 packet sink；产品代码、完整证据和 raw whitespace policy 已分别作为 `b3b96fdc`/`80113c1e`/`fabcbf9c` 线性迁入 main。P13/E38 从创建时最新 `main@cec68762e5ab6184bce275aeff5720ba3e6f96c7` 独立建树；它通过完整 screen 和复现证明“只融合 pass”不足以过 10% gate，因此没有 rebase、没有产品迁移，只把报告、raw 与复现器归档进 main。P14/E39 从创建时最新 `main@3474599d89804cb91357788e967826544903011c` 独立建树；后续 main 前进时保留原 base 和完整实验链。它证明 exact-frequency ownership 可删除主导 census 成本，但 E/B 都未过 rate gate，因此同样不 rebase、不迁移研究代码，只把报告、raw、失效运行和复现器归档进 main。远端 `origin/main@5e54dd3` 仍是旧祖先，不得用于替换本地基线。
 
 ### 进行中的 latest-main 编码优化
 
 | 暂存 ID | 假设 | 分支 / base | 工作树 / task | 当前 gate |
 | --- | --- | --- | --- | --- |
-| P14 | frequency-owned spatial clustering / exact marginal-mode signature | `codex/vp8l-frequency-owned-clustering`；`3474599d89804cb91357788e967826544903011c` | [6d5d](</Users/lance/.codex/worktrees/6d5d/webp>)；task `019f8960-1a51-75a3-aec4-f99a1e7fb5de`；结果目录 `experiments/vp8l-frequency-owned-clustering` | 创建时 worktree HEAD/local main/merge-base 已精确相等；先用 per-block exact frequencies 删除四路 Boyer–Moore census，41 图同 binary 要求双档 encode >=10%、0/41 回退、bytes <=+0.25% aggregate/+2% 单图、Rust/C decode <=+1%、RSS <=64 MiB/5%，全部通过才进 102×5 |
+| — | 当前无进行中实验 | 下一棵必须从归档 E39 后的届时最新 local `main` 创建 | 待创建时回填 branch/worktree/task/base | 禁止从 P14 研究 HEAD 直接续做或带入其 instrumentation |
 
 ## 每次优化的结果与结论
 
@@ -494,18 +495,30 @@ E31/E32 均从各自创建时最新的本地 `main@11f6f669215479848628c1bdcd438
 - E37 相对 E33 已改善 46.320%/46.406%；叠加修正版 S+C+F 只投影到 47.747%/48.116%，叠加最强诊断也只到 49.487%/48.293%，都不能声称超过 50%。结论是“删除 pass 本身不够，必须删除或根本改变统计更新成本”；不建产品迁移树，不把研究 hooks 合入生产。
 - 分支 `codex/vp8l-streaming-spatial-plan`：base `cec68762`，S+C `daadb6f1`，F `f5e5bee5`，修正 `815df546`，最终诊断 `292c1d74`，证据 `a2295c3d`，最终 HEAD `d2207f45`；工作树 [25a6](</Users/lance/.codex/worktrees/25a6/webp>)，task `019f8915-45d9-7a90-a843-4d0062ade22b`，[完整报告与复现器](../../experiments/vp8l-streaming-spatial-plan/REPORT.md)。
 
+### E39：frequency-owned spatial clustering
+
+优化点：让每个 spatial block 直接拥有最终 entropy group 所需的 1,049 个 exact counter，从计数派生类簇签名并 merge group frequencies，从而删除四路分支密集的 ordered Boyer–Moore census 和第二次 group-frequency token scan。Compact 用 `u16`，LowLatency 用 `u32`，都覆盖其 block 内最大 token-start 数。
+
+- Phase A 的 102 图对称 A/B 路径先修正了一个重要偏置：ordered control 和 exact-frequency candidate 共享 prepare、exact-cost `SinglePlan`、strict fallback、candidate writer 和 packed writer，只改变 `SpatialPlan` 构建。修正后 Compact/LowLatency 的 ordered product 为 7.693/7.534 s，E/exact-symbol 为 4.742/4.548 s，改善 **38.357%/39.630%**；counter update 只占 0.690/0.687 s，证明新统计所有权模型成立。
+- E 的 41 图同 binary 交错 screen：Compact 3.541526 -> **2.318275 s**（-34.540%），LowLatency 3.501564 -> **2.234421 s**（-36.188%），两档都是 0/41 编码回退。但 aggregate bytes 增加 0.423%/0.388%，最差单图 +5.841%/+5.058%，两档各有 8/41 超过 +2%，因而在高速度收益下仍硬性失败 rate gate。
+- 唯一允许的 B 检查点不再搜参：将每通道 256 个 exact count 固定汇总成 8 个 32-symbol bin，取最大质量 bin。102 图 rate 预检查仍为 Compact +0.389%、LowLatency +0.419%，分别 15/102 和 14/102 超 +2%，最差 +6.422%/+7.503%。因此 B 不跑 screen，不允许第三种 signature，两个候选均未进 102×5 formal。
+- Default 在 base/E37/P14-B 三个 archive 之间 102/102 全字节一致；Default/Compact/LowLatency 共 918/918 通过项目 decoder 与 pinned libwebp `733c91e` 完整 RGBA exact。七项 stable 质量门坎全通过；release rlib +37,736 B，研究 test binary +55,856 B。最坏 16384² 的 exact counters 为 32.781/16.391 MiB，screen RSS 为 +0.118%/-1.965%，内存不是拒绝原因。
+- 两个失效运行也被保留：早期 verifier 错误要求 fast-profile byte identity，以及一次 rustdoc shell 引号错误。它们都未开始或未正确表达目标验证，不影响 codec 正确性结论。一键复现已实际 exit 0，仓库内 `SHA256SUMS` 覆盖除自身外的 147 个最终文件并已全部校验。
+- E 若只用 screen 比例叠加 E37，会得到相对 E33 的 64.861%/65.801% 投影；它不是 formal 测量，且候选未过 rate gate，所以不进顶部性能表、不声称产品突破。产品决策是拒绝 E/B 代码，仅保留“exact-frequency ownership 足够快，但 assignment objective 必须改变”这一架构结论。
+- 分支 `codex/vp8l-frequency-owned-clustering`：base `3474599d`，E `c38e98aa`，对称 A/B `6703a163`，Phase A `9832274c`，B `2d529c33`，报告 `bb7002e9`，最终 checksum/HEAD `3468fcff`；工作树 [6d5d](</Users/lance/.codex/worktrees/6d5d/webp>)，task `019f8960-1a51-75a3-aec4-f99a1e7fb5de`，[完整报告与复现器](../../experiments/vp8l-frequency-owned-clustering/REPORT.md)。
+
 ## 下一阶段：优先寻找更强且更通用的新架构
 
 标准 VP8L 的局部优化已经给出一致信号：Huffman、predictor、LZ77、PGO、单个 copy kernel 各自只有个位数收益或以明显 rate/latency 回退换取收益。后续优先级应从“继续打磨一个旧循环”转向能够同时改变表示、依赖图和输出流水线的架构方案。
 
-### 第一优先：frequency-owned spatial clustering
+### 第一优先：exact-cost multi-proposal + entropy-aware histogram refinement
 
-- E38 证明，census 的 2.50–2.53 s 主要不是“读一遍 token”的成本，而是每个 literal 同步执行四套分支密集型 ordered Boyer–Moore 更新；简单把它挪进 producer，收益会被同样的统计工作吞掉。下一假设因此改变统计所有权：每 block 只维护最终 group entropy 本来就需要的 exact frequencies，再从这些计数派生确定性的通道 mode/signature，完全删除独立 ordered census 及其四路 candidate/balance 状态。
-- 第一变体只做 exact marginal-mode signature：green/red/blue/alpha 各取频率最大、同频最小 symbol，并沿用现有 seed rank、assignment、group cap、map/table/writer。第二变体只有在第一变体已证明成本模型成立但 rate 不理想时，才允许用固定维度 frequency sketch 直接分配；不得把两种聚类算法混成一个无法归因的结果。
-- 这是允许改变 Compact/LowLatency 标准 VP8L 字节流的研究，不再把与 E37 byte identity 当成性能前提；但 Default 必须逐字节不变，所有候选必须由项目 decoder 与 pinned libwebp 完整 RGBA exact。必须同时报告编码时间、压缩 bytes、Rust/C 解码时间和每图尾部，避免用明显 rate 或 decode 回退换取表面 encode 提升。
-- 41 图同 binary screen 的预声明 gate：Compact/LowLatency 编码都至少改善 10%；aggregate bytes 各不劣于 E37 0.25%，任一图不劣于 2%；Rust 与 pinned C decode 各不回退超过 1%；额外 RSS 不超过 64 MiB/5%。达到后才运行 102 图五轮，并要求双档绝对中位不高于 7.1/6.9 s、每图编码中位 0/102 回退。
-- Phase A 必须先离线重放 E38 的 token/block statistics，量化 exact mode 与 Boyer–Moore signature/assignment 的差异、预计 rate、统计更新次数、counter init/merge 与可回收上界。若 exact-frequency 更新本身仍吃掉收益，应停止，不把 branchless/SIMD 微调伪装成架构成功。
-- 研究继续保持 safe、单线程、无新增依赖，不改变公开 API、Default、metadata、animation、错误语义和标准 VP8L 兼容性；通过研究 gate 后仍从届时最新 `main` 另建最小产品迁移树。
+- E39 已把问题分成两层：exact-frequency ownership 让统计/聚类路径快 38%以上，失败点不在 counter 成本，而在 dominant-symbol/coarse-bin 距离不是真正的码率目标。下一架构保留快的计数所有权，但不再发明第三种 mode signature；分配直接优化各 block exact counts 在 group Huffman code lengths 下的 weighted bit cost。
+- 先用同一份 exact counters 便宜构建 E/exact-symbol 和 B/coarse-bin-mass 两个 proposal，精确计算它们的 group-map、五组 table header、weighted payload 和 RIFF padding，不序列化两份主 token stream。从精确成本更低者出发，只做一次固定 Lloyd-style 重分配：以已建 group code lengths 作模型，将每个 block 分给 weighted bit cost 最小的 group，然后只重建一次 frequencies/tables。最后在 E、B、refined 与 exact single 间做精确选择，只写一份胜出流；不做参数扫描或多轮迭代。
+- E39 已有一个明确但**不可部署**的离线上界：对已生成的 E/B 完整流按图取实际较小者，Compact 相对 ordered 为 -0.099788%（E/B 分别胜 52/50 图），LowLatency 为 -0.049311%（53/49）。这证明两个 proposal 的误差互补，但它使用了已输出 bytes，且仍有 11/102 和 9/102 单图超 +2%，不是 selector 成绩；P15 必须用编码时可得的精确成本复现选择，并靠 rate-aware refinement 修复尾部。
+- Phase A 先在锁定 102 图上证明：精确成本与实际输出逐位一致；E/B selector 命中离线较小流；一次 refinement 同时改善 aggregate 和单图尾部；并分开报告 counter、proposal、costing、reassignment、rebuild 的时间/内存。任一精确性不成立或双档 bytes 未改善，就在 Phase A 停止并归档，不用第二套 heuristic 补考。
+- 41 图同 binary screen 的预声明 gate：Compact/LowLatency 编码各至少改善 10%且 0/41 逐图回退；aggregate bytes 各不大于 E37，任一图不劣于 +2%；Rust 与 pinned C decode 各不回退超过 1%；额外 RSS 不超过 64 MiB/5%。全部达到后才运行 102 图五轮，并要求双档绝对中位不高于 7.1/6.9 s、0/102 逐图回退。
+- 本地 pinned `../libwebp/src/enc/histogram_enc.c` 作为算法参考：它先拥有 exact block histograms，再以 entropy/combined histogram cost 合并和 remap，而不是用 dominant mode 代替码率。P15 只借用这个不变量，不直译 C 的 stochastic/greedy 管线，以便保持 safe、单线程、无新依赖和可归因的一次 refinement。Default、公开 API、metadata、animation、错误语义与 VP8L 兼容性不变；通过研究 gate 后仍从届时 latest `main` 另建最小产品迁移树。
 
 ### 第二优先：统一的 Fast Representation v2
 

@@ -1,0 +1,30 @@
+{
+  "binaries": {
+    "base": {
+      "label": "base-3474599d",
+      "path": "/private/tmp/p14-final-identity/base-target/release/deps/webp-018635ace19b190c",
+      "sha256": "2ee548579cf0489caf2c7eab884cf4febdbaae623b82497ce9ee427bedbfec0e"
+    },
+    "control": {
+      "label": "e37-b3b96fdc",
+      "path": "/private/tmp/p14-final-identity/control-target/release/deps/webp-018635ace19b190c",
+      "sha256": "2f362a34b20c0e2966d9e20427cc5002b56ea8ef69610f429b3664433f668f75"
+    },
+    "candidate": {
+      "label": "p14b-2d529c33",
+      "path": "/private/tmp/p14-final-identity/candidate-target/release/deps/webp-018635ace19b190c",
+      "sha256": "a80a6057dc6f4cc40ab2a3c29ad287897a5270099b8ee4dcad107ce7dc906304"
+    }
+  },
+  "corpus": "/Users/lance/Desktop/webp/third_party/benchdata/clic/vp8l-lossless-exact",
+  "oracle_binary": "/private/tmp/p14-final-identity/libwebp-compare",
+  "oracle_binary_sha256": "f7396d503fb343bd57d3848d0ce04b87f3485322fce6b0b912dda45ecf5ecb6e",
+  "layouts": [
+    "default",
+    "compact",
+    "low-latency"
+  ],
+  "identity_requirement": "Default only; fast profiles may change standard VP8L bytes",
+  "project_decoder": "generation validates complete RGBA before writing every stream",
+  "oracle_decoder": "pinned libwebp WebPDecodeRGBA"
+}

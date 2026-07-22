@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-000	49943542	12192768	8259942	464ce5db301ecb19
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-001	37046209	9437184	6309214	ac6ff401cad1e56a
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-002	36914333	9437184	5942826	53073efbc9fbc324
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-003	38300125	9437184	6126922	2d0e74cba29a55a5
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-004	36931791	9437184	5437070	4545a7582ba384f7
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-005	36619416	9437184	5390698	d810c411c455be8c
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-006	37018583	9437184	5209140	f1f4f6e7dfa0083f
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-007	47675125	12192768	8112576	228a2c6b57b23249
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-008	30857000	7902720	4391630	dec398a774c113a2
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-009	30768417	7902720	5114026	6bc0d1593454772e
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-010	25454125	6441528	4032212	c9e307df409044b5
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-011	12474333	3011904	2023660	209831bda5d4627c
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-012	33071750	7990272	5008486	3670defafa50ea4e
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-013	31701958	7990272	5153972	1cd21726ef8f533f
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-014	31416208	7990272	5386808	c2a93c8908bfb686
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-015	31290292	7990272	5684412	c250b581a7aef503
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-016	31632250	7990272	4701704	93bac67a01bb76e9
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-017	50428750	12192768	6719656	5976bb2cf09b055b
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-018	33264292	7990272	5118420	01f4dfd39c9dcea8
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-019	33016833	7990272	5108948	baa5e95011876f48
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-020	38501583	9445376	6430820	dc09bc9dbb42193d
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-021	32048292	7834368	4693378	f6f48492d10740e0
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-022	39777959	9445376	5628318	09fa4e4fe6aa63d6
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-023	38554917	9445376	5979252	f8a29bed56822898
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-024	48587125	12192768	7363364	c4f8779afc3c9993
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-025	49332334	12192768	8063140	726fd24483d342a3
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-026	52245125	12451840	8349358	9c668909712280e2
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-027	48940916	11968000	7076126	6d7a3d538daf3164
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-028	48257750	11968000	7360348	6ac585fda881c351
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-029	47892875	12192768	6030840	df06568e13cc5010
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-030	47736375	11968000	8705786	aaa1f8d564d01733
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-031	51543833	12192768	7277258	13b35a79be3ad589
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-032	49707584	12192768	6987574	501e9493c3e82317
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-033	51033125	12192768	8431672	89041b7b8d7ab9ff
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-034	52148042	12289728	8475800	9ab537cee8a6f725
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-035	50276417	12289728	8055284	1c7cba4a5059cb2d
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-036	51098375	12289728	7368046	8a82094490cf3de6
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-037	51360166	12289728	7805588	3a910c171731cab6
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-038	48933958	12192768	8129706	ad437832dec9a2fb
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-039	48649750	12192768	7174990	79092bf051e7b7fa
+measurement	decode	2	low-latency-ordered-product-control	clic-validation-040	49081500	12192768	7112000	f1cedda480b841a2
+aggregate	decode	2	low-latency-ordered-product-control	41	1692343125	417812344	261730970	cdeaade87abac151
+test encoder::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 1.72s
+

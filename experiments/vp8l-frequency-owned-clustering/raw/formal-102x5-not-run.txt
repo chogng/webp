@@ -1,0 +1,4 @@
+status=not_run
+reason=exact-symbol failed the 41-image aggregate and per-image rate gates; coarse-bin-mass failed the 102-image rate prescreen
+gate_changed=false
+formal_results_claimed=false

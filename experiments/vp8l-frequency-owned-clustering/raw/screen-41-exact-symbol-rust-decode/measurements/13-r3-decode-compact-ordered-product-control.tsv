@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	decode	3	compact-ordered-product-control	clic-validation-000	52744833	12192768	8130642	464ce5db301ecb19
+measurement	decode	3	compact-ordered-product-control	clic-validation-001	39282042	9437184	6257982	ac6ff401cad1e56a
+measurement	decode	3	compact-ordered-product-control	clic-validation-002	38813875	9437184	5799410	53073efbc9fbc324
+measurement	decode	3	compact-ordered-product-control	clic-validation-003	38593625	9437184	6050450	2d0e74cba29a55a5
+measurement	decode	3	compact-ordered-product-control	clic-validation-004	38327250	9437184	5328258	4545a7582ba384f7
+measurement	decode	3	compact-ordered-product-control	clic-validation-005	37710458	9437184	5539552	d810c411c455be8c
+measurement	decode	3	compact-ordered-product-control	clic-validation-006	38138959	9437184	5188746	f1f4f6e7dfa0083f
+measurement	decode	3	compact-ordered-product-control	clic-validation-007	49902875	12192768	7922454	228a2c6b57b23249
+measurement	decode	3	compact-ordered-product-control	clic-validation-008	31949125	7902720	4327522	dec398a774c113a2
+measurement	decode	3	compact-ordered-product-control	clic-validation-009	32113125	7902720	5063414	6bc0d1593454772e
+measurement	decode	3	compact-ordered-product-control	clic-validation-010	26403667	6441528	3997470	c9e307df409044b5
+measurement	decode	3	compact-ordered-product-control	clic-validation-011	13186916	3011904	1961344	209831bda5d4627c
+measurement	decode	3	compact-ordered-product-control	clic-validation-012	32643750	7990272	4891824	3670defafa50ea4e
+measurement	decode	3	compact-ordered-product-control	clic-validation-013	33019042	7990272	5058144	1cd21726ef8f533f
+measurement	decode	3	compact-ordered-product-control	clic-validation-014	33574125	7990272	5293592	c2a93c8908bfb686
+measurement	decode	3	compact-ordered-product-control	clic-validation-015	33479292	7990272	5656200	c250b581a7aef503
+measurement	decode	3	compact-ordered-product-control	clic-validation-016	32647625	7990272	4555750	93bac67a01bb76e9
+measurement	decode	3	compact-ordered-product-control	clic-validation-017	49926125	12192768	6691500	5976bb2cf09b055b
+measurement	decode	3	compact-ordered-product-control	clic-validation-018	32461333	7990272	5115144	01f4dfd39c9dcea8
+measurement	decode	3	compact-ordered-product-control	clic-validation-019	32657916	7990272	5039696	baa5e95011876f48
+measurement	decode	3	compact-ordered-product-control	clic-validation-020	39137708	9445376	6358216	dc09bc9dbb42193d
+measurement	decode	3	compact-ordered-product-control	clic-validation-021	32191708	7834368	4565070	f6f48492d10740e0
+measurement	decode	3	compact-ordered-product-control	clic-validation-022	38332959	9445376	5628196	09fa4e4fe6aa63d6
+measurement	decode	3	compact-ordered-product-control	clic-validation-023	41942500	9445376	5856188	f8a29bed56822898
+measurement	decode	3	compact-ordered-product-control	clic-validation-024	49673917	12192768	7349344	c4f8779afc3c9993
+measurement	decode	3	compact-ordered-product-control	clic-validation-025	50008750	12192768	7869586	726fd24483d342a3
+measurement	decode	3	compact-ordered-product-control	clic-validation-026	53235958	12451840	8259084	9c668909712280e2
+measurement	decode	3	compact-ordered-product-control	clic-validation-027	48330125	11968000	6933844	6d7a3d538daf3164
+measurement	decode	3	compact-ordered-product-control	clic-validation-028	48179500	11968000	7265392	6ac585fda881c351
+measurement	decode	3	compact-ordered-product-control	clic-validation-029	48247166	12192768	6107890	df06568e13cc5010
+measurement	decode	3	compact-ordered-product-control	clic-validation-030	49147875	11968000	8257108	aaa1f8d564d01733
+measurement	decode	3	compact-ordered-product-control	clic-validation-031	49314458	12192768	7174330	13b35a79be3ad589
+measurement	decode	3	compact-ordered-product-control	clic-validation-032	49848667	12192768	6915788	501e9493c3e82317
+measurement	decode	3	compact-ordered-product-control	clic-validation-033	49606666	12192768	8462362	89041b7b8d7ab9ff
+measurement	decode	3	compact-ordered-product-control	clic-validation-034	50467917	12289728	8425850	9ab537cee8a6f725
+measurement	decode	3	compact-ordered-product-control	clic-validation-035	50009500	12289728	8124282	1c7cba4a5059cb2d
+measurement	decode	3	compact-ordered-product-control	clic-validation-036	50556958	12289728	7281758	8a82094490cf3de6
+measurement	decode	3	compact-ordered-product-control	clic-validation-037	49871667	12289728	7772372	3a910c171731cab6
+measurement	decode	3	compact-ordered-product-control	clic-validation-038	49529875	12192768	8140256	ad437832dec9a2fb
+measurement	decode	3	compact-ordered-product-control	clic-validation-039	49047959	12192768	7163302	79092bf051e7b7fa
+measurement	decode	3	compact-ordered-product-control	clic-validation-040	49438083	12192768	6948508	f1cedda480b841a2
+aggregate	decode	3	compact-ordered-product-control	41	1714705167	417812344	258727820	cdeaade87abac151
+test encoder::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 1.75s
+

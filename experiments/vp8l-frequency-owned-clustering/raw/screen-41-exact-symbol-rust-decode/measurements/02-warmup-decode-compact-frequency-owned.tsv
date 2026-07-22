@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	decode	warmup	compact-frequency-owned	clic-validation-000	49339500	12192768	7944828	464ce5db301ecb19
+measurement	decode	warmup	compact-frequency-owned	clic-validation-001	36909292	9437184	6244338	ac6ff401cad1e56a
+measurement	decode	warmup	compact-frequency-owned	clic-validation-002	36832833	9437184	5928440	53073efbc9fbc324
+measurement	decode	warmup	compact-frequency-owned	clic-validation-003	36827250	9437184	6125412	2d0e74cba29a55a5
+measurement	decode	warmup	compact-frequency-owned	clic-validation-004	37212667	9437184	5323730	4545a7582ba384f7
+measurement	decode	warmup	compact-frequency-owned	clic-validation-005	36162334	9437184	5536910	d810c411c455be8c
+measurement	decode	warmup	compact-frequency-owned	clic-validation-006	36608541	9437184	5116772	f1f4f6e7dfa0083f
+measurement	decode	warmup	compact-frequency-owned	clic-validation-007	47742917	12192768	8040818	228a2c6b57b23249
+measurement	decode	warmup	compact-frequency-owned	clic-validation-008	30713291	7902720	4563114	dec398a774c113a2
+measurement	decode	warmup	compact-frequency-owned	clic-validation-009	30587292	7902720	5163976	6bc0d1593454772e
+measurement	decode	warmup	compact-frequency-owned	clic-validation-010	25074000	6441528	4141230	c9e307df409044b5
+measurement	decode	warmup	compact-frequency-owned	clic-validation-011	12332792	3011904	1994492	209831bda5d4627c
+measurement	decode	warmup	compact-frequency-owned	clic-validation-012	31461250	7990272	4861530	3670defafa50ea4e
+measurement	decode	warmup	compact-frequency-owned	clic-validation-013	31340625	7990272	5129264	1cd21726ef8f533f
+measurement	decode	warmup	compact-frequency-owned	clic-validation-014	31377208	7990272	5450396	c2a93c8908bfb686
+measurement	decode	warmup	compact-frequency-owned	clic-validation-015	31136334	7990272	5703850	c250b581a7aef503
+measurement	decode	warmup	compact-frequency-owned	clic-validation-016	31162250	7990272	4600084	93bac67a01bb76e9
+measurement	decode	warmup	compact-frequency-owned	clic-validation-017	47102666	12192768	6840198	5976bb2cf09b055b
+measurement	decode	warmup	compact-frequency-owned	clic-validation-018	31085875	7990272	5000332	01f4dfd39c9dcea8
+measurement	decode	warmup	compact-frequency-owned	clic-validation-019	31071084	7990272	5087052	baa5e95011876f48
+measurement	decode	warmup	compact-frequency-owned	clic-validation-020	37026209	9445376	6332178	dc09bc9dbb42193d
+measurement	decode	warmup	compact-frequency-owned	clic-validation-021	30638208	7834368	4742786	f6f48492d10740e0
+measurement	decode	warmup	compact-frequency-owned	clic-validation-022	36781792	9445376	5588206	09fa4e4fe6aa63d6
+measurement	decode	warmup	compact-frequency-owned	clic-validation-023	37162000	9445376	5789544	f8a29bed56822898
+measurement	decode	warmup	compact-frequency-owned	clic-validation-024	47405041	12192768	7362308	c4f8779afc3c9993
+measurement	decode	warmup	compact-frequency-owned	clic-validation-025	47501042	12192768	7972088	726fd24483d342a3
+measurement	decode	warmup	compact-frequency-owned	clic-validation-026	50805667	12451840	8240330	9c668909712280e2
+measurement	decode	warmup	compact-frequency-owned	clic-validation-027	46547708	11968000	7028920	6d7a3d538daf3164
+measurement	decode	warmup	compact-frequency-owned	clic-validation-028	47134875	11968000	7350296	6ac585fda881c351
+measurement	decode	warmup	compact-frequency-owned	clic-validation-029	46946125	12192768	6051300	df06568e13cc5010
+measurement	decode	warmup	compact-frequency-owned	clic-validation-030	47302916	11968000	8343220	aaa1f8d564d01733
+measurement	decode	warmup	compact-frequency-owned	clic-validation-031	47807292	12192768	7252626	13b35a79be3ad589
+measurement	decode	warmup	compact-frequency-owned	clic-validation-032	47976625	12192768	6892440	501e9493c3e82317
+measurement	decode	warmup	compact-frequency-owned	clic-validation-033	48454958	12192768	8163720	89041b7b8d7ab9ff
+measurement	decode	warmup	compact-frequency-owned	clic-validation-034	48426416	12289728	8448768	9ab537cee8a6f725
+measurement	decode	warmup	compact-frequency-owned	clic-validation-035	48106166	12289728	8080180	1c7cba4a5059cb2d
+measurement	decode	warmup	compact-frequency-owned	clic-validation-036	48412666	12289728	7583970	8a82094490cf3de6
+measurement	decode	warmup	compact-frequency-owned	clic-validation-037	48480917	12289728	7615756	3a910c171731cab6
+measurement	decode	warmup	compact-frequency-owned	clic-validation-038	47808125	12192768	7748200	ad437832dec9a2fb
+measurement	decode	warmup	compact-frequency-owned	clic-validation-039	47500459	12192768	7084842	79092bf051e7b7fa
+measurement	decode	warmup	compact-frequency-owned	clic-validation-040	47965833	12192768	7354336	f1cedda480b841a2
+aggregate	decode	warmup	compact-frequency-owned	41	1638956083	417812344	259822780	cdeaade87abac151
+test encoder::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 1.67s
+

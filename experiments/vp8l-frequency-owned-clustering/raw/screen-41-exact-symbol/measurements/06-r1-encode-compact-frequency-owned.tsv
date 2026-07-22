@@ -1,0 +1,48 @@
+
+running 1 test
+measurement	encode	1	compact-frequency-owned	clic-validation-000	62359333	12192768	7944828	98777c21f844d9d6
+measurement	encode	1	compact-frequency-owned	clic-validation-001	44710292	9437184	6244338	e21507b6d9666a10
+measurement	encode	1	compact-frequency-owned	clic-validation-002	42232333	9437184	5928440	12772cb7e6720f81
+measurement	encode	1	compact-frequency-owned	clic-validation-003	44102209	9437184	6125412	0e4dc3668345c12b
+measurement	encode	1	compact-frequency-owned	clic-validation-004	42109875	9437184	5323730	b08b70f0027faf55
+measurement	encode	1	compact-frequency-owned	clic-validation-005	44401834	9437184	5536910	3dbce3016f438a1f
+measurement	encode	1	compact-frequency-owned	clic-validation-006	44606917	9437184	5116772	61112b9f235d97b0
+measurement	encode	1	compact-frequency-owned	clic-validation-007	58792459	12192768	8040818	0466dd83a4d41b38
+measurement	encode	1	compact-frequency-owned	clic-validation-008	38438250	7902720	4563114	e2eaf25d4ee78e71
+measurement	encode	1	compact-frequency-owned	clic-validation-009	37623458	7902720	5163976	4289769d83128c32
+measurement	encode	1	compact-frequency-owned	clic-validation-010	30786292	6441528	4141230	4ac7ca441905c9f4
+measurement	encode	1	compact-frequency-owned	clic-validation-011	14674125	3011904	1994492	aa81037572b046b6
+measurement	encode	1	compact-frequency-owned	clic-validation-012	38674250	7990272	4861530	8cf67892fff1ff32
+measurement	encode	1	compact-frequency-owned	clic-validation-013	37987375	7990272	5129264	8ef16195b061cf81
+measurement	encode	1	compact-frequency-owned	clic-validation-014	38455250	7990272	5450396	e5e9fef799a71a18
+measurement	encode	1	compact-frequency-owned	clic-validation-015	37764458	7990272	5703850	d22d28be901b2fc5
+measurement	encode	1	compact-frequency-owned	clic-validation-016	38014458	7990272	4600084	bd6ae621865cb4e5
+measurement	encode	1	compact-frequency-owned	clic-validation-017	60487834	12192768	6840198	0e5c343b88e6b3d1
+measurement	encode	1	compact-frequency-owned	clic-validation-018	39208291	7990272	5000332	f656d0f55d19d33d
+measurement	encode	1	compact-frequency-owned	clic-validation-019	39433917	7990272	5087052	a8bae37a7b7d870a
+measurement	encode	1	compact-frequency-owned	clic-validation-020	43732791	9445376	6332178	0dacc00f17e0c930
+measurement	encode	1	compact-frequency-owned	clic-validation-021	38052209	7834368	4742786	98845f0b5e3e9f89
+measurement	encode	1	compact-frequency-owned	clic-validation-022	45210083	9445376	5588206	e8074b90fa081156
+measurement	encode	1	compact-frequency-owned	clic-validation-023	45907541	9445376	5789544	6e9f355e1d7d973f
+measurement	encode	1	compact-frequency-owned	clic-validation-024	58767042	12192768	7362308	06b1ae2d870c4d3d
+measurement	encode	1	compact-frequency-owned	clic-validation-025	58506917	12192768	7972088	31e8f9543a958408
+measurement	encode	1	compact-frequency-owned	clic-validation-026	61387583	12451840	8240330	008941c83a8ce71c
+measurement	encode	1	compact-frequency-owned	clic-validation-027	57420792	11968000	7028920	6c356b5eee60c700
+measurement	encode	1	compact-frequency-owned	clic-validation-028	57070959	11968000	7350296	113c95b757baec25
+measurement	encode	1	compact-frequency-owned	clic-validation-029	58145875	12192768	6051300	87f3a490c9f3ba1f
+measurement	encode	1	compact-frequency-owned	clic-validation-030	55413125	11968000	8343220	1b290c0770ffdc2f
+measurement	encode	1	compact-frequency-owned	clic-validation-031	59502042	12192768	7252626	1242563fccb1f1ef
+measurement	encode	1	compact-frequency-owned	clic-validation-032	57653500	12192768	6892440	6e8b15a642f858d3
+measurement	encode	1	compact-frequency-owned	clic-validation-033	56323125	12192768	8163720	32e4c864ad433d5d
+measurement	encode	1	compact-frequency-owned	clic-validation-034	56753166	12289728	8448768	ce4d15d79af8262d
+measurement	encode	1	compact-frequency-owned	clic-validation-035	57754834	12289728	8080180	e2a5baec133fb400
+measurement	encode	1	compact-frequency-owned	clic-validation-036	59580250	12289728	7583970	d09d199309612483
+measurement	encode	1	compact-frequency-owned	clic-validation-037	59190542	12289728	7615756	62feb8e0a8ec1691
+measurement	encode	1	compact-frequency-owned	clic-validation-038	58025000	12192768	7748200	2c486a3d7d65c9bf
+measurement	encode	1	compact-frequency-owned	clic-validation-039	57225833	12192768	7084842	4145559290f63842
+measurement	encode	1	compact-frequency-owned	clic-validation-040	58226209	12192768	7354336	74aa69b62b25961a
+aggregate	encode	1	compact-frequency-owned	41	2301489208	417812344	259822780	014414677cb8d4b7
+test encoder::product_benchmark_tests::product_validation_reproducer ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 37 filtered out; finished in 4.38s
+
