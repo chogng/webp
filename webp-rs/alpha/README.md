@@ -54,6 +54,7 @@ API is the comparison boundary.
 | A09 | ALPH palette co-occurrence ordering：在 <=16 色 palette 上重新分配 index，精确量化 palette delta、packed-symbol table RLE、hash-collision parse 与 partial rows | `codex/alpha-palette-cooccurrence@690dddfd`；analyzer `da28b8c0` | 创建于 `6f2e07fb`；登记后正式完整重跑到 `130aa1f347ae1193463f35205b5bd98b4031bc7c` | [`dda9` worktree](</Users/lance/.codex/worktrees/dda9/webp>)；task `019f8858-35db-7191-8d13-76cffe852420` | structured `138,762 -> 138,718`（**-0.031709%**）；all-41 -0.001068%、real -0.002852%、synthetic 0%；56/56 modeled/project exact、112/112 `dwebp`、零膨胀；报告 `690dddfd:reports/alpha-palette-cooccurrence/README.md` | **phase-A reject / 不实现**；只关闭 structured libwebp 差距的 0.241%，不进入 production/decode timing | 顶部表不变；保留 <=8 穷举、9..16 有界搜索、owner waterfall、26 项 SHA 与正式 raw evidence |
 | A10 | single match frontier + iterative entropy-cost shortest path：一次发现 bounded LZ candidates，在同一 DAG 上重计 Huffman/extra 成本，替代 greedy/RowRLE 双解析 | `codex/alpha-iterative-optimal-parse@1f201d60`；analyzer `f54426ed`；Phase-A evidence `b7e88cb4`；candidate `38632244` | 创建于 `db279a3a`；登记后两次重放，正式基线 `2c87bf27e6093ccbd55f20a71cd8d8bd260fb33a` | [`787b` worktree](</Users/lance/.codex/worktrees/787b/webp>)；task `019f8881-6279-70e2-b72a-6f235661691a` | Phase A structured `138,762 -> 119,593`（**-13.814%**）、29 wins/11 ties/0 expansion；real -45.272%、synthetic -12.735%；168/168 project + `dwebp` exact；报告 `1f201d60:reports/alpha-iterative-optimal-parse/README.md` | **Phase A 通过 / Phase B reject**；corrected production probe ALPH-only **4,832x**、whole 723x、RSS 11.35x 回退；default encoder 不变 | 顶部表不变；保留 K=20 ceiling、RowRLE 同基线对照、default-off production 负证据、raw/hash/gate 日志 |
 | A11 | compact single-best-match traceback：每位置只保留 implicit literal + one-best copy，消除 A10 K-list/depth64 rich discovery | `codex/alpha-compact-traceback@9ee9336c`；analyzer `7fa3d806`；Phase-A evidence `80cd30da`；candidate `4a2d0f19` | 创建于 `ec0e624c`；登记后多次主线前进，最终完整重跑到 `17e4a2b858cabbe567717e4ee8d8f01eabe327bf` | [`9538` worktree](</Users/lance/.codex/worktrees/9538/webp>)；task `019f88c3-301c-7473-a659-4e2584636017` | Phase A 按规则选 R：structured `138,762 -> 120,336`（**-13.279%**），real -13.199%、synthetic -12.405%，336/336 `dwebp` exact；discovery 比 A10 少 98.823%；报告 `9ee9336c:reports/alpha-compact-traceback/README.md` | **Phase A 通过 / Phase B reject**；56/56 production size exact，但 ALPH-only **48.33x**、whole 7.56x、RSS 1.88x 回退；default encoder 不变 | 顶部表不变；保留四 variant ablation、R 固定选择、default-off candidate、final-base raw/hash/gate 日志 |
+| A12 | byte-identical greedy LZ hot loop：safe word-at-a-time LCP 与 rolling 3-byte skipped hashes，保持 hash overwrite、token、Huffman 和输出字节完全不变 | `codex/alpha-byte-identical-greedy-hotloop@a648cbd8`（创建态） | 精确创建于 `a648cbd8b23b323209c6d4d750924eb003bd6a07`；正式数据前必须重放到本登记提交 | [`169c` worktree](</Users/lance/.codex/worktrees/169c/webp>)；task `019f88fd-6e65-7e60-997b-35d1f7712a6d` | 已反向验证 `HEAD == main == merge-base`；预声明 LCP-only / hash-only / combined；先做 ALPH owner census，可信上限不足 10% 即停止 | **进行中 / 尚无 headline**；推广要求正式 ALPH-only >=10% 且全语料、q0/70/99 字节一致 | 本次只登记任务；分支 rebase 后回填 analyzer、raw、正式基线和决定 |
 
 ### A01 / A02 已完成结果明细
 
@@ -642,6 +643,13 @@ edge-class ablation, or activation threshold is not a viable next step. The
 next experiment must preserve the existing greedy token stream and accelerate
 its hot loop rather than purchasing density through another parse.
 
+A12 was therefore created from exact local `main@a648cbd8` in independent task
+`019f88fd-6e65-7e60-997b-35d1f7712a6d` and worktree `169c`. It predeclares
+safe word-LCP-only, rolling-hash-only, and combined variants, with identical
+hash-head insertion order and output bytes as owned invariants. A measured
+ALPH phase census must first expose a credible 10% end-to-end ceiling; formal
+numbers are forbidden until the branch rebases onto this registration commit.
+
 ## Rejected and non-material experiments
 
 Diagnostic probes below used the same code base and corpus stated in each row,
@@ -715,7 +723,7 @@ The next accepted architecture should target at least one measurable 10% gap:
    compact rolling frontier**. A11 retained -13.279% structured and removed
    98.823% of A10 discovery, yet four traceback/table evaluations still made
    ALPH-only 48.33x slower. Parser-density work is therefore closed under the
-   current CPU contract. The next distinct architecture is **byte-identical
+   current CPU contract. A12 is now independently testing **byte-identical
    greedy hot-loop acceleration**: replace the byte-at-a-time LCP extension in
    `find_match` with safe word-at-a-time comparisons and update skipped
    3-byte hashes through a rolling window, while preserving every hash-head
