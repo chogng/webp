@@ -1,0 +1,20 @@
+Task/thread id: 019f8321-035e-7211-8f53-987e18891c8c
+Worktree: /Users/lance/.codex/worktrees/f9db/webp
+Branch: codex/fdec-v2-row-groups
+Creation base, HEAD, local main, merge-base: 564adc27c6366f18fc51a8a475c28f473cfbfa1f
+Creation state: clean detached checkout; both HEAD->main and main->HEAD ancestry checks passed.
+Branch attachment: created before edits; no later merge or rebase of main is permitted.
+
+Read-only oracle E15:
+  /Users/lance/.codex/worktrees/b58e/webp
+  codex/fdec-codec-bakeoff@4c6d7b0cbd3945097e96fdf33de44c8b440e3e4e
+Read-only oracle E16:
+  /Users/lance/.codex/worktrees/a386/webp
+  codex/fdec-hot-path-migration@ba4b530a06e4eb84a736441348991a180e0ca8b9
+Read-only oracle E17:
+  /Users/lance/.codex/worktrees/cb21/webp
+  codex/fdec-generalization-validation@db14bc4676bcda625c20ed1550f490790946e50d
+
+No corpus, timing, binary, manifest, or rate output existed at freeze time.
+All raw output will remain external according to experiments/README.md; durable
+commands, hashes, paths, commits, and conclusions will be committed.
