@@ -439,9 +439,23 @@ CLIC 等大型 benchmark corpus 后续采用同一身份原则，但不与 fixtu
 
 ### Phase E：Huffman/kernel families
 
-- 在新 table ownership 上实现少量静态 kernel。
-- 先 scalar，后平台 SIMD；不保留长期双 table。
-- malformed、truncated、limit、WorkBudget 与 pinned libwebp corpus 全部通过。
+- **完成**：pixel entropy 只长期保留 `FastHuffmanTable` 的 single、packed
+  root/secondary 或 strict fallback 三种静态 scalar family；通用 strict table 只在
+  header validation/build 期间存在，不保留长期双表。
+- **完成**：packed root/secondary 改为 immutable boxed-slice view，64-bit table handle
+  从 56 B 降至 40 B；每个五表 entropy group 的 handle working set 减少 80 B，entry
+  layout、root/secondary lookup 与 group switch contract 不变。
+- **完成**：literal-heavy 继续使用一次 bit snapshot 的四 channel scalar kernel；
+  copy/cache 与 rare large-cache fallback 使用严格 single-symbol kernel。尝试再增加
+  group-level hot-loop dispatch 没有独立 fresh evidence，未进入产品。
+- **完成**：ARM64 SIMD screen 未发现适合在不增加附表/unsafe 双路径的 variable-length
+  Huffman kernel；predictor 又有逐像素依赖，因此按“若确有收益”条件不添加显式 SIMD，
+  保留 LLVM scalar/auto-vectorized fallback。x86-64 SIMD 仍是外部硬件验收项。
+- **完成**：malformed、全字节 truncation、allocation limit、WorkBudget、上游 corpus、
+  animation/ALPH、项目 exact 与 pinned-libwebp differential gates 全部通过。
+- **完成**：fresh Phase D 对照的 CLIC-102/306-stream 三轮中位
+  14,904.641 → 14,720.128 ms（-1.238%），checksum/bytes 不变；release binary
+  628,800 → 628,736 B。
 
 ### Phase F：联合选择与并行
 

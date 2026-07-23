@@ -280,8 +280,8 @@ enum FastHuffmanTableInner {
     Packed {
         root_bits: u8,
         root_mask: u16,
-        root: Vec<u16>,
-        secondary: Vec<u16>,
+        root: Box<[u16]>,
+        secondary: Box<[u16]>,
     },
     Fallback(Box<HuffmanTable>),
 }
@@ -724,8 +724,8 @@ impl FastHuffmanTable {
         Ok(Self(FastHuffmanTableInner::Packed {
             root_bits,
             root_mask,
-            root,
-            secondary,
+            root: root.into_boxed_slice(),
+            secondary: secondary.into_boxed_slice(),
         }))
     }
 
@@ -1270,7 +1270,9 @@ mod tests {
 
     #[test]
     fn fast_table_handle_remains_cache_compact() {
-        assert!(core::mem::size_of::<FastHuffmanTable>() <= 64);
+        assert!(core::mem::size_of::<FastHuffmanTable>() <= 40);
+        #[cfg(target_pointer_width = "64")]
+        assert_eq!(core::mem::size_of::<FastHuffmanTable>(), 40);
     }
 
     #[test]
