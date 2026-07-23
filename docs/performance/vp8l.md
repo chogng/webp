@@ -115,7 +115,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 
 ## 与本任务关联的工作树索引
 
-根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 58 个 VP8L/FDEC 实验、验证与产品迁移任务；P33/E58 已完成正式验证，下一项产品迁移尚未建树。更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断、创建期间 main 前进或通过实验 gate 后另建 latest-main 产品迁移树，各棵树分别登记，避免把失效 preflight 或诊断提交误认成产品 HEAD。
+根任务：`019f8321-035e-7211-8f53-987e18891c8c`。下表覆盖该任务已经收口的 59 个 VP8L/FDEC 实验、验证与产品迁移任务；P34/E59 已完成一次产品 screen 并按用户决定终止，FDEC/sidecar 路线不再进入 formal 或 `main`。更早的 `vp8l-huffman-paper-feasibility` 属于另一根任务，未混入这份计数。一个假设若因系统中断、创建期间 main 前进或通过实验 gate 后另建 latest-main 产品迁移树，各棵树分别登记，避免把失效 preflight 或诊断提交误认成产品 HEAD。
 
 | ID | 实验 | 分支 / HEAD | 实验 base | 当前工作树与结果 | 决定 |
 | --- | --- | --- | --- | --- | --- |
@@ -177,6 +177,7 @@ git -C /Users/lance/.codex/worktrees/your-slot/webp rev-parse HEAD
 | E56 | atomic-evidence trusted sidecar full qualification（P31） | `codex/fdec-sidecar-full-qualification@54e781f3`；设计 `6c6e9f53`；measured harness `beccc88d` | `35c768af` | [Stage H report](</Users/lance/.codex/worktrees/58a8/webp/experiments/fdec-sidecar-full-qualification/REPORT.md>)；[artifacts](</Users/lance/.codex/worktrees/58a8/webp/experiments/fdec-sidecar-full-qualification>)；[58a8](</Users/lance/.codex/worktrees/58a8/webp>)；task `019f8c79-60e9-7c51-915c-bf5aed6d394a`，同树续跑 task `019f8c7f-99fa-7a52-a2d6-7d4fd62aee07` | **Stage H PASS / Stage Q 已放行，仍无 timing**：locked/offline fmt+Clippy 全过，24 项完整 stub suite 加重复/descendant stress 共 364/364；证明 parent-only 单终态、foreign staging 不可触碰、kernel no-replace、manifest alias/tamper 拒绝与进程组回收，允许先冻结全新的 alpha28/full229 qualification，不改变顶部表 |
 | E57 | outside-sandbox resource qualification / opaque-work 泛化门（P32） | `codex/fdec-sidecar-full-qualification-p32@780ce897`；measured `25784a24`；lock `2dd55f18` | `a9b25880` | [alpha report](</Users/lance/.codex/worktrees/534f/webp/experiments/fdec-sidecar-full-qualification-p32/P32_ALPHA_RESULT.md>)；[Phase-A report](</Users/lance/.codex/worktrees/534f/webp/experiments/fdec-sidecar-full-qualification-p32/P32_PHASE_A_RESULT.md>)；[534f](</Users/lance/.codex/worktrees/534f/webp>)；task `019f8d44-5819-7981-9d34-22d8e10de0c3` | **valid-negative / STOP**：alpha28 全门通过；唯一 full229 在首个 opaque 输入暴露 parser 将合法 `3×pixels` work 误要求为 `4×pixels`，402 个 opaque/profile payload 均受影响；无 retry、无 timing 结论 |
 | E58 | corrected channel-aware FDC2 + five-process formal（P33） | `codex/fdec-sidecar-opaque-work-p33@77c3be36`；measured `ea6bbb5d`；formal-v2 lock `09bd2413` | `4592b841` | [formal report](</Users/lance/.codex/worktrees/2648/webp/experiments/fdec-sidecar-opaque-work-p33/P33_FORMAL_V2_RESULT.md>)；[sealed evidence](</private/tmp/p33-e58-formal-qualification-v2/formal.success>)；[2648](</Users/lance/.codex/worktrees/2648/webp>)；task `019f8d71-12ae-79e1-b486-27fdd99e464d` | **formal PASS，转独立 latest-main 产品迁移**：唯一 v2 attempt、5/5 进程、2,290/2,290 image gates；headline B/O 0.276865/0.122915、B/A 0.157233/0.078667；研究树不直接合入 |
+| E59 | FDEC sidecar 最小产品迁移与终止 screen（P34） | `codex/fdec-sidecar-product-p34@97a7ba9e`；feature `e7260055`；screen lock `cec60d85` | `74cb0195` | branch-relative `experiments/fdec-sidecar-product-p34/P34_PRODUCT_SCREEN_RESULT.md` 与 `product-screen-evidence/MANIFEST.sha256`；task `019f8e58-b33e-7213-bea8-192730e7ffdf` | **product screen PASS，但按用户决定终止且不迁移**：唯一 attempt；B/O 0.276929/0.122780、B/A 0.161008/0.080783，458/458 image gates 全部 5/5 wins；1.79 GB sidecar/cache 对 444.9 MB source、峰值 footprint 6.82 GB；标准 VP8L 产品路线不采用私有 sidecar |
 
 ### latest-main 迁移链
 
@@ -737,41 +738,23 @@ P33/E58 已从当时最新且 clean 的 `main@4592b841905f9007d6c13d76511eb1b7dd
 - formal process wall min/median/max 为 756.650/758.440/760.980 s，CPU 为 753.990/755.350/758.180 s，RSS 为 421,249,024/444,547,072/487,358,464 bytes；outer wall/CPU/RSS 为 3,862.770/3,849.190 s/487,358,464 bytes。全局 lock 在 parent exit 后只解锁、不 unlink，留下 0-byte、nlink1、SHA-256 `e3b0c442…b855` 的持久 inode，符合冻结实现且未被事后修改。
 - 产品结论为 **PASS，进入独立 latest-main 迁移**。这只批准在已验证的单线程 VP8L/FDEC、canonical source retained、严格 admission、CRC/association/geometry/work/limit、cache/storage ownership 与 exact fallback 边界内迁移 corrected opaque+alpha prepared-sidecar 路径；不批准直接合并研究树，也不外推到不同 codec、并发、allocator、平台或语料。最终报告/HEAD 为 `77c3be368831098c1d689def6d80d3dbdddd70a6`；[formal report](</Users/lance/.codex/worktrees/2648/webp/experiments/fdec-sidecar-opaque-work-p33/P33_FORMAL_V2_RESULT.md>) 给出全部身份、五进程表、证据哈希和迁移限制。下一步 P34 必须从届时最新 committed main 新建工作树并手工迁移最小产品实现。
 
-## 下一阶段：优先寻找更强且更通用的新架构
+## 下一阶段：标准 VP8L 架构升级
 
-标准 VP8L 的局部优化已经给出一致信号：Huffman、predictor、LZ77、PGO、单个 copy kernel 各自只有个位数收益或以明显 rate/latency 回退换取收益。后续优先级应从“继续打磨一个旧循环”转向能够同时改变表示、依赖图和输出流水线的架构方案。
+FDEC/sidecar 路线在 E59 后终止，不再进入 formal、产品迁移或 `main`。下一阶段只优化
+标准 VP8L，完整数据流、模块所有权、实验复用/deprecate 决定、迁移顺序与晋级门见
+[`../vp8l-architecture-roadmap.md`](../vp8l-architecture-roadmap.md)。
 
-### 第一优先：统一的 Fast Representation v2
+优先级固定为：
 
-下一版不应只是给 v1 增加更多 enum，而应拥有明确的数据所有权和可扩展 framing：
+1. 把当前 `single_plan` 提升为所有候选共享的 exact entropy plan；
+2. 把 `spatial_packet_writer` 泛化为 Default/Compact/LowLatency 共用 token sink；
+3. 用一次 token/statistics IR 支撑 bounded portfolio，不再重复扫描或物化失败候选；
+4. 重构 decoder 的 validated `DecodePlan` 与单一 pixel backing，先删除整图
+   ARGB/RGBA 重分配，再讨论 transform/Huffman kernel；
+5. 在跨域 ARM64/x86-64 标准 corpus 上与 pinned libwebp 按相同 bytes、线程和输出比较。
 
-- 以 row-group/tile 为独立压缩单元，目录记录 offset、compressed length、decoded length、transform、codec 和 checksum。
-- Zstd-Sub 作为实用默认候选，LZ4 作为极速候选；允许按图或按 tile 选择，而不是强制全图一种 codec。
-- 原生支持 RGB、RGBA，或 RGB + 独立 alpha plane；transparent、tiny、极宽/极高必须进入相同协议与 limit 模型。
-- 解压、逆变换、RGBA 写出、校验继续融合；tile framing 同时提供有界 scratch、真 streaming、随机跳过和未来并行能力，但单线程必须先达标。
-- 标准 VP8L fallback 继续完整保留；私有表示失效必须回退，不能改变公开 decoder 的默认容错。
-- v1 的 CRC 只证明私有 payload 自洽，不能证明它与 fallback 像素相同。对外部不可信文件，必须采用可信 ingest 时双解码校验并缓存认证结果，或建立可验证的签名/manifest 信任模型；仅在同一不可信文件里增加另一个 hash 不能解决恶意双表示问题。
-- P25 证明继续删除标准 VP8L 候选 materialization 只能恢复约 2.16%，不足以把 LowLatency 产品 screen 从 48.19% 推过 50%。下一实验因此不再叠加旧 planner 微优化，而是以 Row-Sub、RGB→RGBA fused expansion、CRC hot path 与 Zstd-Sub/LZ4 两档为一个统一的 tile/row-group 数据流；研究树先验证表示与 owner 上限，达标后才从届时最新 main 另建产品迁移树。
-- E52 已用 checked RIFF 语义完成 229/28 exactness 与唯一 formal：完整路径两档快 51.898%/56.772%，但 alpha 速度仅 46.744%/47.507%、private bytes 仅减 2.447%/3.617%。E53 证明独立 alpha-plane 全 portfolio 无法填平体积缺口；E54 则证明 trusted prepared sidecar 的 hot B 在 alpha28 相对 same-binary A 快 87.023%/89.178%，且相对 fresh O 还能快 31.340%/35.331%。E55 的固定批量 recovery 在数值上把两档逐图失败降到 0/28，并保持 B/O 0.697625/0.666013，但由于唯一 evidence root 的终态矛盾只能封为 invalid-negative。E56 已用 364/364 stub executions 把 parent-only 单终态、kernel no-replace、manifest finalization 与进程组回收固化并通过根审计；其唯一 qualification 的 child 也给出 B/O 0.124048/0.101875 且逐图全过，但资源 wrapper 被沙箱拒绝。E57 消除资源问题后在 full229 暴露 opaque `3×pixels` 被误判为 `4×pixels`；E58 已修正 channel-aware work invariant，并以五进程 formal 得到 B/O `0.276865/0.122915`、B/A `0.157233/0.078667`、2,290/2,290 image gates 全部 5/5 wins。研究资格阶段至此完成；下一步 P34 只从最新 main 手工迁移最小产品实现，并继续分开报告 source bytes、sidecar/cache bytes、cold admission 与 hot-hit latency。
-
-### 第二优先：可部署的自动选择器
-
-泛化实验中的 oracle selector 不能进入产品。下一步应只用编码时可得特征预测：
-
-- m6 bytes、raw bytes、alpha class、颜色/梯度/重复统计、候选压缩前缀采样、预计工作量与目标输入带宽。
-- 目标函数必须是 `decode_time + extra_bytes / bandwidth`，并同时受单文件和整个 asset pack 的体积预算约束。
-- 先在 train 拟合，在固定 disjoint test 决策；最终结果不能通过实际解码候选来“预测”自己。
-- 网络/冷盘、内存缓存和本地预载包必须是不同 product policy。LZ4 不应因内存成绩好而自动进入网络分发档。
-
-### 第三优先：latest-main FDEC 产品迁移与跨平台封口
-
-E58 已补齐统一 full229、五进程、atomic evidence 的研究资格，当前缺口转为产品实现而不是再次重跑同一研究 binary：
-
-1. 从 E58 登记提交后的最新 committed main 新建 P34 工作树和唯一分支，手工迁移 channel-aware work invariant、prepared immutable plan、1 MiB scratch/context reuse 与内容寻址 sidecar/cache 的最小产品代码；不得 merge/rebase 研究树或带入 qualification harness。
-2. 保持 public Default 与标准 VP8L bytes/行为不变；新增路径必须显式选择，canonical source 始终可用，任何 admission、CRC、association、geometry、limit、cache capability 或 payload mismatch 都 exact fallback。
-3. 产品树先完成 locked regression：opaque/alpha/multi-group/mutation/limit、完整 workspace tests、Default byte identity、full229 A/O/B exact、pinned oracle、cache/storage lifecycle；再用最终产品 binary 做独立 screen 与 formal，不复用 E58 research-binary 时间作为产品结论。
-4. 同一最终产品二进制交错测标准 Rust、fresh sidecar 与 prepared hit，并补 pinned C 参考；同时报告 full229 与 CLIC/disjoint/category、source/sidecar/complete-cache bytes、cold admission、hot latency、CPU/RSS、binary/依赖增量和 I/O break-even。
-5. 补 x86-64 Linux、Windows、WASM build；性能至少覆盖 arm64 与 x86-64。raw、manifest/hash、命令、branch、commit 和 worktree 位置继续回填本 README；只有刷新纪录且通过产品门的结果保留在顶部表。
+E38/E43/E49/E50 只提供机制证据，必须在届时 latest `main` 上重建最小实现；所有账本中
+已经回滚/拒绝的生产代码和 E15–E17、E51–E59 私有表示均不得 cherry-pick。
 
 ## 每次新实验的登记模板
 

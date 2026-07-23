@@ -62,6 +62,9 @@ the test suite alone does not mark a decoder milestone complete.
 The record-only VP8L performance scoreboard, complete experiment/worktree
 index, and architecture-first follow-up policy are maintained in
 [`docs/performance/vp8l.md`](docs/performance/vp8l.md).
+The standard-only VP8L target architecture, reusable research mechanisms,
+deprecated paths, and promotion gates are defined in
+[`docs/vp8l-architecture-roadmap.md`](docs/vp8l-architecture-roadmap.md).
 M3's functional exit record is in
 [`docs/m3-alpha-animation.md`](docs/m3-alpha-animation.md); M4's completed
 static VP8L encoding scope and exit criteria are in
