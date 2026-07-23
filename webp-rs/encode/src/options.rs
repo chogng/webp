@@ -19,6 +19,8 @@ impl Default for LossyEncodeOptions {
 pub enum LosslessEncodeProfile {
     #[default]
     Default,
+    /// Spend bounded extra encode work to minimize the lossless file size.
+    HighCompression,
     /// Prefer compact spatial Huffman groups.
     FastDecodeCompact,
     /// Prefer fewer, larger spatial Huffman groups.
@@ -29,5 +31,6 @@ pub enum LosslessEncodeProfile {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 #[non_exhaustive]
 pub struct LosslessEncodeOptions {
+    /// Selects the bounded encoding portfolio.
     pub profile: LosslessEncodeProfile,
 }

@@ -222,6 +222,10 @@ impl SourceAnalysis {
         self.color_transform
     }
 
+    pub(super) const fn has_palette(&self) -> bool {
+        self.palette.is_some()
+    }
+
     pub(super) fn into_palette(self) -> Option<PalettePlan> {
         self.palette
     }

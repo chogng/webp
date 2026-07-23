@@ -2,6 +2,8 @@
 
 use super::ColorTransformPlan;
 use super::EncodeError;
+use super::lz77::{MatchFinder, distance_code};
+use super::predictor_plan::{PredictorPlan, residual_pixel};
 use super::prefix::encode_prefix as vp8l_prefix;
 use super::source_analysis::forward_color_pixel;
 
@@ -17,7 +19,7 @@ pub(super) const MAIN_GREEN_ALPHABET_SIZE: usize = GREEN_ALPHABET_SIZE + MAX_COL
 pub(crate) enum EntropyToken {
     Literal([u8; 4]),
     Cache(usize),
-    Copy { length: usize },
+    Copy { length: usize, distance_code: usize },
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -141,9 +143,12 @@ impl EntropyFrequencies {
             EntropyToken::Cache(index) => {
                 increment_frequency(&mut self.green, FIRST_CACHE_SYMBOL + index)?;
             }
-            EntropyToken::Copy { length } => {
+            EntropyToken::Copy {
+                length,
+                distance_code,
+            } => {
                 let (length_prefix, _) = vp8l_prefix(length, 24)?;
-                let (distance_prefix, _) = vp8l_prefix(121, DISTANCE_ALPHABET_SIZE)?;
+                let (distance_prefix, _) = vp8l_prefix(distance_code, DISTANCE_ALPHABET_SIZE)?;
                 increment_frequency(&mut self.green, CHANNEL_ALPHABET_SIZE + length_prefix)?;
                 increment_frequency(&mut self.distance, distance_prefix)?;
             }
@@ -345,6 +350,77 @@ pub(crate) struct TokenStream {
     spatial_blocks: Option<SpatialBlockStatistics>,
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ParseMode {
+    Greedy,
+    Lazy,
+}
+
+pub(super) struct ResidualImage {
+    geometry: TokenGeometry,
+    pixels: Vec<u32>,
+}
+
+impl ResidualImage {
+    pub(super) fn collect_with_predictor(
+        rgba: &[u8],
+        width: usize,
+        use_subtract_green: bool,
+        color_transform: Option<ColorTransformPlan>,
+        predictor: &PredictorPlan,
+    ) -> Result<Self, EncodeError> {
+        let pixel_count = rgba.len() / 4;
+        if width == 0
+            || pixel_count == 0
+            || !rgba.len().is_multiple_of(4)
+            || !pixel_count.is_multiple_of(width)
+        {
+            return Err(EncodeError::output_size_overflow());
+        }
+        let mut pixels = Vec::new();
+        pixels
+            .try_reserve_exact(pixel_count)
+            .map_err(|_| EncodeError::allocation_failed())?;
+        for index in 0..pixel_count {
+            pixels.push(pack_argb(residual_pixel(
+                rgba,
+                index,
+                width,
+                use_subtract_green,
+                color_transform,
+                predictor,
+            )));
+        }
+        Ok(Self {
+            geometry: TokenGeometry {
+                width,
+                height: pixel_count / width,
+                pixels: pixel_count,
+            },
+            pixels,
+        })
+    }
+
+    pub(super) fn select_color_cache_bits(&self) -> u8 {
+        let mut caches = [[0_u32; MAX_COLOR_CACHE_SIZE]; MAX_ENCODER_COLOR_CACHE_BITS as usize];
+        let mut hits = [0_u32; MAX_ENCODER_COLOR_CACHE_BITS as usize];
+        for &color in &self.pixels {
+            for bits in 1..=MAX_ENCODER_COLOR_CACHE_BITS {
+                let cache_index = color_cache_index(color, bits);
+                let slot = usize::from(bits - 1);
+                if caches[slot][cache_index] == color {
+                    hits[slot] = hits[slot].saturating_add(1);
+                }
+                caches[slot][cache_index] = color;
+            }
+        }
+        (1..=MAX_ENCODER_COLOR_CACHE_BITS)
+            .max_by_key(|&bits| (hits[usize::from(bits - 1)], u8::MAX - bits))
+            .filter(|&bits| hits[usize::from(bits - 1)] != 0)
+            .unwrap_or(0)
+    }
+}
+
 impl TokenStream {
     pub(crate) fn collect(
         rgba: &[u8],
@@ -445,7 +521,10 @@ impl TokenStream {
                     length += 1;
                 }
                 if length >= 3 {
-                    let token = EntropyToken::Copy { length };
+                    let token = EntropyToken::Copy {
+                        length,
+                        distance_code: 121,
+                    };
                     frequencies.add_token(token)?;
                     census.add_copy(length)?;
                     for _ in 0..length {
@@ -502,6 +581,102 @@ impl TokenStream {
         })
     }
 
+    pub(super) fn collect_compressed_with_spatial(
+        residuals: &ResidualImage,
+        color_cache_bits: u8,
+        parse_mode: ParseMode,
+        spatial_block_pixels: Option<usize>,
+    ) -> Result<Self, EncodeError> {
+        if color_cache_bits > MAX_ENCODER_COLOR_CACHE_BITS {
+            return Err(EncodeError::output_size_overflow());
+        }
+        let mut tokens = Vec::new();
+        tokens
+            .try_reserve_exact(residuals.pixels.len())
+            .map_err(|_| EncodeError::allocation_failed())?;
+        let mut frequencies = EntropyFrequencies::for_color_cache(color_cache_bits);
+        let mut census = TokenCensus::default();
+        let mut color_cache = [0_u32; MAX_COLOR_CACHE_SIZE];
+        let mut finder = MatchFinder::allocate(residuals.pixels.len())
+            .map_err(|_| EncodeError::allocation_failed())?;
+        let mut spatial_blocks = spatial_block_pixels
+            .map(|block_pixels| SpatialBlockStatistics::new(residuals.geometry, block_pixels))
+            .transpose()?;
+        let mut index = 0_usize;
+        while index < residuals.pixels.len() {
+            let found = finder.find(&residuals.pixels, index);
+            let use_match = if found.length < 3 {
+                false
+            } else if parse_mode == ParseMode::Lazy && index + 1 < residuals.pixels.len() {
+                let next = finder.find(&residuals.pixels, index + 1);
+                next.length <= found.length.saturating_add(1)
+            } else {
+                true
+            };
+            if use_match {
+                let token = EntropyToken::Copy {
+                    length: found.length,
+                    distance_code: distance_code(residuals.geometry.width(), found.distance),
+                };
+                frequencies.add_token(token)?;
+                census.add_copy(found.length)?;
+                if let Some(blocks) = spatial_blocks.as_mut() {
+                    blocks.add(index, residuals.geometry.width(), token)?;
+                }
+                for skipped in index..index + found.length {
+                    finder.insert(&residuals.pixels, skipped);
+                    update_color_cache(
+                        &mut color_cache,
+                        color_cache_bits,
+                        residuals.pixels[skipped],
+                    );
+                }
+                tokens.push(token);
+                index += found.length;
+                continue;
+            }
+
+            finder.insert(&residuals.pixels, index);
+            let color = residuals.pixels[index];
+            let cache_index = if color_cache_bits == 0 {
+                0
+            } else {
+                color_cache_index(color, color_cache_bits)
+            };
+            let token = if color_cache_bits != 0 && color_cache[cache_index] == color {
+                census.add_cache()?;
+                EntropyToken::Cache(cache_index)
+            } else {
+                census.add_literal()?;
+                EntropyToken::Literal(unpack_argb(color))
+            };
+            frequencies.add_token(token)?;
+            if let Some(blocks) = spatial_blocks.as_mut() {
+                blocks.add(index, residuals.geometry.width(), token)?;
+            }
+            tokens.push(token);
+            color_cache[cache_index] = color;
+            index += 1;
+        }
+        if census.token_count()? != tokens.len()
+            || census.pixel_count()? != residuals.geometry.pixels()
+            || census.distance_symbols() != census.copy_tokens()
+        {
+            return Err(EncodeError::output_size_overflow());
+        }
+        frequencies.validate(census)?;
+        Ok(Self {
+            geometry: residuals.geometry,
+            color_cache_bits,
+            tokens,
+            statistics: TokenStatistics {
+                frequencies,
+                census,
+            },
+            spatial_blocks,
+        })
+    }
+
     pub(super) const fn geometry(&self) -> TokenGeometry {
         self.geometry
     }
@@ -532,7 +707,7 @@ impl TokenStream {
 pub(super) const fn token_span(token: EntropyToken) -> usize {
     match token {
         EntropyToken::Literal(_) | EntropyToken::Cache(_) => 1,
-        EntropyToken::Copy { length } => length,
+        EntropyToken::Copy { length, .. } => length,
     }
 }
 
@@ -704,6 +879,15 @@ fn pack_argb(rgba: [u8; 4]) -> u32 {
         | (u32::from(rgba[0]) << 16)
         | (u32::from(rgba[1]) << 8)
         | u32::from(rgba[2])
+}
+
+fn unpack_argb(argb: u32) -> [u8; 4] {
+    [
+        (argb >> 16) as u8,
+        (argb >> 8) as u8,
+        argb as u8,
+        (argb >> 24) as u8,
+    ]
 }
 
 fn increment_frequency(table: &mut [u32], symbol: usize) -> Result<(), EncodeError> {

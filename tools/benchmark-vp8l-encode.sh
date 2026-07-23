@@ -49,7 +49,9 @@ if [[ "${#inputs[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-cargo run --release -p webp --example encode_bench \
+WEBP_RS_LOSSLESS_PROFILE=default cargo run --release -p webp --example encode_bench \
+  --manifest-path "$root/webp-rs/Cargo.toml" -- "$iterations" "${inputs[@]}"
+WEBP_RS_LOSSLESS_PROFILE=high-compression cargo run --release -p webp --example encode_bench \
   --manifest-path "$root/webp-rs/Cargo.toml" -- "$iterations" "${inputs[@]}"
 
 scratch="$(mktemp -d "${TMPDIR:-/tmp}/webp-vp8l-encode-bench.XXXXXX")"

@@ -27,9 +27,10 @@ use crate::vp8l::try_make_palette_plan;
 /// Encodes a static RGBA8 image as a lossless WebP file.
 ///
 /// The input is straight/unpremultiplied RGBA in row-major order. This first
-/// encoder slice always emits a static VP8L image with reversible
-/// subtract-green and fixed left-predictor transforms, then literal pixels.
-/// It is format-correct but does not attempt to optimize output size or speed.
+/// The default profile emits a deterministic static VP8L image using reversible
+/// color, subtract-green, predictor, palette, color-cache, LZ77, and Huffman
+/// coding. Use [`encode_lossless_rgba_with_options`] to request a different
+/// bounded size/latency portfolio.
 ///
 /// # Errors
 ///
@@ -44,12 +45,11 @@ pub fn encode_lossless_rgba(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<
 /// Encodes a static RGBA8 image with an explicit lossless profile.
 ///
 /// [`LosslessEncodeProfile::Default`] is byte-for-byte equivalent to
-/// [`encode_lossless_rgba`]. Fast-decode profiles emit standard VP8L and use a
-/// deterministic complete-file fallback when spatial Huffman groups do not
-/// make the file strictly smaller than the corresponding fast-no-cache
-/// single-group stream. They can be larger than the default profile and use
-/// an exact same-profile single-stream cost before serializing only the
-/// selected complete file.
+/// [`encode_lossless_rgba`]. [`LosslessEncodeProfile::HighCompression`] screens
+/// a bounded transform/LZ77/entropy portfolio and writes only the exact-bit
+/// winner. Fast-decode profiles emit standard VP8L and use a deterministic
+/// complete-file fallback when spatial Huffman groups do not make the file
+/// strictly smaller than the corresponding fast-no-cache single-group stream.
 ///
 /// ```
 /// use webp_encode::{
@@ -75,6 +75,9 @@ pub fn encode_lossless_rgba_with_options(
 ) -> Result<Vec<u8>, EncodeError> {
     match options.profile {
         LosslessEncodeProfile::Default => encode_lossless_rgba(width, height, rgba),
+        LosslessEncodeProfile::HighCompression => {
+            vp8l::high_compression::encode(width, height, rgba)
+        }
         LosslessEncodeProfile::FastDecodeCompact => vp8l::spatial_writer::encode_profile(
             width,
             height,

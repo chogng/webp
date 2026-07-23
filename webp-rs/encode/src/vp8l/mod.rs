@@ -38,9 +38,12 @@ const CODE_LENGTH_CODE_ORDER: [usize; 19] = [
 pub const COLOR_TRANSFORM_BLOCK_BITS: u8 = 7;
 
 mod entropy_plan;
+pub(crate) mod high_compression;
 pub(crate) mod huffman;
+mod lz77;
 mod packet_sink;
 mod portfolio_policy;
+mod predictor_plan;
 mod prefix;
 mod source_analysis;
 mod token_stream;

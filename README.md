@@ -37,6 +37,12 @@ encoding; performance work remains deliberately deferred.
   selection, small-palette color indexing, and deterministic frequency-ranked
   Huffman coding. Metadata can be muxed through
   `encode_lossless_rgba_with_metadata`.
+- `LosslessEncodeProfile::HighCompression` adds a bounded adaptive-predictor,
+  hash-chain LZ77, length-limited Huffman, and single/spatial entropy
+  portfolio. It is an explicit higher-encode-work profile; the default and
+  fast-decode profiles retain their existing byte contracts. This establishes
+  a matched-rate benchmark profile; it does not claim complete libwebp method
+  or speed parity.
 - `encode_lossless_animation` writes strict `VP8X`/`ANIM`/`ANMF` containers
   with independently encoded VP8L frame rectangles, including timing, even
   offsets, blend, dispose-to-background, alpha, canvas background, and loops.
@@ -54,6 +60,13 @@ public API over the upstream transparent corpus with:
 
 ```sh
 tools/benchmark-alpha-encode.sh 50
+```
+
+Compare both the default and high-compression VP8L profiles with the pinned
+libwebp lossless API on the locked MustAccept corpus with:
+
+```sh
+tools/benchmark-vp8l-encode.sh 5
 ```
 
 Codec milestones also require the conformance, robustness, performance, and

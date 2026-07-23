@@ -501,7 +501,11 @@ fn write_token_control(
                 usize::from(rgba[3]),
             )?)
         }
-        EntropyToken::Copy { length } => write_lz77_copy(bits, tables, length),
+        EntropyToken::Copy {
+            length,
+            distance_code: 121,
+        } => write_lz77_copy(bits, tables, length),
+        EntropyToken::Copy { .. } => Err(EncodeError::output_size_overflow()),
     }
 }
 

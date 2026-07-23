@@ -23,7 +23,9 @@ fn spatial_profile(profile: LosslessEncodeProfile) -> spatial_plan::SpatialProfi
     match profile {
         LosslessEncodeProfile::FastDecodeCompact => spatial_plan::SpatialProfile::Compact,
         LosslessEncodeProfile::FastDecodeLowLatency => spatial_plan::SpatialProfile::LowLatency,
-        LosslessEncodeProfile::Default => panic!("default has no coarse spatial profile"),
+        LosslessEncodeProfile::Default | LosslessEncodeProfile::HighCompression => {
+            panic!("profile has no coarse spatial layout")
+        }
     }
 }
 
@@ -201,7 +203,13 @@ fn copy_token_may_cross_a_coarse_block_end() {
         TokenStream::collect(&rgba, 300, true, false, 0).expect("tokenize long repeated run");
     assert!(matches!(
         stream.tokens(),
-        [EntropyToken::Literal(_), EntropyToken::Copy { length: 299 }]
+        [
+            EntropyToken::Literal(_),
+            EntropyToken::Copy {
+                length: 299,
+                distance_code: 121,
+            }
+        ]
     ));
     for profile in profiles() {
         let candidate =

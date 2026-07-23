@@ -76,11 +76,15 @@ fn packet_for_token(
             packet.push_symbol(&tables.blue, usize::from(rgba[2]))?;
             packet.push_symbol(&tables.alpha, usize::from(rgba[3]))?;
         }
-        EntropyToken::Copy { length } => {
+        EntropyToken::Copy {
+            length,
+            distance_code,
+        } => {
             let (length_prefix, length_extra) = vp8l_prefix(length, 24)?;
             packet.push_symbol(&tables.green, CHANNEL_ALPHABET_SIZE + length_prefix)?;
             packet.push_wire(length_extra.0, length_extra.1)?;
-            let (distance_prefix, distance_extra) = vp8l_prefix(121, DISTANCE_ALPHABET_SIZE)?;
+            let (distance_prefix, distance_extra) =
+                vp8l_prefix(distance_code, DISTANCE_ALPHABET_SIZE)?;
             packet.push_symbol(&tables.distance, distance_prefix)?;
             packet.push_wire(distance_extra.0, distance_extra.1)?;
         }

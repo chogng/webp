@@ -31,12 +31,15 @@ fn reference_token(writer: &mut BitWriter, token: EntropyToken, tables: &Entropy
             symbol(writer, &tables.blue, usize::from(rgba[2]));
             symbol(writer, &tables.alpha, usize::from(rgba[3]));
         }
-        EntropyToken::Copy { length } => {
+        EntropyToken::Copy {
+            length,
+            distance_code,
+        } => {
             let (length_prefix, length_extra) = vp8l_prefix(length, 24).unwrap();
             symbol(writer, &tables.green, CHANNEL_ALPHABET_SIZE + length_prefix);
             writer.write_bits(length_extra.0, length_extra.1).unwrap();
             let (distance_prefix, distance_extra) =
-                vp8l_prefix(121, DISTANCE_ALPHABET_SIZE).unwrap();
+                vp8l_prefix(distance_code, DISTANCE_ALPHABET_SIZE).unwrap();
             symbol(writer, &tables.distance, distance_prefix);
             writer
                 .write_bits(distance_extra.0, distance_extra.1)
@@ -109,7 +112,13 @@ fn token_packets_match_reference_at_15_bit_legal_extremes() {
     let tables = synthetic_tables(15);
     for (token, expected_width) in [
         (EntropyToken::Literal([1, 2, 3, 4]), 60),
-        (EntropyToken::Copy { length: 4096 }, 45),
+        (
+            EntropyToken::Copy {
+                length: 4096,
+                distance_code: 121,
+            },
+            45,
+        ),
         (EntropyToken::Cache(3), 15),
     ] {
         assert_eq!(

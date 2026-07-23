@@ -214,3 +214,40 @@ fn exact_selection_skips_every_losing_payload_and_preserves_fallbacks() {
     assert!(!stats.estimator_fallback);
     assert!(stats.candidate_won);
 }
+
+#[test]
+fn length_limited_huffman_keeps_skewed_frequencies_within_vp8l_bounds() {
+    let mut frequencies = vec![0_u32; 64];
+    let (mut left, mut right) = (1_u32, 1_u32);
+    for frequency in &mut frequencies {
+        *frequency = left;
+        (left, right) = (right, left.saturating_add(right));
+    }
+    let lengths = super::huffman_lengths(&frequencies).expect("build length-limited Huffman tree");
+    assert!(lengths.iter().copied().max().unwrap() <= 15);
+    assert!(lengths.iter().copied().min().unwrap() < lengths.iter().copied().max().unwrap());
+    canonical_table(&lengths).expect("length-limited tree remains complete");
+}
+
+#[test]
+fn length_limited_huffman_preserves_complete_kraft_sums() {
+    let mut state = 0x9e37_79b9_u32;
+    for symbols in [2_usize, 3, 17, 64, 257, 296] {
+        for _ in 0..32 {
+            let frequencies = (0..symbols)
+                .map(|_| {
+                    state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                    1 + (state & 0x000f_ffff)
+                })
+                .collect::<Vec<_>>();
+            let lengths =
+                super::huffman_lengths(&frequencies).expect("build bounded Huffman lengths");
+            let kraft = lengths
+                .iter()
+                .map(|&length| 1_u32 << (15 - length))
+                .sum::<u32>();
+            assert_eq!(kraft, 1 << 15, "{symbols} symbols");
+            assert!(lengths.iter().all(|&length| (1..=15).contains(&length)));
+        }
+    }
+}

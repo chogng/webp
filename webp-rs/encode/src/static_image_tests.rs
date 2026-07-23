@@ -81,7 +81,7 @@ fn encoder_emits_bounded_distance_one_lz77_runs() {
         stream
             .tokens()
             .iter()
-            .any(|token| matches!(token, EntropyToken::Copy { length } if *length >= 3)),
+            .any(|token| matches!(token, EntropyToken::Copy { length, .. } if *length >= 3)),
         "repeated residuals use a VP8L copy token"
     );
     let encoded = encode_lossless_rgba(16, 1, &rgba).expect("encode repeated row");
@@ -135,7 +135,7 @@ fn encoder_uses_cache_and_lz77_on_non_palette_images() {
         copy_stream
             .tokens()
             .iter()
-            .any(|token| matches!(token, EntropyToken::Copy { length } if *length >= 3)),
+            .any(|token| matches!(token, EntropyToken::Copy { length, .. } if *length >= 3)),
         "repeated non-palette rows reach bounded distance-one LZ77"
     );
     let copy_encoded = encode_lossless_rgba(copy_width as u32, copy_height as u32, &copy_rgba)

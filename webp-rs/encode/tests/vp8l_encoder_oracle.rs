@@ -8,8 +8,11 @@ use std::time::SystemTime;
 use std::time::UNIX_EPOCH;
 
 use webp_decode::Metadata;
+use webp_encode::LosslessEncodeOptions;
+use webp_encode::LosslessEncodeProfile;
 use webp_encode::encode_lossless_rgba;
 use webp_encode::encode_lossless_rgba_with_metadata;
+use webp_encode::encode_lossless_rgba_with_options;
 
 #[test]
 fn literal_vp8l_output_round_trips_through_pinned_libwebp() {
@@ -55,6 +58,33 @@ fn color_transform_block_boundaries_round_trip_through_pinned_libwebp() {
         let rgba = correlated_color_input(width, height);
         let actual = decode_with_oracle(&dwebp, &scratch, 200 + case, width, height, &rgba);
         assert_eq!(actual, rgba, "pinned dwebp differs at {width} by {height}");
+    }
+}
+
+#[test]
+fn high_compression_predictor_and_distance_streams_round_trip_through_pinned_libwebp() {
+    let Some(dwebp) = pinned_dwebp() else {
+        eprintln!("skip high-compression oracle: fetch the pinned libwebp oracle");
+        return;
+    };
+    let scratch = ScratchDirectory::new("vp8l-high-compression-oracle");
+    for (case, (width, height, rgba)) in [
+        (129, 127, correlated_color_input(129, 127)),
+        non_palette_copy_case(),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let mut options = LosslessEncodeOptions::default();
+        options.profile = LosslessEncodeProfile::HighCompression;
+        let encoded = encode_lossless_rgba_with_options(width, height, &rgba, options)
+            .expect("encode high-compression oracle case");
+        let actual =
+            decode_encoded_with_oracle(&dwebp, &scratch, 300 + case, width, height, encoded);
+        assert_eq!(
+            actual, rgba,
+            "pinned dwebp differs for high-compression case"
+        );
     }
 }
 
@@ -192,6 +222,17 @@ fn decode_with_oracle(
     rgba: &[u8],
 ) -> Vec<u8> {
     let encoded = encode_lossless_rgba(width, height, rgba).expect("encode VP8L test case");
+    decode_encoded_with_oracle(dwebp, scratch, case, width, height, encoded)
+}
+
+fn decode_encoded_with_oracle(
+    dwebp: &Path,
+    scratch: &ScratchDirectory,
+    case: usize,
+    width: u32,
+    height: u32,
+    encoded: Vec<u8>,
+) -> Vec<u8> {
     let webp_path = scratch.0.join(format!("case-{case}.webp"));
     let pam_path = scratch.0.join(format!("case-{case}.pam"));
     fs::write(&webp_path, encoded).expect("write encoded VP8L test case");

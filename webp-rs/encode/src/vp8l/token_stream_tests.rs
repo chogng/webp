@@ -18,7 +18,10 @@ fn canonical_stream_owns_geometry_copy_census_and_distance_symbols() {
         stream.tokens(),
         [
             EntropyToken::Literal([7, 11, 19, 127]),
-            EntropyToken::Copy { length: 299 },
+            EntropyToken::Copy {
+                length: 299,
+                distance_code: 121,
+            },
         ]
     );
     let census = stream.statistics().census();
@@ -215,7 +218,10 @@ fn materialized_tokens(
                 length += 1;
             }
             if length >= 3 {
-                tokens.push(EntropyToken::Copy { length });
+                tokens.push(EntropyToken::Copy {
+                    length,
+                    distance_code: 121,
+                });
                 for _ in 0..length {
                     update_color_cache(&mut color_cache, color_cache_bits, pack_argb(residual));
                 }
