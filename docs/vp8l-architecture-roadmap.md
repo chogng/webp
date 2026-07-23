@@ -432,9 +432,9 @@ CLIC 等大型 benchmark corpus 后续采用同一身份原则，但不与 fixtu
 - **完成**：RGBA LZ77 copy 保留完整历史、先验证/扣减 WorkBudget 再修改，重叠 copy
   与 packed reference 差分通过；没有引入 row/ring streaming。limits 与既有保守错误
   边界保持不变。
-- **完成**：CLIC-102 的 306 个相同标准流相对 Phase C archive 三轮交替中位
-  15,158.119 ms 降至 13,242.972 ms（-12.634%）；同一进程口径峰值 RSS
-  905,658,368 B 降至 869,613,568 B（-3.980%）。workspace、fixture、上游 corpus、
+- **完成**：CLIC-102 的 306 个相同标准流相对 Phase C fresh archive 三轮交替中位
+  15,163.347 ms 降至 14,866.429 ms（-1.958%）；同一进程口径峰值 RSS
+  905,658,368 B 降至 869,482,496 B（-3.994%）。workspace、fixture、上游 corpus、
   animation/ALPH、truncation、malformed、limit 与 WorkBudget gates 全部通过。
 
 ### Phase E：Huffman/kernel families
