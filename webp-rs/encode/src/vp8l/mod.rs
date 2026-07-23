@@ -13,16 +13,19 @@ use self::huffman::EncodingTable;
 use self::huffman::canonical_table;
 use self::huffman::write_canonical_symbol;
 use self::huffman::write_simple_table;
+#[cfg(test)]
 use self::huffman::write_table_symbol;
+use self::packet_sink::PackedTokenWriter;
 use self::prefix::encode_prefix as vp8l_prefix;
 pub(crate) use self::token_stream::EntropyToken;
 pub(crate) use self::token_stream::TokenStream;
 pub(crate) use self::token_stream::select_color_cache_bits;
 pub(crate) use self::token_stream::select_left_predictor;
 use self::token_stream::{
-    CHANNEL_ALPHABET_SIZE, DISTANCE_ALPHABET_SIZE, EntropyFrequencies, FIRST_CACHE_SYMBOL,
-    GREEN_ALPHABET_SIZE,
+    CHANNEL_ALPHABET_SIZE, DISTANCE_ALPHABET_SIZE, FIRST_CACHE_SYMBOL, GREEN_ALPHABET_SIZE,
 };
+#[cfg(test)]
+use self::token_stream::EntropyFrequencies;
 
 pub(crate) const MAX_DIMENSION: u32 = 1 << 14;
 const SIGNATURE: u8 = 0x2f;
@@ -34,7 +37,9 @@ const CODE_LENGTH_CODE_ORDER: [usize; 19] = [
 ];
 pub const COLOR_TRANSFORM_BLOCK_BITS: u8 = 7;
 
+mod entropy_plan;
 pub(crate) mod huffman;
+mod packet_sink;
 mod prefix;
 mod source_analysis;
 mod token_stream;
@@ -54,12 +59,8 @@ pub struct ColorTransformPlan {
     pub red_to_blue: i8,
 }
 
-#[path = "single_plan.rs"]
-mod single_plan;
 #[path = "spatial_cluster.rs"]
 mod spatial_cluster;
-#[path = "spatial_packet_writer.rs"]
-mod spatial_packet_writer;
 #[path = "spatial_plan.rs"]
 pub(crate) mod spatial_plan;
 #[path = "spatial_writer.rs"]
@@ -133,28 +134,12 @@ pub fn encode_vp8l_payload(
         use_left_predictor,
         color_cache_bits,
     )?;
-    let tables = write_main_entropy_image_prefix(
-        &mut bits,
-        stream.statistics().frequencies(),
-        color_cache_bits,
-    )?;
-    for &token in stream.tokens() {
-        match token {
-            EntropyToken::Cache(index) => {
-                write_table_symbol(&mut bits, &tables.green, FIRST_CACHE_SYMBOL + index)?;
-            }
-            EntropyToken::Literal(residual) => {
-                // VP8L literal syntax orders channels green, red, blue, alpha.
-                write_table_symbol(&mut bits, &tables.green, usize::from(residual[1]))?;
-                write_table_symbol(&mut bits, &tables.red, usize::from(residual[0]))?;
-                write_table_symbol(&mut bits, &tables.blue, usize::from(residual[2]))?;
-                write_table_symbol(&mut bits, &tables.alpha, usize::from(residual[3]))?;
-            }
-            EntropyToken::Copy { length } => write_lz77_copy(&mut bits, &tables, length)?,
-        }
-    }
-
-    Ok((bits.into_bytes(), has_alpha))
+    let plan = entropy_plan::EntropyPlan::build_for_stream(stream.statistics())?;
+    plan.write_main_prefix(&mut bits, color_cache_bits)?;
+    Ok((
+        write_packed_tokens(bits, stream.tokens(), &plan)?,
+        has_alpha,
+    ))
 }
 
 fn encode_palette_vp8l_payload(
@@ -189,26 +174,24 @@ fn encode_palette_vp8l_payload(
         false,
         color_cache_bits,
     )?;
-    let tables = write_main_entropy_image_prefix(
-        &mut bits,
-        stream.statistics().frequencies(),
-        color_cache_bits,
-    )?;
-    for &token in stream.tokens() {
-        match token {
-            EntropyToken::Cache(index) => {
-                write_table_symbol(&mut bits, &tables.green, FIRST_CACHE_SYMBOL + index)?;
-            }
-            EntropyToken::Literal(pixel) => {
-                write_table_symbol(&mut bits, &tables.green, usize::from(pixel[1]))?;
-                write_table_symbol(&mut bits, &tables.red, usize::from(pixel[0]))?;
-                write_table_symbol(&mut bits, &tables.blue, usize::from(pixel[2]))?;
-                write_table_symbol(&mut bits, &tables.alpha, usize::from(pixel[3]))?;
-            }
-            EntropyToken::Copy { length } => write_lz77_copy(&mut bits, &tables, length)?,
-        }
+    let plan = entropy_plan::EntropyPlan::build_for_stream(stream.statistics())?;
+    plan.write_main_prefix(&mut bits, color_cache_bits)?;
+    Ok((
+        write_packed_tokens(bits, stream.tokens(), &plan)?,
+        has_alpha,
+    ))
+}
+
+fn write_packed_tokens(
+    bits: BitWriter,
+    tokens: &[EntropyToken],
+    plan: &entropy_plan::EntropyPlan,
+) -> Result<Vec<u8>, EncodeError> {
+    let mut packed = PackedTokenWriter::from_prefix(bits, plan.token_bits())?;
+    for &token in tokens {
+        packed.write_token(token, plan.tables())?;
     }
-    Ok((bits.into_bytes(), has_alpha))
+    packed.finish()
 }
 
 fn write_vp8l_header(
@@ -308,30 +291,6 @@ fn write_color_transform_image(
     Ok(())
 }
 
-fn write_main_entropy_image_prefix(
-    writer: &mut BitWriter,
-    frequencies: &EntropyFrequencies,
-    color_cache_bits: u8,
-) -> Result<EntropyTables, EncodeError> {
-    write_bits(writer, u32::from(color_cache_bits != 0), 1)?;
-    if color_cache_bits != 0 {
-        write_bits(writer, u32::from(color_cache_bits), 4)?;
-    }
-    write_bits(writer, 0, 1)?; // One entropy-code group, not meta-Huffman.
-    let green = write_adaptive_table(writer, frequencies.green())?;
-    let red = write_adaptive_table(writer, frequencies.red())?;
-    let blue = write_adaptive_table(writer, frequencies.blue())?;
-    let alpha = write_adaptive_table(writer, frequencies.alpha())?;
-    let distance = write_adaptive_table(writer, frequencies.distance())?;
-    Ok(EntropyTables {
-        green,
-        red,
-        blue,
-        alpha,
-        distance,
-    })
-}
-
 fn write_literal_entropy_image_prefix(
     writer: &mut BitWriter,
     is_level_zero: bool,
@@ -353,6 +312,7 @@ fn write_literal_entropy_image_prefix(
 /// balanced complete tree. This intentionally bounded first M6 form avoids a
 /// search heuristic while producing valid canonical codes of at most nine bits
 /// for every current VP8L alphabet.
+#[cfg(test)]
 fn write_adaptive_table(
     writer: &mut BitWriter,
     frequencies: &[u32],
@@ -424,6 +384,7 @@ fn write_normal_table(writer: &mut BitWriter, lengths: &[u8]) -> Result<(), Enco
 /// Emits one bounded distance-one VP8L copy. The distance code `121` is the
 /// format's linear representation of scan-line distance one, avoiding the
 /// spatial-distance map while remaining valid at every image width.
+#[cfg(test)]
 fn write_lz77_copy(
     writer: &mut BitWriter,
     tables: &EntropyTables,

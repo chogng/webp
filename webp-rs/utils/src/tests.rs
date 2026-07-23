@@ -17,6 +17,21 @@ fn bit_writer_appends_lsb_first_and_zero_pads() {
 }
 
 #[test]
+fn bit_writer_reclaims_only_canonical_packed_prefixes() {
+    let mut writer = BitWriter::new();
+    writer.write_bits(0b101, 3).unwrap();
+    let bits = writer.bit_len();
+    let bytes = writer.into_bytes();
+    let mut reclaimed = BitWriter::from_bytes(bytes, bits).expect("canonical prefix");
+    reclaimed.write_bits(0b11, 2).unwrap();
+    assert_eq!(reclaimed.bit_len(), 5);
+    assert_eq!(reclaimed.as_bytes(), &[0b1_1101]);
+
+    assert!(BitWriter::from_bytes(vec![], 1).is_none());
+    assert!(BitWriter::from_bytes(vec![0b1111_1101], 3).is_none());
+}
+
+#[test]
 fn bit_writer_rejects_widths_above_word_size() {
     let mut writer = BitWriter::new();
     assert_eq!(writer.write_bits(0, 33), Err(BitWriteError::InvalidWidth));

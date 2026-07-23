@@ -314,14 +314,18 @@ fn encode_profile_writer_control(
         0,
         profile.block_pixels(),
     )?;
-    let single = single_plan::SinglePlan::build(stream.statistics())?;
+    let single = entropy_plan::EntropyPlan::build_for_stream(stream.statistics())?;
+    let single_payload_bits = 44_usize
+        .checked_add(single.main_bits(0)?)
+        .ok_or_else(EncodeError::output_size_overflow)?;
+    let single_riff_bytes = entropy_plan::riff_bytes(single_payload_bits)?;
     let candidate = encode_spatial_writer_control(source, &stream, profile)?;
-    if candidate.len() < single.riff_bytes() {
+    if candidate.len() < single_riff_bytes {
         Ok(candidate)
     } else {
         let mut bits = BitWriter::new();
         write_fast_prefix_control(&mut bits, source)?;
-        single.write_main_prefix(&mut bits)?;
+        single.write_main_prefix(&mut bits, 0)?;
         write_tokens_control(&mut bits, stream.tokens(), single.tables())?;
         wrap_vp8l(bits.into_bytes())
     }

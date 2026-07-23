@@ -77,7 +77,45 @@ fn exact_single_estimate_covers_both_riff_padding_parities() {
 }
 
 #[test]
-fn exact_selection_skips_losing_single_and_preserves_single_and_plan_fallbacks() {
+fn exact_spatial_estimate_matches_group_map_tables_tokens_and_riff() {
+    for profile in [
+        spatial_plan::SpatialProfile::Compact,
+        spatial_plan::SpatialProfile::LowLatency,
+    ] {
+        for (width, height, transparent) in [
+            (1, 1, true),
+            (127, 3, false),
+            (128, 3, true),
+            (129, 3, false),
+            (511, 5, true),
+        ] {
+            let rgba = patterned_rgba(width, height, transparent);
+            let (predicted_bits, written_bits, predicted_payload_bytes, predicted_riff_bytes) =
+                spatial_writer::candidate_estimate_for_test(
+                    width as u32,
+                    height as u32,
+                    &rgba,
+                    profile,
+                )
+                .expect("estimate spatial candidate");
+            let actual = spatial_writer::encode_candidate_for_test(
+                width as u32,
+                height as u32,
+                &rgba,
+                profile,
+            )
+            .expect("write spatial candidate");
+            let actual_payload_bytes =
+                u32::from_le_bytes(actual[16..20].try_into().unwrap()) as usize;
+            assert_eq!(predicted_bits, written_bits);
+            assert_eq!(predicted_payload_bytes, actual_payload_bytes);
+            assert_eq!(predicted_riff_bytes, actual.len());
+        }
+    }
+}
+
+#[test]
+fn exact_selection_skips_every_losing_payload_and_preserves_fallbacks() {
     let tiny = [17, 29, 43, 91];
     let single = spatial_writer::encode_single_for_test(1, 1, &tiny).expect("encode tiny single");
     let (selected, stats) = spatial_writer::encode_profile_exact_for_test(
@@ -91,7 +129,10 @@ fn exact_selection_skips_losing_single_and_preserves_single_and_plan_fallbacks()
     assert_eq!(stats.predicted_riff_bytes, Some(single.len()));
     assert!(stats.predicted_payload_bits.is_some());
     assert!(stats.predicted_payload_bytes.is_some());
-    assert!(stats.losing_single_main_written);
+    assert!(stats.predicted_candidate_payload_bits.is_some());
+    assert!(stats.predicted_candidate_riff_bytes.is_some());
+    assert!(!stats.losing_single_main_written);
+    assert!(!stats.losing_candidate_main_written);
     assert!(!stats.estimator_fallback);
     assert!(!stats.candidate_won);
     assert!(!spatial_writer::candidate_wins(single.len(), single.len()));
@@ -114,7 +155,10 @@ fn exact_selection_skips_losing_single_and_preserves_single_and_plan_fallbacks()
     assert!(stats.predicted_payload_bits.is_none());
     assert!(stats.predicted_payload_bytes.is_none());
     assert!(stats.predicted_riff_bytes.is_none());
+    assert!(stats.predicted_candidate_payload_bits.is_none());
+    assert!(stats.predicted_candidate_riff_bytes.is_none());
     assert!(stats.losing_single_main_written);
+    assert!(stats.losing_candidate_main_written);
     assert!(stats.estimator_fallback);
     assert!(!stats.candidate_won);
 
@@ -150,6 +194,7 @@ fn exact_selection_skips_losing_single_and_preserves_single_and_plan_fallbacks()
     .expect("encode coarse stream");
     assert_eq!(selected, candidate);
     assert!(!stats.losing_single_main_written);
+    assert!(!stats.losing_candidate_main_written);
     assert!(!stats.estimator_fallback);
     assert!(stats.candidate_won);
 }

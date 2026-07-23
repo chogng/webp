@@ -170,9 +170,9 @@ Phase B 的第二个生产切片在 `main` 上补齐了这条所有权边界：
 
 为了保持已实测更快的访问局部性，获选的 color transform 仍 materialize 一份
 transform-domain RGBA backing；predictor/cache/token 三个算法阶段借用该 backing。
-这不是候选重复分析，且不应误写成“整个编码器只读输入一次”。当前 spatial candidate
-仍先 materialize 再与 exact single cost 比较；该最后一项由 Phase C 的通用 exact plan
-删除。起点 archive 与当前树在 16 张 CLIC m6 source 的 Default/Single/Compact/
+这不是候选重复分析，且不应误写成“整个编码器只读输入一次”。Phase C 的通用 exact
+plan 已删除最后一项失败 payload materialization。起点 archive 与当前树在 16 张
+CLIC m6 source 的 Default/Single/Compact/
 LowLatency 共 64 条 stream 上逐字节相同；41-file MustAccept VP8L、3 轮端到端编码从
 743.435 ms 降至 731.267 ms（-1.636%），输出 bytes 与 checksum 不变。
 
@@ -397,17 +397,24 @@ CLIC 等大型 benchmark corpus 后续采用同一身份原则，但不与 fixtu
   同步收集。
 - **完成**：起点 archive 与当前树的 Default byte identity，并额外覆盖 Single/
   Compact/LowLatency。
-- **部分完成**：candidate planning 只借用 source/token/statistics，不复制 token、不
-  重新扫描 RGBA；必要的获选 transform backing 是唯一的 transform-domain image。
-  spatial candidate 仍先 materialize 再比较，必须由 Phase C 的通用 exact plan 删除
-  后才能把 Phase B 整体封口。
+- **完成**：candidate planning 只借用 source/token/statistics，不复制 token、不重新
+  扫描 RGBA；必要的获选 transform backing 是唯一的 transform-domain image。
+  Phase C 的 exact plan 在写出前比较完整 RIFF bytes，正常路径只 materialize 获胜
+  payload。
 
 ### Phase C：通用 exact plan 与 packet sink
 
-- 把 `SinglePlan` 提升为通用 entropy plan。
-- 把 spatial packet writer 迁移为 Default/Compact/LowLatency 共用 sink。
-- copy/cache/palette/alpha/tiny 分类别零回退。
-- 只有同体积或 byte identity 下的时间改善才能晋级。
+- **完成**：`EntropyPlan` 是 single、spatial groups 与 nested group-map 共用的
+  canonical Huffman table/view 和 exact table/symbol/extra-bit cost owner；写完时再
+  校验 planned/written bit count。
+- **完成**：`packet_sink.rs` 是 Default、palette、Single、Compact、LowLatency 的
+  唯一 main-token sink；nested group-map token 也通过同一 sink 后无复制地归还
+  `BitWriter` 继续写 prefix。
+- **完成**：copy/cache/palette/alpha/tiny 与 exact fallback 由单元、profile 和
+  byte-identity gates 覆盖；正常路径不写失败 payload，plan failure 才走保持旧错误
+  语义的双写 control。
+- **完成**：64 条四档 stream 相对 Phase B 逐字节相同；41-file/5-round 同体积编码
+  1,192.215 ms 降至 958.604 ms（-19.595%）。
 
 ### Phase D：decoder pixel-store
 

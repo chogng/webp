@@ -811,6 +811,50 @@ block statistics。Default、Single、Compact 与 LowLatency 都借用同一 sou
 materialize 再与 exact single cost 比较；下一提交把 `SinglePlan` 泛化并在写出前完成
 全部候选比较，届时一并封口 Phase B 与 Phase C 的 exact-planning 部分。
 
+### Phase C：通用 EntropyPlan 与 packet sink
+
+Date: 2026-07-23。Base: `main@9e00ea66408f5d0ed01d2a37f3d512080174b123`。
+Branch/worktree: 本地 `main` 根工作区，未创建 worktree。
+
+`SinglePlan` 已由 candidate-independent `EntropyPlan` 取代。它为 global single、
+每个 spatial group 与 nested group-map 统一生成 canonical lengths/tables，并精确计
+table header、symbols、copy length/distance extra bits、padding 与完整 RIFF bytes。
+normal selection 在任何 payload 写出前比较 single/spatial 完整 RIFF cost；只有获胜
+payload 被 materialize。plan overflow/allocation/mismatch fail closed，plan 构造失败
+才进入保留旧 byte/error 语义的双写 control。
+
+原 `spatial_packet_writer` 下沉为 `packet_sink.rs`。Default、palette、Single、
+Compact、LowLatency 的 main tokens 全部使用同一 literal/cache/copy packet contract；
+nested group-map token 也通过同一 sink，再用经过 canonical-tail 校验的 owned bytes
+无复制归还 `BitWriter` 继续写 group tables。sink 只按 exact token bits reserve，不再
+按每 token 8 bytes 过量 reserve。
+
+- exactness/identity：新的 unit gate 同时对 single 与 Compact/LowLatency 验证
+  planned bits == written bits、payload bytes 与 RIFF padding。完整 CLIC-102 audit
+  的 204 个 profile rows 全部 `estimate_exact=1`、`control_exact=1`、无 fallback；
+  16 张 CLIC 的 Default/Single/Compact/LowLatency 共 64 条 stream 相对 Phase B
+  archive `diff -qr` 零差异并由项目 decoder exact round-trip。
+- 分类 gate：copy extra-bit 全 prefix 边界、cache collision/hit、bounded palette、
+  opaque/alpha、1×1 tiny、block boundary、winning/losing candidate 与 injected plan
+  failure 全部通过；packet microvectors 覆盖 32/64-bit crossing 与 VP8L 最大 58-bit
+  copy packet。
+- performance：相同 release binaries、同一 41-file MustAccept VP8L 顺序、5 rounds。
+  Phase B 为 205 encodes / 114,772,160 RGBA bytes / 91,508,840 output bytes /
+  1,192.215 ms；Phase C bytes/checksum `91525650` 完全相同 / 958.604 ms，即
+  **-19.595%**。另一次标准脚本 3 rounds 为 570.425 ms；同轮 pinned libwebp
+  42,529,872 bytes / 5,323.411 ms，因体积不同只作 sanity。
+- allocation/copy：normal profile selection 的 losing single 或 spatial payload 从
+  一份完整 `Vec<u8>` 降为 0；获胜 payload 保持一份。packet reserve 从上界
+  `tokens × 8 + 1` 收紧到 `ceil(exact_token_bits / 8) + 4`。plan 保留 lengths/tables、
+  group-map tokens 与 bounded group metadata；fallback 才有双 payload 峰值。
+- binary：release `encode_bench` 669,632 B → 705,216 B，**+35,584 B（+5.314%）**；
+  增量来自共享 exact planning、runtime mismatch gate 与 `BitWriter` owned-prefix
+  reclamation，作为本阶段明确成本保留。
+
+决定：**promote**。所有 profile byte-identical，Default 单线程同体积显著变快，
+Phase B 与 Phase C 封口。下一提交进入 decoder validated plan / single pixel backing；
+不得把 private sidecar 或 prepared cache 带回标准路径。
+
 ## 每次新实验的登记模板
 
 ```text

@@ -1,4 +1,4 @@
-//! Packed VP8L token serialization for the spatial candidate stream.
+//! Shared packed VP8L token serialization for every entropy profile.
 
 use super::{
     BitWriter, CHANNEL_ALPHABET_SIZE, DISTANCE_ALPHABET_SIZE, EncodeError, EncodingTable,
@@ -88,10 +88,11 @@ fn packet_for_token(
     Ok(packet)
 }
 
-fn packet_reserve_bytes(token_count: usize) -> Result<usize, EncodeError> {
-    token_count
-        .checked_mul(size_of::<u64>())
-        .and_then(|bytes| bytes.checked_add(1))
+fn packet_reserve_bytes(token_bits: usize) -> Result<usize, EncodeError> {
+    token_bits
+        .checked_add(7)
+        .map(|bits| bits / 8)
+        .and_then(|bytes| bytes.checked_add(size_of::<u32>()))
         .ok_or_else(EncodeError::output_size_overflow)
 }
 
@@ -100,15 +101,16 @@ pub(super) struct PackedTokenWriter {
     data: Vec<u8>,
     accumulator: u64,
     used: u8,
+    bit_len: usize,
 }
 
 impl PackedTokenWriter {
-    pub(super) fn from_prefix(prefix: BitWriter, token_count: usize) -> Result<Self, EncodeError> {
+    pub(super) fn from_prefix(prefix: BitWriter, token_bits: usize) -> Result<Self, EncodeError> {
         let bit_len = prefix.bit_len();
         Self::from_parts(
             prefix.into_bytes(),
             bit_len,
-            packet_reserve_bytes(token_count)?,
+            packet_reserve_bytes(token_bits)?,
         )
     }
 
@@ -137,6 +139,7 @@ impl PackedTokenWriter {
             data,
             accumulator,
             used,
+            bit_len,
         })
     }
 
@@ -166,6 +169,10 @@ impl PackedTokenWriter {
             .used
             .checked_add(packet.width)
             .ok_or_else(EncodeError::output_size_overflow)?;
+        self.bit_len = self
+            .bit_len
+            .checked_add(usize::from(packet.width))
+            .ok_or_else(EncodeError::output_size_overflow)?;
         while used >= u32::BITS as u8 {
             let end = self
                 .data
@@ -182,6 +189,15 @@ impl PackedTokenWriter {
         self.accumulator = pending as u64;
         self.used = used;
         Ok(())
+    }
+
+    pub(super) const fn bit_len(&self) -> usize {
+        self.bit_len
+    }
+
+    pub(super) fn into_prefix(self) -> Result<BitWriter, EncodeError> {
+        let bit_len = self.bit_len;
+        BitWriter::from_bytes(self.finish()?, bit_len).ok_or_else(EncodeError::output_size_overflow)
     }
 
     pub(super) fn finish(mut self) -> Result<Vec<u8>, EncodeError> {
@@ -201,5 +217,5 @@ impl PackedTokenWriter {
 }
 
 #[cfg(test)]
-#[path = "spatial_packet_writer_tests.rs"]
+#[path = "packet_sink_tests.rs"]
 mod tests;

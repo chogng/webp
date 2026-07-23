@@ -44,6 +44,26 @@ impl BitWriter {
         self.bit_len
     }
 
+    /// Takes ownership of an already packed LSB-first prefix.
+    ///
+    /// Returns `None` unless `data` has exactly the bytes required by
+    /// `bit_len` and every unused high bit in the final byte is zero.
+    #[must_use]
+    pub fn from_bytes(data: Vec<u8>, bit_len: usize) -> Option<Self> {
+        if data.len() != bit_len.div_ceil(8) {
+            return None;
+        }
+        let used = bit_len % 8;
+        if used != 0
+            && data
+                .last()
+                .is_some_and(|byte| byte & !((1_u8 << used) - 1) != 0)
+        {
+            return None;
+        }
+        Some(Self { data, bit_len })
+    }
+
     /// Appends the low `count` bits of `value` in least-significant-bit order.
     ///
     /// # Errors
