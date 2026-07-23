@@ -76,10 +76,10 @@ fn encoder_emits_bounded_distance_one_lz77_runs() {
     for _ in 0..16 {
         rgba.extend_from_slice(&[10, 20, 30, 255]);
     }
-    let (tokens, _) =
-        collect_entropy_tokens(&rgba, 16, true, true, 0).expect("tokenize repeated row");
+    let stream = TokenStream::collect(&rgba, 16, true, true, 0).expect("tokenize repeated row");
     assert!(
-        tokens
+        stream
+            .tokens()
             .iter()
             .any(|token| matches!(token, EntropyToken::Copy { length } if *length >= 3)),
         "repeated residuals use a VP8L copy token"
@@ -103,11 +103,11 @@ fn encoder_uses_cache_and_lz77_on_non_palette_images() {
         "the cache input has more than the encoder's palette bound"
     );
     let cache_bits = select_color_cache_bits(&cache_rgba, cache_width, true, false);
-    let (cache_tokens, _) =
-        collect_entropy_tokens(&cache_rgba, cache_width, true, false, cache_bits)
-            .expect("tokenize cache input");
+    let cache_stream = TokenStream::collect(&cache_rgba, cache_width, true, false, cache_bits)
+        .expect("tokenize cache input");
     assert!(
-        cache_tokens
+        cache_stream
+            .tokens()
             .iter()
             .any(|token| matches!(token, EntropyToken::Cache(_))),
         "a non-adjacent repeat reaches the main-stream color cache"
@@ -129,10 +129,11 @@ fn encoder_uses_cache_and_lz77_on_non_palette_images() {
         "the copy input has more than the encoder's palette bound"
     );
     assert!(select_left_predictor(&copy_rgba, copy_width));
-    let (copy_tokens, _) =
-        collect_entropy_tokens(&copy_rgba, copy_width, true, true, 0).expect("tokenize copy input");
+    let copy_stream =
+        TokenStream::collect(&copy_rgba, copy_width, true, true, 0).expect("tokenize copy input");
     assert!(
-        copy_tokens
+        copy_stream
+            .tokens()
             .iter()
             .any(|token| matches!(token, EntropyToken::Copy { length } if *length >= 3)),
         "repeated non-palette rows reach bounded distance-one LZ77"

@@ -15,19 +15,19 @@ use self::huffman::write_canonical_symbol;
 use self::huffman::write_simple_table;
 use self::huffman::write_table_symbol;
 use self::prefix::encode_prefix as vp8l_prefix;
+pub(crate) use self::token_stream::EntropyToken;
+pub(crate) use self::token_stream::TokenStream;
+use self::token_stream::{
+    CHANNEL_ALPHABET_SIZE, DISTANCE_ALPHABET_SIZE, EntropyFrequencies, FIRST_CACHE_SYMBOL,
+    GREEN_ALPHABET_SIZE,
+};
+pub(crate) use self::token_stream::{select_color_cache_bits, select_left_predictor};
 
 pub(crate) const MAX_DIMENSION: u32 = 1 << 14;
 const SIGNATURE: u8 = 0x2f;
 
-const GREEN_ALPHABET_SIZE: usize = 256 + 24;
-const CHANNEL_ALPHABET_SIZE: usize = 256;
-const DISTANCE_ALPHABET_SIZE: usize = 40;
 const PREDICTOR_BLOCK_SIZE: u32 = 4;
 const LEFT_PREDICTOR_MODE: u8 = 1;
-const MAX_ENCODER_COLOR_CACHE_BITS: u8 = 4;
-const MAX_COLOR_CACHE_SIZE: usize = 1 << MAX_ENCODER_COLOR_CACHE_BITS;
-const FIRST_CACHE_SYMBOL: usize = GREEN_ALPHABET_SIZE;
-const MAIN_GREEN_ALPHABET_SIZE: usize = GREEN_ALPHABET_SIZE + MAX_COLOR_CACHE_SIZE;
 const CODE_LENGTH_CODE_ORDER: [usize; 19] = [
     17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
 ];
@@ -37,22 +37,7 @@ const MIN_COLOR_TRANSFORM_PIXELS: usize = 256;
 
 pub(crate) mod huffman;
 mod prefix;
-
-#[derive(Clone, Copy)]
-pub enum EntropyToken {
-    Literal([u8; 4]),
-    Cache(usize),
-    Copy { length: usize },
-}
-
-pub struct EntropyFrequencies {
-    green: [u32; MAIN_GREEN_ALPHABET_SIZE],
-    green_len: usize,
-    red: [u32; CHANNEL_ALPHABET_SIZE],
-    blue: [u32; CHANNEL_ALPHABET_SIZE],
-    alpha: [u32; CHANNEL_ALPHABET_SIZE],
-    distance: [u32; DISTANCE_ALPHABET_SIZE],
-}
+mod token_stream;
 
 pub struct EntropyTables {
     green: EncodingTable,
@@ -135,15 +120,19 @@ pub fn encode_vp8l_payload(
 
     let color_cache_bits =
         select_color_cache_bits(&transformed, width_usize, true, use_left_predictor);
-    let (tokens, frequencies) = collect_entropy_tokens(
+    let stream = TokenStream::collect(
         &transformed,
         width_usize,
         true,
         use_left_predictor,
         color_cache_bits,
     )?;
-    let tables = write_main_entropy_image_prefix(&mut bits, &frequencies, color_cache_bits)?;
-    for token in tokens {
+    let tables = write_main_entropy_image_prefix(
+        &mut bits,
+        stream.statistics().frequencies(),
+        color_cache_bits,
+    )?;
+    for &token in stream.tokens() {
         match token {
             EntropyToken::Cache(index) => {
                 write_table_symbol(&mut bits, &tables.green, FIRST_CACHE_SYMBOL + index)?;
@@ -183,15 +172,19 @@ fn encode_palette_vp8l_payload(
 
     let color_cache_bits =
         select_color_cache_bits(&palette.indexed_rgba, palette.indexed_width, false, false);
-    let (tokens, frequencies) = collect_entropy_tokens(
+    let stream = TokenStream::collect(
         &palette.indexed_rgba,
         palette.indexed_width,
         false,
         false,
         color_cache_bits,
     )?;
-    let tables = write_main_entropy_image_prefix(&mut bits, &frequencies, color_cache_bits)?;
-    for token in tokens {
+    let tables = write_main_entropy_image_prefix(
+        &mut bits,
+        stream.statistics().frequencies(),
+        color_cache_bits,
+    )?;
+    for &token in stream.tokens() {
         match token {
             EntropyToken::Cache(index) => {
                 write_table_symbol(&mut bits, &tables.green, FIRST_CACHE_SYMBOL + index)?;
@@ -360,109 +353,6 @@ fn write_color_transform_image(
     Ok(())
 }
 
-pub fn collect_entropy_tokens(
-    rgba: &[u8],
-    width: usize,
-    use_subtract_green: bool,
-    use_left_predictor: bool,
-    color_cache_bits: u8,
-) -> Result<(Vec<EntropyToken>, EntropyFrequencies), EncodeError> {
-    let mut tokens = Vec::new();
-    tokens
-        .try_reserve_exact(rgba.len() / 4)
-        .map_err(|_| EncodeError::allocation_failed())?;
-    let mut frequencies = EntropyFrequencies {
-        green: [0; MAIN_GREEN_ALPHABET_SIZE],
-        green_len: GREEN_ALPHABET_SIZE + color_cache_size(color_cache_bits),
-        red: [0; CHANNEL_ALPHABET_SIZE],
-        blue: [0; CHANNEL_ALPHABET_SIZE],
-        alpha: [0; CHANNEL_ALPHABET_SIZE],
-        distance: [0; DISTANCE_ALPHABET_SIZE],
-    };
-    let mut color_cache = [0_u32; MAX_COLOR_CACHE_SIZE];
-    let mut residuals = Vec::new();
-    residuals
-        .try_reserve_exact(rgba.len() / 4)
-        .map_err(|_| EncodeError::allocation_failed())?;
-    for (index, _) in rgba.chunks_exact(4).enumerate() {
-        let current = if use_subtract_green {
-            subtract_green_pixel(rgba, index)
-        } else {
-            pixel_at(rgba, index)
-        };
-        let predictor = if use_left_predictor {
-            left_predictor(rgba, index, width)
-        } else {
-            [0; 4]
-        };
-        let residual = [
-            current[0].wrapping_sub(predictor[0]),
-            current[1].wrapping_sub(predictor[1]),
-            current[2].wrapping_sub(predictor[2]),
-            current[3].wrapping_sub(predictor[3]),
-        ];
-        residuals.push(residual);
-    }
-
-    let mut index = 0_usize;
-    while index < residuals.len() {
-        let residual = residuals[index];
-        if index != 0 && residual == residuals[index - 1] {
-            let mut length = 1_usize;
-            while length < 4096
-                && index + length < residuals.len()
-                && residuals[index + length] == residual
-            {
-                length += 1;
-            }
-            if length >= 3 {
-                let (length_prefix, _) = vp8l_prefix(length, 24)?;
-                increment_frequency(
-                    &mut frequencies.green,
-                    CHANNEL_ALPHABET_SIZE + length_prefix,
-                )?;
-                let (distance_prefix, _) = vp8l_prefix(121, DISTANCE_ALPHABET_SIZE)?;
-                increment_frequency(&mut frequencies.distance, distance_prefix)?;
-                for _ in 0..length {
-                    update_color_cache(&mut color_cache, color_cache_bits, pack_argb(residual));
-                }
-                tokens.push(EntropyToken::Copy { length });
-                index += length;
-                continue;
-            }
-        }
-        let color = pack_argb(residual);
-        let cache_index = if color_cache_bits == 0 {
-            0
-        } else {
-            color_cache_index(color, color_cache_bits)
-        };
-        if color_cache_bits != 0 && color_cache[cache_index] == color {
-            increment_frequency(&mut frequencies.green, FIRST_CACHE_SYMBOL + cache_index)?;
-            tokens.push(EntropyToken::Cache(cache_index));
-        } else {
-            increment_frequency(&mut frequencies.green, usize::from(residual[1]))?;
-            increment_frequency(&mut frequencies.red, usize::from(residual[0]))?;
-            increment_frequency(&mut frequencies.blue, usize::from(residual[2]))?;
-            increment_frequency(&mut frequencies.alpha, usize::from(residual[3]))?;
-            tokens.push(EntropyToken::Literal(residual));
-        }
-        color_cache[cache_index] = color;
-        index += 1;
-    }
-    Ok((tokens, frequencies))
-}
-
-fn increment_frequency(table: &mut [u32], symbol: usize) -> Result<(), EncodeError> {
-    let frequency = table
-        .get_mut(symbol)
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    *frequency = frequency
-        .checked_add(1)
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    Ok(())
-}
-
 fn write_main_entropy_image_prefix(
     writer: &mut BitWriter,
     frequencies: &EntropyFrequencies,
@@ -473,11 +363,11 @@ fn write_main_entropy_image_prefix(
         write_bits(writer, u32::from(color_cache_bits), 4)?;
     }
     write_bits(writer, 0, 1)?; // One entropy-code group, not meta-Huffman.
-    let green = write_adaptive_table(writer, &frequencies.green[..frequencies.green_len])?;
-    let red = write_adaptive_table(writer, &frequencies.red)?;
-    let blue = write_adaptive_table(writer, &frequencies.blue)?;
-    let alpha = write_adaptive_table(writer, &frequencies.alpha)?;
-    let distance = write_adaptive_table(writer, &frequencies.distance)?;
+    let green = write_adaptive_table(writer, frequencies.green())?;
+    let red = write_adaptive_table(writer, frequencies.red())?;
+    let blue = write_adaptive_table(writer, frequencies.blue())?;
+    let alpha = write_adaptive_table(writer, frequencies.alpha())?;
+    let distance = write_adaptive_table(writer, frequencies.distance())?;
     Ok(EntropyTables {
         green,
         red,
@@ -592,17 +482,6 @@ fn write_lz77_copy(
     write_bits(writer, distance_extra.0, distance_extra.1)
 }
 
-/// Applies VP8L's forward subtract-green transform to one input pixel.
-fn subtract_green_pixel(rgba: &[u8], index: usize) -> [u8; 4] {
-    let [red, green, blue, alpha] = pixel_at(rgba, index);
-    [
-        red.wrapping_sub(green),
-        green,
-        blue.wrapping_sub(green),
-        alpha,
-    ]
-}
-
 /// Evaluates a bounded deterministic coefficient set. The transform's table
 /// costs a full nested entropy image, so it is only considered for substantial
 /// images and must reduce the signed channel-residual score by at least 25%.
@@ -713,27 +592,6 @@ fn signed_byte_magnitude(value: u8) -> u8 {
     signed.unsigned_abs()
 }
 
-fn pixel_at(rgba: &[u8], index: usize) -> [u8; 4] {
-    let offset = index * 4;
-    [
-        rgba[offset],
-        rgba[offset + 1],
-        rgba[offset + 2],
-        rgba[offset + 3],
-    ]
-}
-
-/// Returns VP8L's fixed left-predictor value for the subtract-green image.
-/// Boundary rules are defined by the VP8L format, not by predictor mode.
-fn left_predictor(rgba: &[u8], index: usize, width: usize) -> [u8; 4] {
-    if index == 0 {
-        return [0, 0, 0, u8::MAX];
-    }
-    let x = index % width;
-    let predictor_index = if x == 0 { index - width } else { index - 1 };
-    subtract_green_pixel(rgba, predictor_index)
-}
-
 pub fn validate_input(width: u32, height: u32, rgba: &[u8]) -> Result<(), EncodeError> {
     if width == 0 || height == 0 || width > MAX_DIMENSION || height > MAX_DIMENSION {
         return Err(EncodeError::invalid_dimensions());
@@ -778,92 +636,6 @@ fn write_literal_table(
 /// canonical codes least-significant bit first, hence the bit reversal.
 fn write_fixed_symbol(writer: &mut BitWriter, symbol: u8) -> Result<(), EncodeError> {
     Ok(write_canonical_symbol(writer, u32::from(symbol), 8)?)
-}
-
-fn pack_argb(rgba: [u8; 4]) -> u32 {
-    (u32::from(rgba[3]) << 24)
-        | (u32::from(rgba[0]) << 16)
-        | (u32::from(rgba[1]) << 8)
-        | u32::from(rgba[2])
-}
-
-pub fn select_color_cache_bits(
-    rgba: &[u8],
-    width: usize,
-    use_subtract_green: bool,
-    use_left_predictor: bool,
-) -> u8 {
-    let mut selected_bits = 0;
-    let mut best_hits = 0_u32;
-    for bits in 1..=MAX_ENCODER_COLOR_CACHE_BITS {
-        let mut cache = [0_u32; MAX_COLOR_CACHE_SIZE];
-        let mut hits = 0_u32;
-        for (index, _) in rgba.chunks_exact(4).enumerate() {
-            let current = if use_subtract_green {
-                subtract_green_pixel(rgba, index)
-            } else {
-                pixel_at(rgba, index)
-            };
-            let predictor = if use_left_predictor {
-                left_predictor(rgba, index, width)
-            } else {
-                [0; 4]
-            };
-            let residual = [
-                current[0].wrapping_sub(predictor[0]),
-                current[1].wrapping_sub(predictor[1]),
-                current[2].wrapping_sub(predictor[2]),
-                current[3].wrapping_sub(predictor[3]),
-            ];
-            let color = pack_argb(residual);
-            let cache_index = color_cache_index(color, bits);
-            if cache[cache_index] == color {
-                hits = hits.saturating_add(1);
-            }
-            cache[cache_index] = color;
-        }
-        if hits > best_hits {
-            best_hits = hits;
-            selected_bits = bits;
-        }
-    }
-    selected_bits
-}
-
-/// Keeps the fixed left mode only when it creates a material number of exact
-/// transformed-neighbour matches. Otherwise omitting the predictor avoids its
-/// nested transform image and makes the entropy stream directly represent the
-/// subtract-green samples.
-pub fn select_left_predictor(rgba: &[u8], width: usize) -> bool {
-    let mut matching_neighbours = 0_usize;
-    for index in 1..rgba.len() / 4 {
-        let current = subtract_green_pixel(rgba, index);
-        let predictor = left_predictor(rgba, index, width);
-        if current == predictor {
-            matching_neighbours += 1;
-        }
-    }
-    matching_neighbours.saturating_mul(16) >= rgba.len() / 4
-}
-
-const fn color_cache_size(bits: u8) -> usize {
-    if bits == 0 { 0 } else { 1 << bits }
-}
-
-fn color_cache_index(color: u32, bits: u8) -> usize {
-    debug_assert!(bits != 0 && bits <= MAX_ENCODER_COLOR_CACHE_BITS);
-    hash_color(color, bits)
-}
-
-const fn hash_color(color: u32, bits: u8) -> usize {
-    let shift = u32::BITS - bits as u32;
-    (color.wrapping_mul(0x1e35_a7bd) >> shift) as usize
-}
-
-fn update_color_cache(cache: &mut [u32; MAX_COLOR_CACHE_SIZE], bits: u8, color: u32) {
-    if bits != 0 {
-        cache[color_cache_index(color, bits)] = color;
-    }
 }
 
 fn write_bits(writer: &mut BitWriter, value: u32, count: u8) -> Result<(), EncodeError> {

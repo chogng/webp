@@ -14,7 +14,7 @@ use crate::vp8l::EntropyToken;
 #[cfg(test)]
 use crate::vp8l::MAX_DIMENSION;
 #[cfg(test)]
-use crate::vp8l::collect_entropy_tokens;
+use crate::vp8l::TokenStream;
 #[cfg(test)]
 use crate::vp8l::select_color_cache_bits;
 #[cfg(test)]

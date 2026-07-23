@@ -2,8 +2,13 @@ use super::*;
 
 #[test]
 fn full_256_pixel_block_does_not_overflow_histogram_counters() {
-    let tokens = vec![EntropyToken::Literal([1, 2, 3, 255]); 256 * 256];
-    let clustered = cluster_tokens(&tokens, 256, 256, 256, 16).expect("cluster full block");
+    let mut rgba = Vec::with_capacity(256 * 256 * 4);
+    for index in 0..256 * 256 {
+        rgba.extend_from_slice(&[1, index as u8, 3, 255]);
+    }
+    let stream =
+        TokenStream::collect(&rgba, 256, false, false, 0).expect("collect full literal block");
+    let clustered = cluster_tokens(&stream, 256, 16).expect("cluster full block");
     assert_eq!(clustered.assignments.len(), 1);
     assert_eq!(clustered.group_count, 1);
 }

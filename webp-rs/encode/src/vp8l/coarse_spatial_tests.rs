@@ -156,10 +156,10 @@ fn product_profiles_select_the_coarse_file_when_it_is_strictly_smaller() {
 #[test]
 fn copy_token_may_cross_a_coarse_block_end() {
     let rgba = [7, 11, 19, 255].repeat(300);
-    let (tokens, _) =
-        collect_entropy_tokens(&rgba, 300, true, false, 0).expect("tokenize long repeated run");
+    let stream =
+        TokenStream::collect(&rgba, 300, true, false, 0).expect("tokenize long repeated run");
     assert!(matches!(
-        tokens.as_slice(),
+        stream.tokens(),
         [EntropyToken::Literal(_), EntropyToken::Copy { length: 299 }]
     ));
     for profile in profiles() {

@@ -144,6 +144,23 @@ vp8l/
 
 候选不得重新扫描 RGBA 或重新生成 token。
 
+首个 Phase B 生产切片已经把这条边界落到当前编码链路：
+
+- 私有 `token_stream.rs` 是 canonical `EntropyToken`、source geometry、color-cache
+  contract、literal/cache/copy/distance census 和全局 channel frequencies 的唯一 owner；
+- `TokenStream` 构造完成时校验 token 数、覆盖像素数、copy/distance 一一对应以及五组
+  frequency totals，内部事实不一致时 fail closed；
+- Default/palette writer、fast-profile `Prepared`、`SinglePlan` 与 `SpatialPlan` 都借用
+  同一个 stream/statistics object；plan 不再分别接收可失配的 token `Vec`、geometry
+  与裸 frequency；
+- token span 和 token-to-frequency 规则各只保留一份，spatial cluster/group
+  frequency 从 canonical stream 派生，不重新扫描 RGBA 或重新 tokenization。
+
+该切片有意不改变 token 算法、transform/profile 选择、Huffman 计划、candidate
+选择或 writer，因此不是性能结果。它也尚未完成 Phase B：残差仍先 materialize，
+block/transform statistics、alpha/palette resource facts 与可复算 input identity 仍需在
+后续独立切片中由同一 owner 纳入；在这些事实存在前不得宣称“一次输入扫描”已经完成。
+
 ### 4.2 通用 exact plan
 
 当前 `single_plan.rs` 已证明精确成本可以替代必输码流的完整写出。应把机制提升为
@@ -359,7 +376,9 @@ CLIC 等大型 benchmark corpus 后续采用同一身份原则，但不与 fixtu
 
 ### Phase B：编码共享 IR
 
-- 一次 tokenization 生成 tokens、frequencies、block statistics。
+- 首个切片已建立 canonical token/geometry/census/global-frequency owner，并让
+  Default、single-plan 与 spatial plan 共享；后续再把 residual、block/transform
+  statistics、alpha/palette/resource facts 和 input identity 纳入同一次分析。
 - Default before/after byte identity。
 - 证明候选不重新扫描 RGBA、不复制 token、不物化失败 payload。
 

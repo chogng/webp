@@ -744,6 +744,24 @@ FDEC/sidecar 路线在 E59 后终止，不再进入 formal、产品迁移或 `ma
 标准 VP8L，完整数据流、模块所有权、实验复用/deprecate 决定、迁移顺序与晋级门见
 [`../vp8l-architecture-roadmap.md`](../vp8l-architecture-roadmap.md)。
 
+### Phase B 首个 canonical token/statistics IR 切片
+
+本轮只重构标准 VP8L 编码事实所有权，不改变算法或 wire：`token_stream.rs` 统一拥有
+canonical tokens、geometry、color-cache contract、literal/cache/copy/distance
+census 与全局 frequencies；Default、`SinglePlan`、spatial clustering/group
+frequencies 和 writer 都借用该对象。旧的重复 token-span 与 spatial
+token-to-frequency 规则已删除。
+
+正确性门包括 encoder library tests、copy/cache/palette/alpha/tiny/profile 边界，以及
+从 `edae151d` archive 独立构建的 Default/Compact/LowLatency 代表输入逐字节对照；
+无效 RGBA 长度的公开错误种类和文字也一致。完整 workspace、Clippy 与 fixture 门由
+本轮提交前统一执行。
+
+本轮没有正式 benchmark，因此不报告速度、RSS、allocation 或 binary 收益，顶部性能表
+不变。当前 tokenization 仍 materialize residuals；block/transform statistics、
+alpha/palette resource facts 与 input identity 也尚未进入 IR，不能把本切片描述为已经
+完成一次输入扫描或完整 Phase B。
+
 优先级固定为：
 
 1. 把当前 `single_plan` 提升为所有候选共享的 exact entropy plan；

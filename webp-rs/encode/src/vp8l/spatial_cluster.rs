@@ -3,7 +3,8 @@
 use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
-use super::{EncodeError, EntropyToken};
+use super::EncodeError;
+use super::token_stream::{EntropyToken, TokenStream, token_span};
 
 #[derive(Clone, Copy, Default)]
 struct Majority {
@@ -101,12 +102,13 @@ pub(crate) struct ClusteredMap {
 }
 
 pub(crate) fn cluster_tokens(
-    tokens: &[EntropyToken],
-    width: usize,
-    height: usize,
+    stream: &TokenStream,
     block_pixels: usize,
     maximum_groups: usize,
 ) -> Result<ClusteredMap, EncodeError> {
+    let geometry = stream.geometry();
+    let width = geometry.width();
+    let height = geometry.height();
     let block_width = width.div_ceil(block_pixels);
     let block_height = height.div_ceil(block_pixels);
     let block_count = block_width
@@ -119,7 +121,7 @@ pub(crate) fn cluster_tokens(
     blocks.resize(block_count, BlockHistogram::default());
 
     let mut pixel = 0_usize;
-    for &token in tokens {
+    for &token in stream.tokens() {
         let block = block_index(pixel, width, block_width, block_pixels);
         blocks[block].add(token)?;
         pixel = pixel
@@ -171,13 +173,6 @@ pub(crate) fn cluster_tokens(
         assignments,
         group_count,
     })
-}
-
-pub(crate) const fn token_span(token: EntropyToken) -> usize {
-    match token {
-        EntropyToken::Literal(_) | EntropyToken::Cache(_) => 1,
-        EntropyToken::Copy { length } => length,
-    }
 }
 
 const fn block_index(pixel: usize, width: usize, block_width: usize, block_pixels: usize) -> usize {

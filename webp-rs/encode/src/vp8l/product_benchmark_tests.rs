@@ -306,29 +306,26 @@ fn encode_profile_writer_control(
 ) -> Result<Vec<u8>, EncodeError> {
     validate_input(source.width, source.height, &source.rgba)?;
     let width = usize::try_from(source.width).map_err(|_| EncodeError::input_size_overflow())?;
-    let height = usize::try_from(source.height).map_err(|_| EncodeError::input_size_overflow())?;
-    let (tokens, frequencies) = collect_entropy_tokens(&source.rgba, width, true, false, 0)?;
-    let single = single_plan::SinglePlan::build(&frequencies)?;
-    let candidate = encode_spatial_writer_control(source, width, height, &tokens, profile)?;
+    let stream = TokenStream::collect(&source.rgba, width, true, false, 0)?;
+    let single = single_plan::SinglePlan::build(stream.statistics())?;
+    let candidate = encode_spatial_writer_control(source, &stream, profile)?;
     if candidate.len() < single.riff_bytes() {
         Ok(candidate)
     } else {
         let mut bits = BitWriter::new();
         write_fast_prefix_control(&mut bits, source)?;
         single.write_main_prefix(&mut bits)?;
-        write_tokens_control(&mut bits, &tokens, single.tables())?;
+        write_tokens_control(&mut bits, stream.tokens(), single.tables())?;
         wrap_vp8l(bits.into_bytes())
     }
 }
 
 fn encode_spatial_writer_control(
     source: &Source,
-    width: usize,
-    height: usize,
-    tokens: &[EntropyToken],
+    stream: &TokenStream,
     profile: spatial_plan::SpatialProfile,
 ) -> Result<Vec<u8>, EncodeError> {
-    let plan = spatial_plan::SpatialPlan::build(tokens, width, height, 0, profile)?;
+    let plan = spatial_plan::SpatialPlan::build(stream, profile)?;
     let mut bits = BitWriter::new();
     write_fast_prefix_control(&mut bits, source)?;
     write_bits(&mut bits, 0, 1)?;
@@ -344,11 +341,11 @@ fn encode_spatial_writer_control(
         tables.push(write_five_tables_control(&mut bits, frequencies)?);
     }
     let mut pixel = 0_usize;
-    for &token in tokens {
+    for &token in stream.tokens() {
         let group = plan.group_for_pixel(pixel);
         write_token_control(&mut bits, token, &tables[group])?;
         pixel = pixel
-            .checked_add(spatial_cluster::token_span(token))
+            .checked_add(token_stream::token_span(token))
             .ok_or_else(EncodeError::output_size_overflow)?;
     }
     wrap_vp8l(bits.into_bytes())
@@ -381,10 +378,10 @@ fn write_group_map_control(
     for &group in plan.group_map() {
         rgba.extend_from_slice(&[0, group, 0, 0]);
     }
-    let (tokens, frequencies) = collect_entropy_tokens(&rgba, plan.map_width(), false, false, 0)?;
+    let stream = TokenStream::collect(&rgba, plan.map_width(), false, false, 0)?;
     write_bits(bits, 0, 1)?;
-    let tables = write_five_tables_control(bits, &frequencies)?;
-    write_tokens_control(bits, &tokens, &tables)
+    let tables = write_five_tables_control(bits, stream.statistics().frequencies())?;
+    write_tokens_control(bits, stream.tokens(), &tables)
 }
 
 fn write_five_tables_control(
@@ -392,11 +389,11 @@ fn write_five_tables_control(
     frequencies: &EntropyFrequencies,
 ) -> Result<EntropyTables, EncodeError> {
     Ok(EntropyTables {
-        green: write_adaptive_table(bits, &frequencies.green[..frequencies.green_len])?,
-        red: write_adaptive_table(bits, &frequencies.red)?,
-        blue: write_adaptive_table(bits, &frequencies.blue)?,
-        alpha: write_adaptive_table(bits, &frequencies.alpha)?,
-        distance: write_adaptive_table(bits, &frequencies.distance)?,
+        green: write_adaptive_table(bits, frequencies.green())?,
+        red: write_adaptive_table(bits, frequencies.red())?,
+        blue: write_adaptive_table(bits, frequencies.blue())?,
+        alpha: write_adaptive_table(bits, frequencies.alpha())?,
+        distance: write_adaptive_table(bits, frequencies.distance())?,
     })
 }
 
