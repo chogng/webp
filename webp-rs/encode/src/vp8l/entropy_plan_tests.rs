@@ -135,6 +135,9 @@ fn exact_selection_skips_every_losing_payload_and_preserves_fallbacks() {
     assert!(!stats.losing_candidate_main_written);
     assert!(!stats.estimator_fallback);
     assert!(!stats.candidate_won);
+    assert_eq!(stats.selected_index, Some(0));
+    assert_eq!(stats.selected_profile, None);
+    assert!(stats.portfolio_costs.is_some());
     assert!(!spatial_writer::candidate_wins(single.len(), single.len()));
 
     let control = spatial_writer::encode_profile_control_for_test(
@@ -161,6 +164,9 @@ fn exact_selection_skips_every_losing_payload_and_preserves_fallbacks() {
     assert!(stats.losing_candidate_main_written);
     assert!(stats.estimator_fallback);
     assert!(!stats.candidate_won);
+    assert_eq!(stats.selected_index, None);
+    assert_eq!(stats.selected_profile, None);
+    assert_eq!(stats.portfolio_costs, None);
 
     let width = 1024_usize;
     let height = 1024_usize;
@@ -185,14 +191,24 @@ fn exact_selection_skips_every_losing_payload_and_preserves_fallbacks() {
         spatial_plan::SpatialProfile::Compact,
     )
     .expect("select coarse stream");
+    let selected_profile = stats
+        .selected_profile
+        .expect("coarse input selects a spatial candidate");
     let candidate = spatial_writer::encode_candidate_for_test(
         width as u32,
         height as u32,
         &rgba,
-        spatial_plan::SpatialProfile::Compact,
+        selected_profile,
     )
     .expect("encode coarse stream");
     assert_eq!(selected, candidate);
+    assert_eq!(
+        stats.selected_index,
+        Some(match selected_profile {
+            spatial_plan::SpatialProfile::Compact => 1,
+            spatial_plan::SpatialProfile::LowLatency => 2,
+        })
+    );
     assert!(!stats.losing_single_main_written);
     assert!(!stats.losing_candidate_main_written);
     assert!(!stats.estimator_fallback);

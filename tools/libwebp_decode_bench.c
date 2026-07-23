@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/time.h>
 
 #include "webp/decode.h"
@@ -37,21 +38,54 @@ static int ReadFile(const char* path, Input* input) {
 }
 
 int main(int argc, char** argv) {
-  if (argc < 3) {
-    fprintf(stderr, "usage: libwebp_decode_bench <iterations> <files...>\n");
+  const int per_file = argc >= 4 && strcmp(argv[1], "--per-file") == 0;
+  const int first_input = per_file ? 3 : 2;
+  if (argc <= first_input) {
+    fprintf(stderr,
+            "usage: libwebp_decode_bench [--per-file] <iterations> "
+            "<files...>\n");
     return 1;
   }
-  const int iterations = atoi(argv[1]);
+  const int iterations = atoi(argv[per_file ? 2 : 1]);
   if (iterations <= 0) return 1;
-  const int count = argc - 2;
+  const int count = argc - first_input;
   Input* inputs = (Input*)calloc((size_t)count, sizeof(*inputs));
   if (inputs == NULL) return 1;
   for (int i = 0; i < count; ++i) {
-    if (!ReadFile(argv[i + 2], &inputs[i])) return 1;
+    if (!ReadFile(argv[i + first_input], &inputs[i])) return 1;
   }
 
   uint64_t checksum = 0;
   size_t rgba_bytes = 0;
+  if (per_file) {
+    for (int i = 0; i < count; ++i) {
+      const double item_started = NowMilliseconds();
+      size_t item_rgba_bytes = 0;
+      uint64_t item_checksum = 0;
+      for (int iteration = 0; iteration < iterations; ++iteration) {
+        int width = 0;
+        int height = 0;
+        uint8_t* rgba =
+            WebPDecodeRGBA(inputs[i].bytes, inputs[i].size, &width, &height);
+        if (rgba == NULL) {
+          fprintf(stderr, "decode failed for input %d\n", i);
+          return 1;
+        }
+        const size_t pixels = (size_t)width * (size_t)height;
+        item_checksum += (uint64_t)width + (uint64_t)height + rgba[0];
+        item_rgba_bytes += 4 * pixels;
+        WebPFree(rgba);
+      }
+      printf("measurement\tlibwebp\t%s\t%d\t%.6f\t%zu\t%zu\t%llu\n",
+             argv[i + first_input], iterations,
+             NowMilliseconds() - item_started, inputs[i].size, item_rgba_bytes,
+             (unsigned long long)item_checksum);
+    }
+    for (int i = 0; i < count; ++i) free(inputs[i].bytes);
+    free(inputs);
+    return 0;
+  }
+
   const double started = NowMilliseconds();
   for (int iteration = 0; iteration < iterations; ++iteration) {
     for (int i = 0; i < count; ++i) {

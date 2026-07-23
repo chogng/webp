@@ -2,6 +2,7 @@
 
 use super::entropy_plan::{EntropyPlan, riff_bytes};
 use super::packet_sink::PackedTokenWriter;
+use super::portfolio_policy::{PortfolioCost, choose};
 use super::spatial_plan::{SpatialPlan, SpatialProfile};
 use super::token_stream::{TokenStream, token_span};
 use super::{BitWriter, EncodeError, validate_input, wrap_vp8l, write_bits, write_vp8l_header};
@@ -20,7 +21,6 @@ struct Prepared {
 struct SingleCandidate {
     entropy: EntropyPlan,
     payload_bits: usize,
-    riff_bytes: usize,
 }
 
 impl SingleCandidate {
@@ -29,22 +29,30 @@ impl SingleCandidate {
         let payload_bits = FAST_PREFIX_BITS
             .checked_add(entropy.main_bits(stream.color_cache_bits())?)
             .ok_or_else(EncodeError::output_size_overflow)?;
-        let riff_bytes = riff_bytes(payload_bits)?;
+        riff_bytes(payload_bits)?;
         Ok(Self {
             entropy,
             payload_bits,
-            riff_bytes,
         })
+    }
+
+    fn cost(&self) -> PortfolioCost {
+        PortfolioCost {
+            exact_bits: self.payload_bits,
+            secondary_lookups: self.entropy.secondary_lookups(),
+            group_runs: 0,
+            table_map_bytes: 5 * 2048,
+        }
     }
 }
 
 struct SpatialCandidate {
+    profile: SpatialProfile,
     spatial: SpatialPlan,
     map_stream: TokenStream,
     map_entropy: EntropyPlan,
     groups: Vec<EntropyPlan>,
     payload_bits: usize,
-    riff_bytes: usize,
 }
 
 impl SpatialCandidate {
@@ -70,14 +78,31 @@ impl SpatialCandidate {
                 .checked_add(group.encoded_bits()?)
                 .ok_or_else(EncodeError::output_size_overflow)?;
         }
-        let riff_bytes = riff_bytes(payload_bits)?;
+        riff_bytes(payload_bits)?;
         Ok(Self {
+            profile,
             spatial,
             map_stream,
             map_entropy,
             groups,
             payload_bits,
-            riff_bytes,
+        })
+    }
+
+    fn cost(&self) -> Result<PortfolioCost, EncodeError> {
+        let secondary_lookups =
+            self.groups
+                .iter()
+                .try_fold(self.map_entropy.secondary_lookups(), |total, group| {
+                    total
+                        .checked_add(group.secondary_lookups())
+                        .ok_or_else(EncodeError::output_size_overflow)
+                })?;
+        Ok(PortfolioCost {
+            exact_bits: self.payload_bits,
+            secondary_lookups,
+            group_runs: self.spatial.decode_group_runs()?,
+            table_map_bytes: self.spatial.table_map_bytes()?,
         })
     }
 }
@@ -93,6 +118,23 @@ impl ProfilePlan {
             single: SingleCandidate::build(stream)?,
             spatial: SpatialCandidate::build(stream, profile)?,
         })
+    }
+
+    fn spatial(&self, profile: SpatialProfile) -> Result<&SpatialCandidate, EncodeError> {
+        if self.spatial.profile != profile {
+            return Err(EncodeError::output_size_overflow());
+        }
+        Ok(&self.spatial)
+    }
+
+    fn selected(&self, profile: SpatialProfile) -> Result<usize, EncodeError> {
+        let costs = [self.single.cost(), self.spatial(profile)?.cost()?];
+        choose(profile, &costs)
+            .map(|index| match profile {
+                SpatialProfile::Compact => index,
+                SpatialProfile::LowLatency => index * 2,
+            })
+            .ok_or_else(EncodeError::output_size_overflow)
     }
 }
 
@@ -123,7 +165,7 @@ fn encode_profile_control(
 
 #[derive(Clone, Copy)]
 enum SelectionKind {
-    Candidate,
+    Spatial,
     Single,
     Fallback,
 }
@@ -144,22 +186,32 @@ fn encode_prepared_with_plan(
     profile: SpatialProfile,
     plan: Result<ProfilePlan, EncodeError>,
 ) -> Result<(Vec<u8>, SelectionKind), EncodeError> {
-    let plan = match plan {
-        Ok(plan) => plan,
+    let (plan, selected) = match plan.and_then(|plan| {
+        let selected = plan.selected(profile)?;
+        Ok((plan, selected))
+    }) {
+        Ok(selected) => selected,
         Err(_) => {
             return encode_profile_control(prepared, profile)
                 .map(|encoded| (encoded, SelectionKind::Fallback));
         }
     };
-    if candidate_wins(plan.spatial.riff_bytes, plan.single.riff_bytes) {
-        encode_spatial_with_plan(prepared, profile, &plan.spatial)
-            .map(|encoded| (encoded, SelectionKind::Candidate))
-    } else {
+    if selected == 0 {
         encode_single_with_plan(prepared, &plan.single)
             .map(|encoded| (encoded, SelectionKind::Single))
+    } else {
+        let selected_profile = match selected {
+            1 => SpatialProfile::Compact,
+            2 => SpatialProfile::LowLatency,
+            _ => return Err(EncodeError::output_size_overflow()),
+        };
+        let candidate = plan.spatial(selected_profile)?;
+        encode_spatial_with_plan(prepared, candidate.profile, candidate)
+            .map(|encoded| (encoded, SelectionKind::Spatial))
     }
 }
 
+#[cfg(test)]
 pub(crate) const fn candidate_wins(candidate_bytes: usize, single_bytes: usize) -> bool {
     candidate_bytes < single_bytes
 }
@@ -366,6 +418,9 @@ pub(crate) struct SelectionStats {
     pub(crate) losing_candidate_main_written: bool,
     pub(crate) estimator_fallback: bool,
     pub(crate) candidate_won: bool,
+    pub(crate) selected_profile: Option<SpatialProfile>,
+    pub(crate) portfolio_costs: Option<[PortfolioCost; 3]>,
+    pub(crate) selected_index: Option<usize>,
 }
 
 #[cfg(test)]
@@ -377,17 +432,41 @@ pub(crate) fn encode_profile_exact_for_test(
 ) -> Result<(Vec<u8>, SelectionStats), EncodeError> {
     let prepared = prepare_spatial(width, height, rgba, profile)?;
     let plan = ProfilePlan::build(&prepared.stream, profile);
-    let estimates = plan.as_ref().ok().map(|plan| {
-        (
+    let costs = plan.as_ref().ok().and_then(|plan| {
+        let requested = plan.spatial(profile).ok()?.cost().ok()?;
+        let other_profile = match profile {
+            SpatialProfile::Compact => SpatialProfile::LowLatency,
+            SpatialProfile::LowLatency => SpatialProfile::Compact,
+        };
+        let other_prepared = prepare_spatial(width, height, rgba, other_profile).ok()?;
+        let other = SpatialCandidate::build(&other_prepared.stream, other_profile)
+            .ok()?
+            .cost()
+            .ok()?;
+        Some(match profile {
+            SpatialProfile::Compact => [plan.single.cost(), requested, other],
+            SpatialProfile::LowLatency => [plan.single.cost(), other, requested],
+        })
+    });
+    let selected_index = plan
+        .as_ref()
+        .ok()
+        .and_then(|plan| plan.selected(profile).ok());
+    let estimates = plan.as_ref().ok().and_then(|plan| {
+        let candidate = plan.spatial(profile).ok()?;
+        Some((
             plan.single.payload_bits,
             super::entropy_plan::payload_bytes(plan.single.payload_bits).ok(),
-            plan.single.riff_bytes,
-            plan.spatial.payload_bits,
-            plan.spatial.riff_bytes,
-        )
+            riff_bytes(plan.single.payload_bits).ok()?,
+            candidate.payload_bits,
+            riff_bytes(candidate.payload_bits).ok()?,
+        ))
     });
     let (encoded, kind) = encode_prepared_with_plan(&prepared, profile, plan)?;
-    Ok((encoded, selection_stats(kind, estimates)))
+    Ok((
+        encoded,
+        selection_stats(kind, estimates, costs, selected_index),
+    ))
 }
 
 #[cfg(test)]
@@ -400,14 +479,19 @@ pub(crate) fn encode_profile_plan_fallback_for_test(
     let prepared = prepare_spatial(width, height, rgba, profile)?;
     let (encoded, kind) =
         encode_prepared_with_plan(&prepared, profile, Err(EncodeError::output_size_overflow()))?;
-    Ok((encoded, selection_stats(kind, None)))
+    Ok((encoded, selection_stats(kind, None, None, None)))
 }
 
 #[cfg(test)]
 type Estimates = (usize, Option<usize>, usize, usize, usize);
 
 #[cfg(test)]
-fn selection_stats(kind: SelectionKind, estimates: Option<Estimates>) -> SelectionStats {
+fn selection_stats(
+    kind: SelectionKind,
+    estimates: Option<Estimates>,
+    portfolio_costs: Option<[PortfolioCost; 3]>,
+    selected_index: Option<usize>,
+) -> SelectionStats {
     SelectionStats {
         predicted_payload_bits: estimates.map(|values| values.0),
         predicted_payload_bytes: estimates.and_then(|values| values.1),
@@ -417,7 +501,16 @@ fn selection_stats(kind: SelectionKind, estimates: Option<Estimates>) -> Selecti
         losing_single_main_written: matches!(kind, SelectionKind::Fallback),
         losing_candidate_main_written: matches!(kind, SelectionKind::Fallback),
         estimator_fallback: matches!(kind, SelectionKind::Fallback),
-        candidate_won: matches!(kind, SelectionKind::Candidate),
+        candidate_won: matches!(kind, SelectionKind::Spatial),
+        selected_profile: match (kind, selected_index) {
+            (SelectionKind::Spatial, Some(1)) => Some(SpatialProfile::Compact),
+            (SelectionKind::Spatial, Some(2)) => Some(SpatialProfile::LowLatency),
+            (SelectionKind::Spatial, _)
+            | (SelectionKind::Single, _)
+            | (SelectionKind::Fallback, _) => None,
+        },
+        portfolio_costs,
+        selected_index,
     }
 }
 
@@ -434,7 +527,7 @@ pub(crate) fn single_estimate_for_test(
         plan.payload_bits,
         written_bits,
         super::entropy_plan::payload_bytes(plan.payload_bits)?,
-        plan.riff_bytes,
+        riff_bytes(plan.payload_bits)?,
     ))
 }
 
@@ -452,6 +545,6 @@ pub(crate) fn candidate_estimate_for_test(
         plan.payload_bits,
         written_bits,
         super::entropy_plan::payload_bytes(plan.payload_bits)?,
-        plan.riff_bytes,
+        riff_bytes(plan.payload_bits)?,
     ))
 }

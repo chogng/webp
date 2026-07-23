@@ -14,7 +14,7 @@ import time
 
 
 LOCK = Path("/private/tmp/webp-vp8l-product-benchmark.lock")
-TEST_NAME = "encoder::product_benchmark_tests::product_validation_reproducer"
+TEST_NAME = "vp8l::product_benchmark_tests::product_validation_reproducer"
 
 
 def parse_args() -> argparse.Namespace:
@@ -98,6 +98,9 @@ def run_process(
     }
     if record["exit_status"] != 0:
         raise RuntimeError(f"benchmark failed: {record}")
+    marker = f"\naggregate\t{operation}\t"
+    if marker not in stdout.read_text():
+        raise RuntimeError(f"benchmark produced no {operation} aggregate: {record}")
     return record
 
 

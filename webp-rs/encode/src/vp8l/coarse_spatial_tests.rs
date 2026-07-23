@@ -131,25 +131,66 @@ fn product_profiles_select_the_coarse_file_when_it_is_strictly_smaller() {
         }
     }
     for profile in profiles() {
-        let candidate = spatial_writer::encode_candidate_for_test(
+        let requested_candidate = spatial_writer::encode_candidate_for_test(
             width as u32,
             height as u32,
             &rgba,
             spatial_profile(profile),
         )
-        .expect("encode coarse candidate");
+        .expect("encode requested coarse candidate");
         let single = spatial_writer::encode_single_for_test(width as u32, height as u32, &rgba)
             .expect("encode same-profile single");
         assert!(
-            candidate.len() < single.len(),
+            requested_candidate.len() < single.len(),
             "{profile:?}: candidate {} single {}",
-            candidate.len(),
+            requested_candidate.len(),
             single.len()
         );
         let selected =
             encode_lossless_rgba_with_options(width as u32, height as u32, &rgba, options(profile))
                 .expect("encode selected product stream");
-        assert_eq!(selected, candidate, "{profile:?}");
+        let (audited, stats) = spatial_writer::encode_profile_exact_for_test(
+            width as u32,
+            height as u32,
+            &rgba,
+            spatial_profile(profile),
+        )
+        .expect("audit portfolio selection");
+        assert_eq!(selected, audited, "{profile:?}");
+        let selected_profile = stats
+            .selected_profile
+            .expect("coarse input selects a spatial candidate");
+        let selected_candidate = spatial_writer::encode_candidate_for_test(
+            width as u32,
+            height as u32,
+            &rgba,
+            selected_profile,
+        )
+        .expect("encode selected coarse candidate");
+        assert_eq!(selected, selected_candidate, "{profile:?}");
+        let costs = stats.portfolio_costs.expect("portfolio costs");
+        let candidate_indices: &[usize] = match spatial_profile(profile) {
+            spatial_plan::SpatialProfile::Compact => &[0, 1],
+            spatial_plan::SpatialProfile::LowLatency => &[0, 2],
+        };
+        let policy_costs = candidate_indices
+            .iter()
+            .map(|&index| costs[index])
+            .collect::<Vec<_>>();
+        let policy_index =
+            portfolio_policy::choose(spatial_profile(profile), &policy_costs).unwrap();
+        assert_eq!(stats.selected_index, Some(candidate_indices[policy_index]));
+        let floor = candidate_indices
+            .iter()
+            .map(|&index| costs[index].exact_bits)
+            .min()
+            .unwrap();
+        let selected_cost = costs[stats.selected_index.unwrap()];
+        let ceiling = match spatial_profile(profile) {
+            spatial_plan::SpatialProfile::Compact => floor,
+            spatial_plan::SpatialProfile::LowLatency => floor + floor / 100,
+        };
+        assert!(selected_cost.exact_bits <= ceiling);
     }
 }
 
@@ -204,7 +245,7 @@ fn product_profiles_preserve_metadata_and_pixels() {
 }
 
 #[test]
-fn exact_selection_preserves_control_metadata_bytes() {
+fn exact_selection_preserves_selected_payload_metadata_bytes() {
     let width = 513;
     let height = 129;
     let rgba = patterned_rgba(width, height, true);
@@ -222,16 +263,11 @@ fn exact_selection_preserves_control_metadata_bytes() {
             options(profile),
         )
         .expect("encode exact-cost metadata stream");
-        let control_riff = spatial_writer::encode_profile_control_for_test(
-            width,
-            height,
-            &rgba,
-            spatial_profile(profile),
-        )
-        .expect("encode control metadata payload");
-        let control_payload = copy_vp8l_payload(&control_riff).expect("copy control payload");
-        let control = wrap_vp8l_with_metadata(control_payload, width, height, true, &metadata)
-            .expect("wrap control metadata stream");
-        assert_eq!(exact, control, "{profile:?}");
+        let selected = encode_lossless_rgba_with_options(width, height, &rgba, options(profile))
+            .expect("encode selected profile payload");
+        let selected_payload = copy_vp8l_payload(&selected).expect("copy selected payload");
+        let expected = wrap_vp8l_with_metadata(selected_payload, width, height, true, &metadata)
+            .expect("wrap selected metadata stream");
+        assert_eq!(exact, expected, "{profile:?}");
     }
 }

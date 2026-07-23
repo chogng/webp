@@ -25,6 +25,8 @@ enum Layout {
     Single,
     Compact,
     LowLatency,
+    CompactCandidate,
+    LowLatencyCandidate,
     CompactControl,
     LowLatencyControl,
     CompactWriterControl,
@@ -59,14 +61,25 @@ fn run() -> Result<(), String> {
 }
 
 fn generate(input: &Path, output: &Path) -> Result<(), String> {
-    let layouts = [
-        Layout::Default,
-        Layout::Single,
-        Layout::Compact,
-        Layout::LowLatency,
-    ];
+    let layouts = match std::env::var("VP8L_PRODUCT_LAYOUTS") {
+        Ok(value) => value
+            .split(',')
+            .map(parse_layout)
+            .collect::<Result<Vec<_>, _>>()?,
+        Err(_) => vec![
+            Layout::Default,
+            Layout::Single,
+            Layout::Compact,
+            Layout::LowLatency,
+            Layout::CompactCandidate,
+            Layout::LowLatencyCandidate,
+        ],
+    };
+    if layouts.is_empty() {
+        return Err("VP8L_PRODUCT_LAYOUTS must not be empty".to_owned());
+    }
     fs::create_dir_all(output.join("expected")).map_err(display_error(output))?;
-    for layout in layouts {
+    for &layout in &layouts {
         fs::create_dir_all(output.join(layout_name(layout))).map_err(display_error(output))?;
     }
     println!("stream\tid\tlayout\tbytes\trgba_hash\tstream_hash\tencode_ns\tproject_exact");
@@ -76,7 +89,7 @@ fn generate(input: &Path, output: &Path) -> Result<(), String> {
         let source = read_source(&path)?;
         let expected_path = output.join("expected").join(format!("{}.rgba", source.id));
         fs::write(&expected_path, &source.rgba).map_err(display_error(&expected_path))?;
-        for layout in layouts {
+        for &layout in &layouts {
             let started = Instant::now();
             let encoded = encode_layout(&source, layout)?;
             let encode_ns = started.elapsed().as_nanos();
@@ -186,7 +199,7 @@ fn bench_decode(input: &Path, layout: Layout, round: &str) -> Result<(), String>
 
 fn audit_exact(input: &Path) -> Result<(), String> {
     println!(
-        "exact\tid\tprofile\tbytes\tstream_hash\tpredicted_bits\twritten_bits\tpredicted_payload_bytes\tpredicted_riff_bytes\tsingle_actual_riff_bytes\testimate_exact\tlosing_single_main_written\testimator_fallback\tcandidate_won\tcontrol_exact"
+        "portfolio\tid\tprofile\tbytes\tstream_hash\tsingle_bits\tcompact_bits\tlow_latency_bits\tsingle_secondary\tcompact_secondary\tlow_latency_secondary\tsingle_runs\tcompact_runs\tlow_latency_runs\tsingle_memory\tcompact_memory\tlow_latency_memory\trate_floor\trate_ceiling\tselected_index\tselected_layout\tselected_bits\tmaterialization_exact\tlosing_payload_written\testimator_fallback"
     );
     for path in input_paths(input)? {
         let source = read_source(&path)?;
@@ -211,13 +224,6 @@ fn audit_exact(input: &Path) -> Result<(), String> {
             ("compact", spatial_plan::SpatialProfile::Compact),
             ("low-latency", spatial_plan::SpatialProfile::LowLatency),
         ] {
-            let control = spatial_writer::encode_profile_control_for_test(
-                source.width,
-                source.height,
-                &source.rgba,
-                profile,
-            )
-            .map_err(|error| format!("{} {name} control: {error}", source.id))?;
             let (exact, stats) = spatial_writer::encode_profile_exact_for_test(
                 source.width,
                 source.height,
@@ -225,24 +231,64 @@ fn audit_exact(input: &Path) -> Result<(), String> {
                 profile,
             )
             .map_err(|error| format!("{} {name} exact: {error}", source.id))?;
-            let control_exact = control == exact;
-            if !control_exact {
-                return Err(format!("{} {name}: control/exact mismatch", source.id));
+            let costs = stats
+                .portfolio_costs
+                .ok_or_else(|| format!("{} {name}: missing portfolio costs", source.id))?;
+            let selected_index = stats
+                .selected_index
+                .ok_or_else(|| format!("{} {name}: missing portfolio winner", source.id))?;
+            let selected_layout = match selected_index {
+                0 => Layout::Single,
+                1 => Layout::CompactCandidate,
+                2 => Layout::LowLatencyCandidate,
+                _ => return Err(format!("{} {name}: invalid winner", source.id)),
+            };
+            let materialized = encode_layout(&source, selected_layout)?;
+            if exact != materialized {
+                return Err(format!(
+                    "{} {name}: selected payload materialization mismatch",
+                    source.id
+                ));
             }
+            let candidate_indices: &[usize] = match profile {
+                spatial_plan::SpatialProfile::Compact => &[0, 1],
+                spatial_plan::SpatialProfile::LowLatency => &[0, 2],
+            };
+            let rate_floor = candidate_indices
+                .iter()
+                .map(|&index| costs[index].exact_bits)
+                .min()
+                .unwrap();
+            let rate_ceiling = match profile {
+                spatial_plan::SpatialProfile::Compact => rate_floor,
+                spatial_plan::SpatialProfile::LowLatency => rate_floor + rate_floor / 100,
+            };
+            if costs[selected_index].exact_bits > rate_ceiling {
+                return Err(format!("{} {name}: rate envelope exceeded", source.id));
+            }
+            let losing_payload_written =
+                stats.losing_single_main_written || stats.losing_candidate_main_written;
             println!(
-                "exact\t{}\t{name}\t{}\t{:016x}\t{}\t{}\t{}\t{}\t{}\t1\t{}\t{}\t{}\t{}",
+                "portfolio\t{}\t{name}\t{}\t{:016x}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{}\t{rate_floor}\t{rate_ceiling}\t{selected_index}\t{}\t{}\t1\t{}\t{}",
                 source.id,
                 exact.len(),
                 fnv1a(&exact),
-                stats.predicted_payload_bits.unwrap_or_default(),
-                written_bits,
-                stats.predicted_payload_bytes.unwrap_or_default(),
-                stats.predicted_riff_bytes.unwrap_or_default(),
-                single.len(),
-                u8::from(stats.losing_single_main_written),
+                costs[0].exact_bits,
+                costs[1].exact_bits,
+                costs[2].exact_bits,
+                costs[0].secondary_lookups,
+                costs[1].secondary_lookups,
+                costs[2].secondary_lookups,
+                costs[0].group_runs,
+                costs[1].group_runs,
+                costs[2].group_runs,
+                costs[0].table_map_bytes,
+                costs[1].table_map_bytes,
+                costs[2].table_map_bytes,
+                layout_name(selected_layout),
+                costs[selected_index].exact_bits,
+                u8::from(losing_payload_written),
                 u8::from(stats.estimator_fallback),
-                u8::from(stats.candidate_won),
-                u8::from(control_exact),
             );
         }
     }
@@ -262,6 +308,8 @@ fn encode_layout(source: &Source, layout: Layout) -> Result<Vec<u8>, String> {
                     Layout::LowLatency => LosslessEncodeProfile::FastDecodeLowLatency,
                     Layout::Default
                     | Layout::Single
+                    | Layout::CompactCandidate
+                    | Layout::LowLatencyCandidate
                     | Layout::CompactControl
                     | Layout::LowLatencyControl
                     | Layout::CompactWriterControl
@@ -270,6 +318,19 @@ fn encode_layout(source: &Source, layout: Layout) -> Result<Vec<u8>, String> {
                 },
             };
             encode_lossless_rgba_with_options(source.width, source.height, &source.rgba, options)
+        }
+        Layout::CompactCandidate | Layout::LowLatencyCandidate => {
+            let profile = match layout {
+                Layout::CompactCandidate => spatial_plan::SpatialProfile::Compact,
+                Layout::LowLatencyCandidate => spatial_plan::SpatialProfile::LowLatency,
+                _ => unreachable!(),
+            };
+            spatial_writer::encode_candidate_for_test(
+                source.width,
+                source.height,
+                &source.rgba,
+                profile,
+            )
         }
         Layout::CompactControl | Layout::LowLatencyControl => {
             let profile = match layout {
@@ -493,6 +554,8 @@ fn parse_layout(value: &str) -> Result<Layout, String> {
         "single" => Ok(Layout::Single),
         "compact" => Ok(Layout::Compact),
         "low-latency" => Ok(Layout::LowLatency),
+        "compact-candidate" => Ok(Layout::CompactCandidate),
+        "low-latency-candidate" => Ok(Layout::LowLatencyCandidate),
         "compact-control" => Ok(Layout::CompactControl),
         "low-latency-control" => Ok(Layout::LowLatencyControl),
         "compact-writer-control" => Ok(Layout::CompactWriterControl),
@@ -508,6 +571,8 @@ const fn layout_name(layout: Layout) -> &'static str {
         Layout::Single => "single",
         Layout::Compact => "compact",
         Layout::LowLatency => "low-latency",
+        Layout::CompactCandidate => "compact-candidate",
+        Layout::LowLatencyCandidate => "low-latency-candidate",
         Layout::CompactControl => "compact-control",
         Layout::LowLatencyControl => "low-latency-control",
         Layout::CompactWriterControl => "compact-writer-control",

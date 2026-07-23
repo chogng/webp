@@ -36,6 +36,7 @@ impl SpatialProfile {
 pub(crate) struct SpatialPlan {
     profile: SpatialProfile,
     image_width: usize,
+    image_height: usize,
     map_width: usize,
     group_map: Vec<u8>,
     frequencies: Vec<EntropyFrequencies>,
@@ -76,6 +77,7 @@ impl SpatialPlan {
         Ok(Self {
             profile,
             image_width: geometry.width(),
+            image_height: geometry.height(),
             map_width: clustered.block_width,
             group_map: clustered.assignments,
             frequencies,
@@ -102,6 +104,41 @@ impl SpatialPlan {
             self.profile.block_pixels(),
         );
         usize::from(self.group_map[block])
+    }
+
+    pub(crate) fn group_count(&self) -> usize {
+        self.frequencies.len()
+    }
+
+    pub(crate) fn decode_group_runs(&self) -> Result<usize, EncodeError> {
+        let block_pixels = self.profile.block_pixels();
+        let mut runs = 0_usize;
+        for (block_y, map_row) in self.group_map.chunks_exact(self.map_width).enumerate() {
+            let row_runs = 1_usize + map_row.windows(2).filter(|pair| pair[0] != pair[1]).count();
+            let source_y = block_y
+                .checked_mul(block_pixels)
+                .ok_or_else(EncodeError::output_size_overflow)?;
+            let source_rows = block_pixels.min(
+                self.image_height
+                    .checked_sub(source_y)
+                    .ok_or_else(EncodeError::output_size_overflow)?,
+            );
+            runs = runs
+                .checked_add(
+                    row_runs
+                        .checked_mul(source_rows)
+                        .ok_or_else(EncodeError::output_size_overflow)?,
+                )
+                .ok_or_else(EncodeError::output_size_overflow)?;
+        }
+        Ok(runs)
+    }
+
+    pub(crate) fn table_map_bytes(&self) -> Result<usize, EncodeError> {
+        self.group_count()
+            .checked_mul(5 * 2048)
+            .and_then(|bytes| bytes.checked_add(self.group_map.len() * 2))
+            .ok_or_else(EncodeError::output_size_overflow)
     }
 }
 

@@ -17,6 +17,7 @@ pub(crate) struct EntropyPlan {
     tables: EntropyTables,
     table_bits: usize,
     token_bits: usize,
+    secondary_lookups: usize,
 }
 
 impl EntropyPlan {
@@ -112,6 +113,23 @@ impl EntropyPlan {
             .and_then(|bits| token_bits.checked_add(bits))
             .ok_or_else(EncodeError::output_size_overflow)?;
 
+        let mut secondary_lookups = 0_usize;
+        for (frequencies, lengths) in [
+            (frequencies.green(), &green_lengths[..]),
+            (&frequencies.red()[..], &red_lengths[..]),
+            (&frequencies.blue()[..], &blue_lengths[..]),
+            (&frequencies.alpha()[..], &alpha_lengths[..]),
+            (&frequencies.distance()[..], &distance_lengths[..]),
+        ] {
+            for (&frequency, &length) in frequencies.iter().zip(lengths) {
+                if length > 10 {
+                    secondary_lookups = secondary_lookups
+                        .checked_add(frequency as usize)
+                        .ok_or_else(EncodeError::output_size_overflow)?;
+                }
+            }
+        }
+
         Ok(Self {
             green_lengths,
             red_lengths,
@@ -121,6 +139,7 @@ impl EntropyPlan {
             tables,
             table_bits,
             token_bits,
+            secondary_lookups,
         })
     }
 
@@ -159,6 +178,10 @@ impl EntropyPlan {
 
     pub(crate) const fn token_bits(&self) -> usize {
         self.token_bits
+    }
+
+    pub(crate) const fn secondary_lookups(&self) -> usize {
+        self.secondary_lookups
     }
 
     pub(crate) fn encoded_bits(&self) -> Result<usize, EncodeError> {

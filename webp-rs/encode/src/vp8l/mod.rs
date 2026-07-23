@@ -17,6 +17,8 @@ use self::huffman::write_simple_table;
 use self::huffman::write_table_symbol;
 use self::packet_sink::PackedTokenWriter;
 use self::prefix::encode_prefix as vp8l_prefix;
+#[cfg(test)]
+use self::token_stream::EntropyFrequencies;
 pub(crate) use self::token_stream::EntropyToken;
 pub(crate) use self::token_stream::TokenStream;
 pub(crate) use self::token_stream::select_color_cache_bits;
@@ -24,8 +26,6 @@ pub(crate) use self::token_stream::select_left_predictor;
 use self::token_stream::{
     CHANNEL_ALPHABET_SIZE, DISTANCE_ALPHABET_SIZE, FIRST_CACHE_SYMBOL, GREEN_ALPHABET_SIZE,
 };
-#[cfg(test)]
-use self::token_stream::EntropyFrequencies;
 
 pub(crate) const MAX_DIMENSION: u32 = 1 << 14;
 const SIGNATURE: u8 = 0x2f;
@@ -40,6 +40,7 @@ pub const COLOR_TRANSFORM_BLOCK_BITS: u8 = 7;
 mod entropy_plan;
 pub(crate) mod huffman;
 mod packet_sink;
+mod portfolio_policy;
 mod prefix;
 mod source_analysis;
 mod token_stream;
