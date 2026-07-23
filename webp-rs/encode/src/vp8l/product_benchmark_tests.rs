@@ -306,7 +306,14 @@ fn encode_profile_writer_control(
 ) -> Result<Vec<u8>, EncodeError> {
     validate_input(source.width, source.height, &source.rgba)?;
     let width = usize::try_from(source.width).map_err(|_| EncodeError::input_size_overflow())?;
-    let stream = TokenStream::collect(&source.rgba, width, true, false, 0)?;
+    let stream = TokenStream::collect_for_spatial(
+        &source.rgba,
+        width,
+        true,
+        false,
+        0,
+        profile.block_pixels(),
+    )?;
     let single = single_plan::SinglePlan::build(stream.statistics())?;
     let candidate = encode_spatial_writer_control(source, &stream, profile)?;
     if candidate.len() < single.riff_bytes() {

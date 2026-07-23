@@ -156,10 +156,25 @@ vp8l/
 - token span 和 token-to-frequency 规则各只保留一份，spatial cluster/group
   frequency 从 canonical stream 派生，不重新扫描 RGBA 或重新 tokenization。
 
-该切片有意不改变 token 算法、transform/profile 选择、Huffman 计划、candidate
-选择或 writer，因此不是性能结果。它也尚未完成 Phase B：残差仍先 materialize，
-block/transform statistics、alpha/palette resource facts 与可复算 input identity 仍需在
-后续独立切片中由同一 owner 纳入；在这些事实存在前不得宣称“一次输入扫描”已经完成。
+Phase B 的第二个生产切片在 `main` 上补齐了这条所有权边界：
+
+- `source_analysis.rs` 一次 source-domain 扫描拥有 geometry、alpha/transparent census、
+  palette cardinality/index resource、固定 transform sufficient statistics，以及由
+  RGBA byte length 与 FNV-1a 组成的可复算 input identity；
+- `TokenStream` 直接流式计算 residual 与 distance-one run，不再 materialize 一份
+  `pixels × 4` residual image；四个 bounded color-cache 候选在同一 transform-domain
+  扫描内计数，不再各自扫描整图；
+- spatial block histogram 在 canonical token 构造时收集，`SpatialPlan` 只接受匹配
+  block size 的共享 statistics，不再重新遍历 token 构建第二份 census；
+- palette/indexing 与非 palette transform 决策都从同一 `SourceAnalysis` 取得。
+
+为了保持已实测更快的访问局部性，获选的 color transform 仍 materialize 一份
+transform-domain RGBA backing；predictor/cache/token 三个算法阶段借用该 backing。
+这不是候选重复分析，且不应误写成“整个编码器只读输入一次”。当前 spatial candidate
+仍先 materialize 再与 exact single cost 比较；该最后一项由 Phase C 的通用 exact plan
+删除。起点 archive 与当前树在 16 张 CLIC m6 source 的 Default/Single/Compact/
+LowLatency 共 64 条 stream 上逐字节相同；41-file MustAccept VP8L、3 轮端到端编码从
+743.435 ms 降至 731.267 ms（-1.636%），输出 bytes 与 checksum 不变。
 
 ### 4.2 通用 exact plan
 
@@ -376,11 +391,16 @@ CLIC 等大型 benchmark corpus 后续采用同一身份原则，但不与 fixtu
 
 ### Phase B：编码共享 IR
 
-- 首个切片已建立 canonical token/geometry/census/global-frequency owner，并让
-  Default、single-plan 与 spatial plan 共享；后续再把 residual、block/transform
-  statistics、alpha/palette/resource facts 和 input identity 纳入同一次分析。
-- Default before/after byte identity。
-- 证明候选不重新扫描 RGBA、不复制 token、不物化失败 payload。
+- **完成**：canonical token/geometry/census/global-frequency owner 由 Default、
+  single-plan 与 spatial plan 共享；source owner 包含 transform、alpha、palette、
+  resource facts 与可复算 identity；residual 流式生成，block statistics 与 token
+  同步收集。
+- **完成**：起点 archive 与当前树的 Default byte identity，并额外覆盖 Single/
+  Compact/LowLatency。
+- **部分完成**：candidate planning 只借用 source/token/statistics，不复制 token、不
+  重新扫描 RGBA；必要的获选 transform backing 是唯一的 transform-domain image。
+  spatial candidate 仍先 materialize 再比较，必须由 Phase C 的通用 exact plan 删除
+  后才能把 Phase B 整体封口。
 
 ### Phase C：通用 exact plan 与 packet sink
 

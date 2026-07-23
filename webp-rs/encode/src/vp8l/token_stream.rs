@@ -1,7 +1,9 @@
 //! Canonical VP8L entropy tokens, source geometry, and sufficient statistics.
 
+use super::ColorTransformPlan;
 use super::EncodeError;
 use super::prefix::encode_prefix as vp8l_prefix;
+use super::source_analysis::forward_color_pixel;
 
 pub(super) const GREEN_ALPHABET_SIZE: usize = 256 + 24;
 pub(super) const CHANNEL_ALPHABET_SIZE: usize = 256;
@@ -192,6 +194,134 @@ pub(super) struct TokenStatistics {
     census: TokenCensus,
 }
 
+#[derive(Clone, Copy, Default)]
+pub(super) struct Majority {
+    symbol: u8,
+    balance: i32,
+}
+
+impl Majority {
+    fn add(&mut self, symbol: u8) -> Result<(), EncodeError> {
+        if self.balance == 0 {
+            self.symbol = symbol;
+            self.balance = 1;
+        } else if self.symbol == symbol {
+            self.balance = self
+                .balance
+                .checked_add(1)
+                .ok_or_else(EncodeError::output_size_overflow)?;
+        } else {
+            self.balance -= 1;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Clone, Copy, Default)]
+pub(super) struct BlockHistogram {
+    channels: [Majority; 4],
+    literals: u32,
+    branches: u32,
+}
+
+impl BlockHistogram {
+    fn add(&mut self, token: EntropyToken) -> Result<(), EncodeError> {
+        match token {
+            EntropyToken::Literal(rgba) => {
+                for (majority, symbol) in self.channels.iter_mut().zip(rgba) {
+                    majority.add(symbol)?;
+                }
+                self.literals = self
+                    .literals
+                    .checked_add(1)
+                    .ok_or_else(EncodeError::output_size_overflow)?;
+            }
+            EntropyToken::Cache(_) | EntropyToken::Copy { .. } => {
+                self.branches = self
+                    .branches
+                    .checked_add(1)
+                    .ok_or_else(EncodeError::output_size_overflow)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub(super) const fn is_empty(self) -> bool {
+        self.literals == 0 && self.branches == 0
+    }
+
+    pub(super) const fn token_count(self) -> u64 {
+        self.literals as u64 + self.branches as u64
+    }
+
+    pub(super) const fn channels(self) -> [Majority; 4] {
+        self.channels
+    }
+
+    pub(super) const fn branches(self) -> u32 {
+        self.branches
+    }
+
+    pub(super) const fn literals(self) -> u32 {
+        self.literals
+    }
+}
+
+impl Majority {
+    pub(super) const fn symbol(self) -> u8 {
+        self.symbol
+    }
+}
+
+pub(super) struct SpatialBlockStatistics {
+    block_pixels: usize,
+    block_width: usize,
+    blocks: Vec<BlockHistogram>,
+}
+
+impl SpatialBlockStatistics {
+    fn new(geometry: TokenGeometry, block_pixels: usize) -> Result<Self, EncodeError> {
+        if block_pixels == 0 {
+            return Err(EncodeError::output_size_overflow());
+        }
+        let block_width = geometry.width().div_ceil(block_pixels);
+        let block_height = geometry.height().div_ceil(block_pixels);
+        let block_count = block_width
+            .checked_mul(block_height)
+            .ok_or_else(EncodeError::output_size_overflow)?;
+        let mut blocks = Vec::new();
+        blocks
+            .try_reserve_exact(block_count)
+            .map_err(|_| EncodeError::allocation_failed())?;
+        blocks.resize(block_count, BlockHistogram::default());
+        Ok(Self {
+            block_pixels,
+            block_width,
+            blocks,
+        })
+    }
+
+    fn add(&mut self, pixel: usize, width: usize, token: EntropyToken) -> Result<(), EncodeError> {
+        let block = block_index(pixel, width, self.block_width, self.block_pixels);
+        self.blocks
+            .get_mut(block)
+            .ok_or_else(EncodeError::output_size_overflow)?
+            .add(token)
+    }
+
+    pub(super) const fn block_pixels(&self) -> usize {
+        self.block_pixels
+    }
+
+    pub(super) const fn block_width(&self) -> usize {
+        self.block_width
+    }
+
+    pub(super) fn blocks(&self) -> &[BlockHistogram] {
+        &self.blocks
+    }
+}
+
 impl TokenStatistics {
     pub(super) const fn frequencies(&self) -> &EntropyFrequencies {
         &self.frequencies
@@ -212,6 +342,7 @@ pub(crate) struct TokenStream {
     color_cache_bits: u8,
     tokens: Vec<EntropyToken>,
     statistics: TokenStatistics,
+    spatial_blocks: Option<SpatialBlockStatistics>,
 }
 
 impl TokenStream {
@@ -221,6 +352,45 @@ impl TokenStream {
         use_subtract_green: bool,
         use_left_predictor: bool,
         color_cache_bits: u8,
+    ) -> Result<Self, EncodeError> {
+        Self::collect_internal(
+            rgba,
+            width,
+            use_subtract_green,
+            use_left_predictor,
+            color_cache_bits,
+            None,
+            None,
+        )
+    }
+
+    pub(super) fn collect_for_spatial(
+        rgba: &[u8],
+        width: usize,
+        use_subtract_green: bool,
+        use_left_predictor: bool,
+        color_cache_bits: u8,
+        block_pixels: usize,
+    ) -> Result<Self, EncodeError> {
+        Self::collect_internal(
+            rgba,
+            width,
+            use_subtract_green,
+            use_left_predictor,
+            color_cache_bits,
+            None,
+            Some(block_pixels),
+        )
+    }
+
+    fn collect_internal(
+        rgba: &[u8],
+        width: usize,
+        use_subtract_green: bool,
+        use_left_predictor: bool,
+        color_cache_bits: u8,
+        color_transform: Option<ColorTransformPlan>,
+        spatial_block_pixels: Option<usize>,
     ) -> Result<Self, EncodeError> {
         let pixels = rgba.len() / 4;
         if width == 0
@@ -245,37 +415,32 @@ impl TokenStream {
         let mut frequencies = EntropyFrequencies::for_color_cache(color_cache_bits);
         let mut census = TokenCensus::default();
         let mut color_cache = [0_u32; MAX_COLOR_CACHE_SIZE];
-        let mut residuals = Vec::new();
-        residuals
-            .try_reserve_exact(pixels)
-            .map_err(|_| EncodeError::allocation_failed())?;
-        for index in 0..pixels {
-            let current = if use_subtract_green {
-                subtract_green_pixel(rgba, index)
-            } else {
-                pixel_at(rgba, index)
-            };
-            let predictor = if use_left_predictor {
-                left_predictor(rgba, index, width)
-            } else {
-                [0; 4]
-            };
-            residuals.push([
-                current[0].wrapping_sub(predictor[0]),
-                current[1].wrapping_sub(predictor[1]),
-                current[2].wrapping_sub(predictor[2]),
-                current[3].wrapping_sub(predictor[3]),
-            ]);
-        }
-
+        let mut spatial_blocks = spatial_block_pixels
+            .map(|block_pixels| SpatialBlockStatistics::new(geometry, block_pixels))
+            .transpose()?;
         let mut index = 0_usize;
-        while index < residuals.len() {
-            let residual = residuals[index];
-            if index != 0 && residual == residuals[index - 1] {
+        let mut previous = None;
+        while index < pixels {
+            let residual = residual_at(
+                rgba,
+                index,
+                width,
+                use_subtract_green,
+                use_left_predictor,
+                color_transform,
+            );
+            if previous == Some(residual) {
                 let mut length = 1_usize;
                 while length < 4096
-                    && index + length < residuals.len()
-                    && residuals[index + length] == residual
+                    && index + length < pixels
+                    && residual_at(
+                        rgba,
+                        index + length,
+                        width,
+                        use_subtract_green,
+                        use_left_predictor,
+                        color_transform,
+                    ) == residual
                 {
                     length += 1;
                 }
@@ -286,8 +451,12 @@ impl TokenStream {
                     for _ in 0..length {
                         update_color_cache(&mut color_cache, color_cache_bits, pack_argb(residual));
                     }
+                    if let Some(blocks) = spatial_blocks.as_mut() {
+                        blocks.add(index, width, token)?;
+                    }
                     tokens.push(token);
                     index += length;
+                    previous = Some(residual);
                     continue;
                 }
             }
@@ -305,9 +474,13 @@ impl TokenStream {
                 EntropyToken::Literal(residual)
             };
             frequencies.add_token(token)?;
+            if let Some(blocks) = spatial_blocks.as_mut() {
+                blocks.add(index, width, token)?;
+            }
             tokens.push(token);
             color_cache[cache_index] = color;
             index += 1;
+            previous = Some(residual);
         }
 
         if census.token_count()? != tokens.len()
@@ -325,6 +498,7 @@ impl TokenStream {
                 frequencies,
                 census,
             },
+            spatial_blocks,
         })
     }
 
@@ -343,6 +517,16 @@ impl TokenStream {
     pub(super) const fn statistics(&self) -> &TokenStatistics {
         &self.statistics
     }
+
+    pub(super) fn spatial_blocks(
+        &self,
+        block_pixels: usize,
+    ) -> Result<&SpatialBlockStatistics, EncodeError> {
+        self.spatial_blocks
+            .as_ref()
+            .filter(|statistics| statistics.block_pixels() == block_pixels)
+            .ok_or_else(EncodeError::output_size_overflow)
+    }
 }
 
 pub(super) const fn token_span(token: EntropyToken) -> usize {
@@ -352,43 +536,58 @@ pub(super) const fn token_span(token: EntropyToken) -> usize {
     }
 }
 
+const fn block_index(pixel: usize, width: usize, block_width: usize, block_pixels: usize) -> usize {
+    (pixel / width / block_pixels) * block_width + (pixel % width / block_pixels)
+}
+
 pub(crate) fn select_color_cache_bits(
     rgba: &[u8],
     width: usize,
     use_subtract_green: bool,
     use_left_predictor: bool,
 ) -> u8 {
+    select_color_cache_bits_with_color_transform(
+        rgba,
+        width,
+        use_subtract_green,
+        use_left_predictor,
+        None,
+    )
+}
+
+pub(super) fn select_color_cache_bits_with_color_transform(
+    rgba: &[u8],
+    width: usize,
+    use_subtract_green: bool,
+    use_left_predictor: bool,
+    color_transform: Option<ColorTransformPlan>,
+) -> u8 {
+    let mut caches = [[0_u32; MAX_COLOR_CACHE_SIZE]; MAX_ENCODER_COLOR_CACHE_BITS as usize];
+    let mut hits = [0_u32; MAX_ENCODER_COLOR_CACHE_BITS as usize];
+    for index in 0..rgba.len() / 4 {
+        let color = pack_argb(residual_at(
+            rgba,
+            index,
+            width,
+            use_subtract_green,
+            use_left_predictor,
+            color_transform,
+        ));
+        for bits in 1..=MAX_ENCODER_COLOR_CACHE_BITS {
+            let cache_index = color_cache_index(color, bits);
+            let slot = usize::from(bits - 1);
+            if caches[slot][cache_index] == color {
+                hits[slot] = hits[slot].saturating_add(1);
+            }
+            caches[slot][cache_index] = color;
+        }
+    }
     let mut selected_bits = 0;
     let mut best_hits = 0_u32;
     for bits in 1..=MAX_ENCODER_COLOR_CACHE_BITS {
-        let mut cache = [0_u32; MAX_COLOR_CACHE_SIZE];
-        let mut hits = 0_u32;
-        for index in 0..rgba.len() / 4 {
-            let current = if use_subtract_green {
-                subtract_green_pixel(rgba, index)
-            } else {
-                pixel_at(rgba, index)
-            };
-            let predictor = if use_left_predictor {
-                left_predictor(rgba, index, width)
-            } else {
-                [0; 4]
-            };
-            let residual = [
-                current[0].wrapping_sub(predictor[0]),
-                current[1].wrapping_sub(predictor[1]),
-                current[2].wrapping_sub(predictor[2]),
-                current[3].wrapping_sub(predictor[3]),
-            ];
-            let color = pack_argb(residual);
-            let cache_index = color_cache_index(color, bits);
-            if cache[cache_index] == color {
-                hits = hits.saturating_add(1);
-            }
-            cache[cache_index] = color;
-        }
-        if hits > best_hits {
-            best_hits = hits;
+        let candidate_hits = hits[usize::from(bits - 1)];
+        if candidate_hits > best_hits {
+            best_hits = candidate_hits;
             selected_bits = bits;
         }
     }
@@ -396,10 +595,18 @@ pub(crate) fn select_color_cache_bits(
 }
 
 pub(crate) fn select_left_predictor(rgba: &[u8], width: usize) -> bool {
+    select_left_predictor_with_color_transform(rgba, width, None)
+}
+
+pub(super) fn select_left_predictor_with_color_transform(
+    rgba: &[u8],
+    width: usize,
+    color_transform: Option<ColorTransformPlan>,
+) -> bool {
     let mut matching_neighbours = 0_usize;
     for index in 1..rgba.len() / 4 {
-        let current = subtract_green_pixel(rgba, index);
-        let predictor = left_predictor(rgba, index, width);
+        let current = subtract_green_pixel(rgba, index, color_transform);
+        let predictor = left_predictor(rgba, index, width, color_transform);
         if current == predictor {
             matching_neighbours += 1;
         }
@@ -427,8 +634,12 @@ fn update_color_cache(cache: &mut [u32; MAX_COLOR_CACHE_SIZE], bits: u8, color: 
     }
 }
 
-fn subtract_green_pixel(rgba: &[u8], index: usize) -> [u8; 4] {
-    let [red, green, blue, alpha] = pixel_at(rgba, index);
+fn subtract_green_pixel(
+    rgba: &[u8],
+    index: usize,
+    color_transform: Option<ColorTransformPlan>,
+) -> [u8; 4] {
+    let [red, green, blue, alpha] = pixel_at(rgba, index, color_transform);
     [
         red.wrapping_sub(green),
         green,
@@ -437,23 +648,55 @@ fn subtract_green_pixel(rgba: &[u8], index: usize) -> [u8; 4] {
     ]
 }
 
-fn pixel_at(rgba: &[u8], index: usize) -> [u8; 4] {
+fn pixel_at(rgba: &[u8], index: usize, color_transform: Option<ColorTransformPlan>) -> [u8; 4] {
     let offset = index * 4;
-    [
+    let pixel = [
         rgba[offset],
         rgba[offset + 1],
         rgba[offset + 2],
         rgba[offset + 3],
-    ]
+    ];
+    color_transform.map_or(pixel, |plan| forward_color_pixel(&pixel, plan))
 }
 
-fn left_predictor(rgba: &[u8], index: usize, width: usize) -> [u8; 4] {
+fn left_predictor(
+    rgba: &[u8],
+    index: usize,
+    width: usize,
+    color_transform: Option<ColorTransformPlan>,
+) -> [u8; 4] {
     if index == 0 {
         return [0, 0, 0, u8::MAX];
     }
     let x = index % width;
     let predictor_index = if x == 0 { index - width } else { index - 1 };
-    subtract_green_pixel(rgba, predictor_index)
+    subtract_green_pixel(rgba, predictor_index, color_transform)
+}
+
+fn residual_at(
+    rgba: &[u8],
+    index: usize,
+    width: usize,
+    use_subtract_green: bool,
+    use_left_predictor: bool,
+    color_transform: Option<ColorTransformPlan>,
+) -> [u8; 4] {
+    let current = if use_subtract_green {
+        subtract_green_pixel(rgba, index, color_transform)
+    } else {
+        pixel_at(rgba, index, color_transform)
+    };
+    let predictor = if use_left_predictor {
+        left_predictor(rgba, index, width, color_transform)
+    } else {
+        [0; 4]
+    };
+    [
+        current[0].wrapping_sub(predictor[0]),
+        current[1].wrapping_sub(predictor[1]),
+        current[2].wrapping_sub(predictor[2]),
+        current[3].wrapping_sub(predictor[3]),
+    ]
 }
 
 fn pack_argb(rgba: [u8; 4]) -> u32 {

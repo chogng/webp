@@ -17,11 +17,12 @@ use self::huffman::write_table_symbol;
 use self::prefix::encode_prefix as vp8l_prefix;
 pub(crate) use self::token_stream::EntropyToken;
 pub(crate) use self::token_stream::TokenStream;
+pub(crate) use self::token_stream::select_color_cache_bits;
+pub(crate) use self::token_stream::select_left_predictor;
 use self::token_stream::{
     CHANNEL_ALPHABET_SIZE, DISTANCE_ALPHABET_SIZE, EntropyFrequencies, FIRST_CACHE_SYMBOL,
     GREEN_ALPHABET_SIZE,
 };
-pub(crate) use self::token_stream::{select_color_cache_bits, select_left_predictor};
 
 pub(crate) const MAX_DIMENSION: u32 = 1 << 14;
 const SIGNATURE: u8 = 0x2f;
@@ -31,12 +32,11 @@ const LEFT_PREDICTOR_MODE: u8 = 1;
 const CODE_LENGTH_CODE_ORDER: [usize; 19] = [
     17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
 ];
-const MAX_ENCODER_PALETTE_SIZE: usize = 16;
 pub const COLOR_TRANSFORM_BLOCK_BITS: u8 = 7;
-const MIN_COLOR_TRANSFORM_PIXELS: usize = 256;
 
 pub(crate) mod huffman;
 mod prefix;
+mod source_analysis;
 mod token_stream;
 
 pub struct EntropyTables {
@@ -47,13 +47,7 @@ pub struct EntropyTables {
     distance: EncodingTable,
 }
 
-pub struct PalettePlan {
-    entries: Vec<[u8; 4]>,
-    indexed_rgba: Vec<u8>,
-    indexed_width: usize,
-}
-
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct ColorTransformPlan {
     pub green_to_red: i8,
     pub green_to_blue: i8,
@@ -86,13 +80,25 @@ pub fn encode_vp8l_payload(
     rgba: &[u8],
 ) -> Result<(Vec<u8>, bool), EncodeError> {
     validate_input(width, height, rgba)?;
-    let has_alpha = rgba.chunks_exact(4).any(|pixel| pixel[3] != u8::MAX);
     let width_usize = usize::try_from(width).map_err(|_| EncodeError::input_size_overflow())?;
-    if let Some(palette) = try_make_palette_plan(rgba, width_usize)? {
+    let analysis = source_analysis::SourceAnalysis::collect(rgba, width_usize)?;
+    let facts = analysis.facts();
+    if facts.width() != width_usize
+        || facts.height()
+            != usize::try_from(height).map_err(|_| EncodeError::input_size_overflow())?
+        || facts.pixels()
+            != width_usize
+                .checked_mul(facts.height())
+                .ok_or_else(EncodeError::input_size_overflow)?
+        || facts.identity().rgba_bytes() != rgba.len()
+    {
+        return Err(EncodeError::output_size_overflow());
+    }
+    let has_alpha = facts.has_alpha();
+    let color_transform = analysis.color_transform();
+    if let Some(palette) = analysis.into_palette() {
         return encode_palette_vp8l_payload(width, height, has_alpha, palette);
     }
-
-    let color_transform = select_color_transform(rgba);
     let transformed = match color_transform {
         Some(plan) => apply_forward_color_transform(rgba, plan)?,
         None => rgba.to_vec(),
@@ -155,7 +161,7 @@ fn encode_palette_vp8l_payload(
     width: u32,
     height: u32,
     has_alpha: bool,
-    palette: PalettePlan,
+    palette: source_analysis::PalettePlan,
 ) -> Result<(Vec<u8>, bool), EncodeError> {
     let mut bits = BitWriter::new();
     write_vp8l_header(&mut bits, width, height, has_alpha)?;
@@ -163,18 +169,22 @@ fn encode_palette_vp8l_payload(
     write_bits(&mut bits, 3, 2)?;
     write_bits(
         &mut bits,
-        u32::try_from(palette.entries.len() - 1)
+        u32::try_from(palette.entries().len() - 1)
             .map_err(|_| EncodeError::output_size_overflow())?,
         8,
     )?;
-    write_palette_image(&mut bits, &palette.entries)?;
+    write_palette_image(&mut bits, palette.entries())?;
     write_bits(&mut bits, 0, 1)?; // Transform-list terminator.
 
-    let color_cache_bits =
-        select_color_cache_bits(&palette.indexed_rgba, palette.indexed_width, false, false);
+    let color_cache_bits = select_color_cache_bits(
+        palette.indexed_rgba(),
+        palette.indexed_width(),
+        false,
+        false,
+    );
     let stream = TokenStream::collect(
-        &palette.indexed_rgba,
-        palette.indexed_width,
+        palette.indexed_rgba(),
+        palette.indexed_width(),
         false,
         false,
         color_cache_bits,
@@ -214,67 +224,12 @@ fn write_vp8l_header(
     write_bits(writer, 0, 3) // VP8L version.
 }
 
-pub fn try_make_palette_plan(
+#[cfg(test)]
+pub(crate) fn try_make_palette_plan(
     rgba: &[u8],
     width: usize,
-) -> Result<Option<PalettePlan>, EncodeError> {
-    let mut entries = Vec::new();
-    entries
-        .try_reserve_exact(MAX_ENCODER_PALETTE_SIZE)
-        .map_err(|_| EncodeError::allocation_failed())?;
-    let mut indices = Vec::new();
-    indices
-        .try_reserve_exact(rgba.len() / 4)
-        .map_err(|_| EncodeError::allocation_failed())?;
-    for pixel in rgba.chunks_exact(4) {
-        let pixel = [pixel[0], pixel[1], pixel[2], pixel[3]];
-        let index = match entries.iter().position(|entry| *entry == pixel) {
-            Some(index) => index,
-            None if entries.len() < MAX_ENCODER_PALETTE_SIZE => {
-                entries.push(pixel);
-                entries.len() - 1
-            }
-            None => return Ok(None),
-        };
-        indices.push(u8::try_from(index).expect("bounded palette index fits u8"));
-    }
-    // A literal one-pixel image is smaller and clearer than its palette
-    // descriptor plus nested palette image; otherwise select every bounded
-    // palette deterministically.
-    if indices.len() < 2 {
-        return Ok(None);
-    }
-    let indices_per_pixel = match entries.len() {
-        1..=2 => 8,
-        3..=4 => 4,
-        5..=16 => 2,
-        _ => unreachable!("palette is bounded before packing"),
-    };
-    let indexed_width = width.div_ceil(indices_per_pixel);
-    let height = indices.len() / width;
-    let indexed_len = indexed_width
-        .checked_mul(height)
-        .and_then(|pixels| pixels.checked_mul(4))
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let mut indexed_rgba = Vec::new();
-    indexed_rgba
-        .try_reserve_exact(indexed_len)
-        .map_err(|_| EncodeError::allocation_failed())?;
-    let bits_per_index = 8 / indices_per_pixel;
-    for row in indices.chunks_exact(width) {
-        for packed_indices in row.chunks(indices_per_pixel) {
-            let mut packed = 0_u8;
-            for (position, index) in packed_indices.iter().copied().enumerate() {
-                packed |= index << (position * bits_per_index);
-            }
-            indexed_rgba.extend_from_slice(&[0, packed, 0, 0]);
-        }
-    }
-    Ok(Some(PalettePlan {
-        entries,
-        indexed_rgba,
-        indexed_width,
-    }))
+) -> Result<Option<source_analysis::PalettePlan>, EncodeError> {
+    Ok(source_analysis::SourceAnalysis::collect(rgba, width)?.into_palette())
 }
 
 fn write_palette_image(writer: &mut BitWriter, entries: &[[u8; 4]]) -> Result<(), EncodeError> {
@@ -485,58 +440,11 @@ fn write_lz77_copy(
 /// Evaluates a bounded deterministic coefficient set. The transform's table
 /// costs a full nested entropy image, so it is only considered for substantial
 /// images and must reduce the signed channel-residual score by at least 25%.
-pub fn select_color_transform(rgba: &[u8]) -> Option<ColorTransformPlan> {
-    if rgba.len() / 4 < MIN_COLOR_TRANSFORM_PIXELS {
-        return None;
-    }
-    const CANDIDATES: [ColorTransformPlan; 6] = [
-        ColorTransformPlan {
-            green_to_red: 32,
-            green_to_blue: 32,
-            red_to_blue: 0,
-        },
-        ColorTransformPlan {
-            green_to_red: 32,
-            green_to_blue: 0,
-            red_to_blue: 32,
-        },
-        ColorTransformPlan {
-            green_to_red: 0,
-            green_to_blue: 32,
-            red_to_blue: 32,
-        },
-        ColorTransformPlan {
-            green_to_red: 48,
-            green_to_blue: 48,
-            red_to_blue: 0,
-        },
-        ColorTransformPlan {
-            green_to_red: -32,
-            green_to_blue: -32,
-            red_to_blue: 0,
-        },
-        ColorTransformPlan {
-            green_to_red: 64,
-            green_to_blue: 64,
-            red_to_blue: 0,
-        },
-    ];
-    let baseline = color_residual_score(rgba, None);
-    let mut selected = None;
-    let mut best = baseline;
-    for candidate in CANDIDATES {
-        let score = color_residual_score(rgba, Some(candidate));
-        if score < best {
-            best = score;
-            selected = Some(candidate);
-        }
-    }
-    (best.saturating_mul(4) <= baseline.saturating_mul(3)).then_some(selected?)
+#[cfg(test)]
+pub(crate) fn select_color_transform(rgba: &[u8]) -> Option<ColorTransformPlan> {
+    source_analysis::select_color_transform(rgba)
 }
 
-/// Applies the forward form of VP8L's color transform. Blue must use the
-/// original red channel because the decoder uses reconstructed red for its
-/// inverse step.
 fn apply_forward_color_transform(
     rgba: &[u8],
     plan: ColorTransformPlan,
@@ -546,50 +454,9 @@ fn apply_forward_color_transform(
         .try_reserve_exact(rgba.len())
         .map_err(|_| EncodeError::allocation_failed())?;
     for pixel in rgba.chunks_exact(4) {
-        let red_delta = color_transform_delta(pixel[1], plan.green_to_red);
-        let blue_delta = color_transform_delta(pixel[1], plan.green_to_blue)
-            + color_transform_delta(pixel[0], plan.red_to_blue);
-        transformed.extend_from_slice(&[
-            pixel[0].wrapping_sub(red_delta as u8),
-            pixel[1],
-            pixel[2].wrapping_sub(blue_delta as u8),
-            pixel[3],
-        ]);
+        transformed.extend_from_slice(&source_analysis::forward_color_pixel(pixel, plan));
     }
     Ok(transformed)
-}
-
-fn color_transform_delta(channel: u8, multiplier: i8) -> i16 {
-    (i16::from(channel as i8) * i16::from(multiplier)) >> 5
-}
-
-/// Scores the signed size of color residuals after the candidate transform.
-/// It intentionally avoids an entropy-model feedback loop; the strict 25%
-/// threshold keeps this bounded estimator from paying for a transform table on
-/// weak correlations.
-fn color_residual_score(rgba: &[u8], plan: Option<ColorTransformPlan>) -> u64 {
-    rgba.chunks_exact(4)
-        .map(|pixel| {
-            let (red, blue) = if let Some(plan) = plan {
-                (
-                    pixel[0].wrapping_sub(color_transform_delta(pixel[1], plan.green_to_red) as u8),
-                    pixel[2].wrapping_sub(
-                        (color_transform_delta(pixel[1], plan.green_to_blue)
-                            + color_transform_delta(pixel[0], plan.red_to_blue))
-                            as u8,
-                    ),
-                )
-            } else {
-                (pixel[0], pixel[2])
-            };
-            u64::from(signed_byte_magnitude(red)) + u64::from(signed_byte_magnitude(blue))
-        })
-        .sum()
-}
-
-fn signed_byte_magnitude(value: u8) -> u8 {
-    let signed = value as i8;
-    signed.unsigned_abs()
 }
 
 pub fn validate_input(width: u32, height: u32, rgba: &[u8]) -> Result<(), EncodeError> {

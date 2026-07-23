@@ -4,77 +4,19 @@ use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
 use super::EncodeError;
-use super::token_stream::{EntropyToken, TokenStream, token_span};
-
-#[derive(Clone, Copy, Default)]
-struct Majority {
-    symbol: u8,
-    balance: i32,
-}
-
-impl Majority {
-    fn add(&mut self, symbol: u8) -> Result<(), EncodeError> {
-        if self.balance == 0 {
-            self.symbol = symbol;
-            self.balance = 1;
-        } else if self.symbol == symbol {
-            self.balance = self
-                .balance
-                .checked_add(1)
-                .ok_or_else(EncodeError::output_size_overflow)?;
-        } else {
-            self.balance -= 1;
-        }
-        Ok(())
-    }
-}
-
-#[derive(Clone, Copy, Default)]
-struct BlockHistogram {
-    channels: [Majority; 4],
-    literals: u32,
-    branches: u32,
-}
+use super::token_stream::{BlockHistogram, SpatialBlockStatistics};
 
 impl BlockHistogram {
-    fn add(&mut self, token: EntropyToken) -> Result<(), EncodeError> {
-        match token {
-            EntropyToken::Literal(rgba) => {
-                for (majority, symbol) in self.channels.iter_mut().zip(rgba) {
-                    majority.add(symbol)?;
-                }
-                self.literals = self
-                    .literals
-                    .checked_add(1)
-                    .ok_or_else(EncodeError::output_size_overflow)?;
-            }
-            EntropyToken::Cache(_) | EntropyToken::Copy { .. } => {
-                self.branches = self
-                    .branches
-                    .checked_add(1)
-                    .ok_or_else(EncodeError::output_size_overflow)?;
-            }
-        }
-        Ok(())
-    }
-
-    const fn is_empty(self) -> bool {
-        self.literals == 0 && self.branches == 0
-    }
-
-    const fn token_count(self) -> u64 {
-        self.literals as u64 + self.branches as u64
-    }
-
     fn signature(self) -> Signature {
-        let total = self.literals.saturating_add(self.branches).max(1);
+        let total = self.literals().saturating_add(self.branches()).max(1);
+        let channels = self.channels();
         Signature {
             bins: [
-                self.channels[0].symbol >> 5,
-                self.channels[1].symbol >> 5,
-                self.channels[2].symbol >> 5,
-                self.channels[3].symbol >> 5,
-                (self.branches.saturating_mul(4) / total).min(3) as u8,
+                channels[0].symbol() >> 5,
+                channels[1].symbol() >> 5,
+                channels[2].symbol() >> 5,
+                channels[3].symbol() >> 5,
+                (self.branches().saturating_mul(4) / total).min(3) as u8,
             ],
         }
     }
@@ -102,35 +44,11 @@ pub(crate) struct ClusteredMap {
 }
 
 pub(crate) fn cluster_tokens(
-    stream: &TokenStream,
-    block_pixels: usize,
+    statistics: &SpatialBlockStatistics,
     maximum_groups: usize,
 ) -> Result<ClusteredMap, EncodeError> {
-    let geometry = stream.geometry();
-    let width = geometry.width();
-    let height = geometry.height();
-    let block_width = width.div_ceil(block_pixels);
-    let block_height = height.div_ceil(block_pixels);
-    let block_count = block_width
-        .checked_mul(block_height)
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let mut blocks = Vec::new();
-    blocks
-        .try_reserve_exact(block_count)
-        .map_err(|_| EncodeError::allocation_failed())?;
-    blocks.resize(block_count, BlockHistogram::default());
-
-    let mut pixel = 0_usize;
-    for &token in stream.tokens() {
-        let block = block_index(pixel, width, block_width, block_pixels);
-        blocks[block].add(token)?;
-        pixel = pixel
-            .checked_add(token_span(token))
-            .ok_or_else(EncodeError::output_size_overflow)?;
-    }
-
     let mut weights = BTreeMap::<Signature, u64>::new();
-    for block in &blocks {
+    for block in statistics.blocks() {
         if !block.is_empty() {
             let weight = weights.entry(block.signature()).or_default();
             *weight = weight
@@ -151,10 +69,10 @@ pub(crate) fn cluster_tokens(
 
     let mut assignments = Vec::new();
     assignments
-        .try_reserve_exact(block_count)
+        .try_reserve_exact(statistics.blocks().len())
         .map_err(|_| EncodeError::allocation_failed())?;
-    assignments.resize(block_count, u8::MAX);
-    for (index, block) in blocks.iter().enumerate() {
+    assignments.resize(statistics.blocks().len(), u8::MAX);
+    for (index, block) in statistics.blocks().iter().enumerate() {
         if block.is_empty() {
             continue;
         }
@@ -166,17 +84,13 @@ pub(crate) fn cluster_tokens(
             .and_then(|(seed, _)| u8::try_from(seed).ok())
             .ok_or_else(EncodeError::output_size_overflow)?;
     }
-    fill_empty_blocks(&mut assignments, block_width);
+    fill_empty_blocks(&mut assignments, statistics.block_width());
     let group_count = compact_groups(&mut assignments, seeds.len())?;
     Ok(ClusteredMap {
-        block_width,
+        block_width: statistics.block_width(),
         assignments,
         group_count,
     })
-}
-
-const fn block_index(pixel: usize, width: usize, block_width: usize, block_pixels: usize) -> usize {
-    (pixel / width / block_pixels) * block_width + (pixel % width / block_pixels)
 }
 
 fn fill_empty_blocks(assignments: &mut [u8], block_width: usize) {

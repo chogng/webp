@@ -47,7 +47,10 @@ impl SpatialPlan {
         profile: SpatialProfile,
     ) -> Result<Self, EncodeError> {
         let geometry = stream.geometry();
-        let clustered = cluster_tokens(stream, profile.block_pixels(), profile.maximum_groups())?;
+        let clustered = cluster_tokens(
+            stream.spatial_blocks(profile.block_pixels())?,
+            profile.maximum_groups(),
+        )?;
         let mut frequencies = Vec::new();
         frequencies
             .try_reserve_exact(clustered.group_count)
