@@ -9,7 +9,7 @@ silently becomes a release artifact.
 | Upstream conformance vectors | `third_party/corpus/libwebp-test-data` | 68-file selected list | pinned selected vectors | supported vectors × public API matrix |
 | libwebp reference output | `third_party/oracle/libwebp` and generated outputs | selected supported features | pairwise encoder set and differential output | all supported encoder options |
 | Real-image benchmark | `third_party/benchdata/clic` | none | CLIC validation | CLIC validation plus approved larger splits |
-| Structured hostile input | `tests/fixtures/generated` | all committed fixtures | generated matrix plus fuzz corpus | all fixtures under normal and tight limits |
+| Structured hostile input | ignored local fixture cache | deterministic malformed cases | generated matrix plus fuzz corpus | all cases under normal and tight limits |
 | Historical regressions | `tests/fixtures/regressions` | all | all | all |
 
 ## Pinned upstream inputs
@@ -68,9 +68,25 @@ lossless, and near-lossless settings for later direct pixel-golden tests.
 
 ## Generated fixtures
 
-Run `cd webp-rs && cargo run -p xtask -- fixtures generate-malformed` after changing the
-generator. It regenerates the committed minimal RIFF/VP8X hostile samples. A
-discovered failure is minimized before being moved to
+Run `cd webp-rs && cargo run -p xtask -- fixtures ensure` once after cloning.
+It computes the expected deterministic set in memory and validates the ignored
+`tests/fixtures/generated/` cache. A matching cache is a zero-write hit; a
+missing, stale, incomplete, or corrupt cache is rebuilt under a cross-process
+lock. `fixtures verify` is the read-only integrity check.
+
+Each immutable generation is addressed by the SHA-256 of a canonical manifest.
+The manifest records the complete relative path, size, and SHA-256 of every
+minimal RIFF/VP8X hostile input and metadata-matrix file. A generation is built
+and synced in a sibling staging directory, renamed into `sets/<digest>`, and
+only then made current through a monotonically numbered marker. Readers
+therefore select either a complete old generation or a complete new one; they
+never infer coverage by listing an in-progress directory. Tests and the fuzz
+bootstrap consume the same manifest.
+
+`fixtures generate` remains only as a deprecated compatibility alias for
+`ensure`. Normal test runs read the committed generation marker and never
+regenerate it.
+A discovered failure is minimized before being moved to
 `tests/fixtures/regressions/`, with its issue/source, expected result, and the
 API path that previously failed.
 
@@ -79,12 +95,16 @@ to copy a fixture, then add its direct public API test. Rejection regressions
 should cover one-shot, `ReadInfo`, and incremental decoding; accepted-image
 regressions should assert their relevant dimensions or pixel goldens.
 
-Animation and metadata vectors must be generated from libwebp tools, retaining
-the resolved oracle commit, raw RGBA input, WebP output, per-frame composed RGBA hashes,
+Animation vectors must be generated from libwebp tools, retaining the resolved
+oracle commit, raw RGBA input, WebP output, per-frame composed RGBA hashes,
 rectangles, duration, blend/dispose flags, loop count, background color,
-oracle revision, and generator arguments. Metadata generation covers ICCP,
-EXIF, XMP, their combinations, boundary payload lengths, chunk order/padding,
-duplicates, incorrect declared sizes, and truncation.
+oracle revision, and generator arguments.
+
+The cached deterministic metadata matrix covers ICCP, EXIF, XMP, their
+combinations, boundary payload lengths, legal chunk positions, and padding
+without committing one binary file per Cartesian-product case. Malformed
+metadata layouts, duplicates, incorrect declared sizes, and truncations use the
+same ignored cache.
 
 `tools/generate-animation-corpus.sh` creates the initial two-frame loop. The
 animation test is deliberately separate from pixel decode until frame

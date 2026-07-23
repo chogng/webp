@@ -1,6 +1,8 @@
 #![cfg(feature = "decode")]
 
+use std::collections::BTreeSet;
 use std::fs;
+use std::path::Path;
 use std::path::PathBuf;
 
 use webp::DecodeErrorKind;
@@ -13,6 +15,9 @@ use webp::Progress;
 use webp::decode;
 use webp::read_info;
 use webp::read_metadata;
+
+const FIXTURE_MANIFEST_HEADER: &str = "webp-fixture-manifest-v1";
+const CURRENT_PREFIX: &str = "CURRENT-";
 
 fn test_data_root() -> PathBuf {
     if let Some(runfiles) = std::env::var_os("TEST_SRCDIR") {
@@ -30,16 +35,103 @@ fn test_data_root() -> PathBuf {
 
 fn generated_fixtures() -> Vec<PathBuf> {
     let root = test_data_root().join("fixtures/generated");
-    let mut fixtures = fs::read_dir(&root)
-        .unwrap_or_else(|error| panic!("read {}: {error}", root.display()))
-        .map(|entry| entry.expect("read generated fixture entry").path())
-        .filter(|path| {
-            path.extension()
-                .is_some_and(|extension| extension == "webp")
-        })
-        .collect::<Vec<_>>();
-    fixtures.sort();
+    let (sequence, digest, marker) = current_fixture_marker(&root);
+    let marker_contents = fs::read_to_string(&marker)
+        .unwrap_or_else(|error| panic!("read {}: {error}", marker.display()));
+    assert_eq!(
+        marker_contents,
+        format!("{digest}\n"),
+        "fixture marker {sequence} is malformed"
+    );
+
+    let generation = root.join("sets").join(digest);
+    let manifest_path = generation.join("MANIFEST.sha256");
+    let manifest = fs::read_to_string(&manifest_path)
+        .unwrap_or_else(|error| panic!("read {}: {error}", manifest_path.display()));
+    let mut lines = manifest.lines();
+    assert_eq!(
+        lines.next(),
+        Some(FIXTURE_MANIFEST_HEADER),
+        "fixture manifest has an unsupported schema"
+    );
+
+    let mut names = BTreeSet::new();
+    let mut fixtures = Vec::new();
+    for line in lines {
+        let mut fields = line.splitn(3, ' ');
+        let hash = fields.next().unwrap_or_default();
+        let size = fields
+            .next()
+            .and_then(|size| size.parse::<u64>().ok())
+            .expect("fixture manifest contains an invalid size");
+        let name = fields
+            .next()
+            .filter(|name| safe_fixture_name(name))
+            .expect("fixture manifest contains an unsafe file name");
+        assert!(
+            hash.len() == 64 && hash.bytes().all(|byte| byte.is_ascii_hexdigit()),
+            "fixture manifest contains an invalid SHA-256"
+        );
+        assert!(names.insert(name.to_owned()), "duplicate fixture {name}");
+        let path = generation.join(name);
+        let metadata = fs::metadata(&path)
+            .unwrap_or_else(|error| panic!("inspect {}: {error}", path.display()));
+        assert!(metadata.is_file(), "{} is not a file", path.display());
+        assert_eq!(metadata.len(), size, "{} size mismatch", path.display());
+        fixtures.push(path);
+    }
+
+    let actual_names = fs::read_dir(&generation)
+        .unwrap_or_else(|error| panic!("read {}: {error}", generation.display()))
+        .map(|entry| entry.expect("read generated fixture entry").file_name())
+        .filter_map(|name| name.into_string().ok())
+        .filter(|name| name.ends_with(".webp"))
+        .collect::<BTreeSet<_>>();
+    assert_eq!(
+        actual_names, names,
+        "fixture generation has missing or unexpected WebP files"
+    );
+    assert!(!fixtures.is_empty(), "fixture manifest is empty");
     fixtures
+}
+
+fn current_fixture_marker(root: &Path) -> (u64, String, PathBuf) {
+    fs::read_dir(root)
+        .unwrap_or_else(|error| {
+            panic!(
+                "fixture cache is unavailable at {}: {error}; run `cargo run -p xtask -- fixtures ensure`",
+                root.display()
+            )
+        })
+        .filter_map(|entry| {
+            let entry = entry.ok()?;
+            let name = entry.file_name().into_string().ok()?;
+            let rest = name.strip_prefix(CURRENT_PREFIX)?;
+            let (sequence, digest) = rest.split_once('-')?;
+            if sequence.len() != 20
+                || digest.len() != 64
+                || !sequence.bytes().all(|byte| byte.is_ascii_digit())
+                || !digest.bytes().all(|byte| byte.is_ascii_hexdigit())
+                || !entry.file_type().ok()?.is_file()
+            {
+                return None;
+            }
+            Some((sequence.parse::<u64>().ok()?, digest.to_owned(), entry.path()))
+        })
+        .max_by_key(|(sequence, _, _)| *sequence)
+        .unwrap_or_else(|| {
+            panic!(
+                "fixture cache has no committed generation; run `cargo run -p xtask -- fixtures ensure`"
+            )
+        })
+}
+
+fn safe_fixture_name(name: &str) -> bool {
+    !name.is_empty()
+        && name.ends_with(".webp")
+        && !name.contains(['/', '\\', '\n', '\r', ' '])
+        && name != "."
+        && name != ".."
 }
 
 fn metadata_case(name: &str) -> Option<(u8, usize)> {
@@ -55,9 +147,8 @@ fn metadata_case(name: &str) -> Option<(u8, usize)> {
 
 #[test]
 fn malformed_fixtures_are_rejected_by_public_entrypoints() {
-    let empty = fs::read(test_data_root().join("fixtures/smoke/empty-input.webp")).unwrap();
-    assert!(decode(&empty, &DecodeOptions::default()).is_err());
-    assert!(read_info(&empty, &DecodeLimits::default()).is_err());
+    assert!(decode(&[], &DecodeOptions::default()).is_err());
+    assert!(read_info(&[], &DecodeLimits::default()).is_err());
     for path in generated_fixtures() {
         let name = path.file_name().and_then(|name| name.to_str()).unwrap();
         if metadata_case(name).is_some() {

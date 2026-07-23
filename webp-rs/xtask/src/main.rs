@@ -7,6 +7,10 @@ use std::path::Path;
 use toml::Table;
 use toml::Value;
 
+mod fixture_cache;
+mod fixture_set;
+mod sha256;
+
 fn main() {
     let Some(command) = env::args().nth(1) else {
         print_usage();
@@ -35,238 +39,29 @@ fn repository_root() -> &'static Path {
 
 fn print_usage() {
     eprintln!(
-        "usage: cargo run -p xtask -- <corpus verify|fixtures generate-malformed|feature-matrix check>\n\
+        "usage: cargo run -p xtask -- <corpus verify|fixtures ensure|fixtures verify|feature-matrix check>\n\
          External corpus fetch/index commands live in tools/ and follow the configured upstream branches."
     );
 }
 
 fn fixtures(action: Option<&str>) -> Result<(), String> {
-    match action {
-        Some("generate-malformed") => generate_malformed_fixtures(),
-        Some("generate-metadata") => generate_metadata_fixtures(),
-        _ => Err("usage: cargo xtask fixtures <generate-malformed|generate-metadata>".to_owned()),
-    }
-}
-
-fn generate_metadata_fixtures() -> Result<(), String> {
-    const LENGTHS: [usize; 11] = [0, 1, 2, 3, 4, 7, 8, 15, 16, 255, 256];
-    let mut generated = 0;
-    for mask in 0_u8..8 {
-        for length in LENGTHS {
-            if mask == 0 && length != 0 {
-                continue;
-            }
-            for placement in ["before", "after"] {
-                let payload = (0..length)
-                    .map(|index| (index as u8).wrapping_add(mask))
-                    .collect::<Vec<_>>();
-                let flags = (if mask & 1 != 0 { 1 << 5 } else { 0 })
-                    | (if mask & 2 != 0 { 1 << 3 } else { 0 })
-                    | (if mask & 4 != 0 { 1 << 2 } else { 0 });
-                let mut chunks = vec![chunk(*b"VP8X", &[flags, 0, 0, 0, 0, 0, 0, 0, 0, 0], None)];
-                let metadata_chunks = metadata_chunks(mask, &payload);
-                if placement == "before" {
-                    chunks.extend(metadata_chunks);
-                    chunks.push(chunk(*b"VP8 ", &[0, 0], None));
-                } else {
-                    chunks.push(chunk(*b"VP8 ", &[0, 0], None));
-                    chunks.extend(metadata_chunks);
-                }
-                let file = format!("metadata-{mask:01x}-{length:03}-{placement}.webp");
-                let bytes = riff_body(chunks.concat());
-                write_if_changed(
-                    &repository_root()
-                        .join("tests/fixtures/generated")
-                        .join(&file),
-                    &bytes,
-                )?;
-                generated += 1;
-            }
+    let root = repository_root().join("tests/fixtures/generated");
+    let generated = fixture_set::generate();
+    let summary = match action {
+        Some("ensure" | "generate") => fixture_cache::ensure(&root, &generated)?,
+        Some("verify") => fixture_cache::verify(&root, &generated)?,
+        _ => {
+            return Err("usage: cargo xtask fixtures <ensure|verify>".to_owned());
         }
+    };
+    if action == Some("generate") {
+        eprintln!("xtask: `fixtures generate` is deprecated; use `fixtures ensure`");
     }
-    println!("generated {generated} metadata fixtures");
+    println!(
+        "fixture cache: {:?}, {} files, identity {}",
+        summary.outcome, summary.count, summary.digest
+    );
     Ok(())
-}
-
-fn metadata_chunks(mask: u8, payload: &[u8]) -> Vec<Vec<u8>> {
-    let mut chunks = Vec::new();
-    if mask & 1 != 0 {
-        chunks.push(chunk(*b"ICCP", payload, None));
-    }
-    if mask & 2 != 0 {
-        chunks.push(chunk(*b"EXIF", payload, None));
-    }
-    if mask & 4 != 0 {
-        chunks.push(chunk(*b"XMP ", payload, None));
-    }
-    chunks
-}
-
-struct GeneratedFixture {
-    file: &'static str,
-    bytes: Vec<u8>,
-}
-
-fn generate_malformed_fixtures() -> Result<(), String> {
-    let valid_vp8 = riff_body(chunk(*b"VP8 ", &[0x00, 0x00], None));
-    let mut trailing = valid_vp8;
-    trailing.push(0xff);
-
-    let truncated_chunk = riff_body({
-        let mut body = b"VP8 ".to_vec();
-        body.extend_from_slice(&1_u32.to_le_bytes());
-        body
-    });
-    let vp8x = chunk(*b"VP8X", &[0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0], None);
-    let duplicate_vp8x = riff_body([vp8x.clone(), vp8x].concat());
-    let animation_vp8x = chunk(*b"VP8X", &[0x02, 0, 0, 0, 0, 0, 0, 0, 0, 0], None);
-    let truncated_anmf = riff_body({
-        let mut body = animation_vp8x.clone();
-        body.extend_from_slice(b"ANMF");
-        body.extend_from_slice(&16_u32.to_le_bytes());
-        body.extend_from_slice(&[0; 10]);
-        body
-    });
-    let exif_vp8x = chunk(*b"VP8X", &[1 << 3, 0, 0, 0, 0, 0, 0, 0, 0, 0], None);
-    let metadata_without_vp8x = riff_body(
-        [
-            chunk(*b"VP8 ", &[0x00, 0x00], None),
-            chunk(*b"EXIF", &[0x01], None),
-        ]
-        .concat(),
-    );
-
-    let fixtures = [
-        GeneratedFixture {
-            file: "riff-declared-size-too-large.webp",
-            bytes: {
-                let mut bytes = b"RIFF".to_vec();
-                bytes.extend_from_slice(&u32::MAX.to_le_bytes());
-                bytes.extend_from_slice(b"WEBP");
-                bytes
-            },
-        },
-        GeneratedFixture {
-            file: "chunk-payload-truncated.webp",
-            bytes: truncated_chunk,
-        },
-        GeneratedFixture {
-            file: "riff-trailing-byte.webp",
-            bytes: trailing,
-        },
-        GeneratedFixture {
-            file: "non-zero-padding.webp",
-            bytes: riff_body(chunk(*b"VP8 ", &[0x00], Some(0xff))),
-        },
-        GeneratedFixture {
-            file: "vp8x-reserved-bit.webp",
-            bytes: riff_body(chunk(*b"VP8X", &[0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0], None)),
-        },
-        GeneratedFixture {
-            file: "duplicate-vp8x.webp",
-            bytes: duplicate_vp8x,
-        },
-        GeneratedFixture {
-            file: "animation-anmf-payload-truncated.webp",
-            bytes: truncated_anmf,
-        },
-        GeneratedFixture {
-            file: "animation-anmf-non-zero-padding.webp",
-            bytes: riff_body([animation_vp8x, chunk(*b"ANMF", &[0x00], Some(0xff))].concat()),
-        },
-        GeneratedFixture {
-            file: "duplicate-exif.webp",
-            bytes: riff_body(
-                [
-                    exif_vp8x.clone(),
-                    chunk(*b"EXIF", &[0x01], None),
-                    chunk(*b"EXIF", &[0x02], None),
-                    chunk(*b"VP8 ", &[0x00, 0x00], None),
-                ]
-                .concat(),
-            ),
-        },
-        GeneratedFixture {
-            file: "metadata-without-vp8x.webp",
-            bytes: metadata_without_vp8x,
-        },
-        GeneratedFixture {
-            file: "vp8x-exif-flag-missing.webp",
-            bytes: riff_body(
-                [
-                    chunk(*b"VP8X", &[0; 10], None),
-                    chunk(*b"EXIF", &[0x01], None),
-                    chunk(*b"VP8 ", &[0x00, 0x00], None),
-                ]
-                .concat(),
-            ),
-        },
-        GeneratedFixture {
-            file: "vp8x-exif-flag-without-chunk.webp",
-            bytes: riff_body([exif_vp8x.clone(), chunk(*b"VP8 ", &[0x00, 0x00], None)].concat()),
-        },
-        GeneratedFixture {
-            file: "vp8x-not-first.webp",
-            bytes: riff_body([chunk(*b"VP8 ", &[0x00, 0x00], None), exif_vp8x].concat()),
-        },
-        GeneratedFixture {
-            file: "mixed-vp8-vp8l.webp",
-            bytes: riff_body(
-                [
-                    chunk(*b"VP8 ", &[0x00, 0x00], None),
-                    chunk(*b"VP8L", &[0x2f, 0x00, 0x00, 0x00, 0x00], None),
-                ]
-                .concat(),
-            ),
-        },
-    ];
-    for fixture in &fixtures {
-        let fixture_path = repository_root()
-            .join("tests/fixtures/generated")
-            .join(fixture.file);
-        write_if_changed(&fixture_path, &fixture.bytes)?;
-    }
-    println!("generated {} malformed container fixtures", fixtures.len());
-    Ok(())
-}
-
-fn riff_body(body: Vec<u8>) -> Vec<u8> {
-    let mut body_with_form_type = b"WEBP".to_vec();
-    body_with_form_type.extend_from_slice(&body);
-    let mut bytes = b"RIFF".to_vec();
-    bytes.extend_from_slice(
-        &u32::try_from(body_with_form_type.len())
-            .expect("generated RIFF body length fits u32")
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(&body_with_form_type);
-    bytes
-}
-
-fn chunk(fourcc: [u8; 4], payload: &[u8], padding: Option<u8>) -> Vec<u8> {
-    let mut bytes = fourcc.to_vec();
-    bytes.extend_from_slice(
-        &u32::try_from(payload.len())
-            .expect("generated chunk payload length fits u32")
-            .to_le_bytes(),
-    );
-    bytes.extend_from_slice(payload);
-    if payload.len() % 2 == 1 {
-        bytes.push(padding.unwrap_or(0));
-    }
-    bytes
-}
-
-fn write_if_changed(path: &Path, bytes: &[u8]) -> Result<(), String> {
-    if fs::read(path).ok().as_deref() == Some(bytes) {
-        return Ok(());
-    }
-    let parent = path
-        .parent()
-        .ok_or_else(|| format!("{} has no parent", path.display()))?;
-    fs::create_dir_all(parent)
-        .map_err(|error| format!("cannot create {}: {error}", parent.display()))?;
-    fs::write(path, bytes).map_err(|error| format!("cannot write {}: {error}", path.display()))
 }
 
 fn corpus(action: Option<&str>) -> Result<(), String> {
