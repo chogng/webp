@@ -97,13 +97,7 @@ webp-rs/
 │   │   ├── error.rs
 │   │   ├── bit_io.rs
 │   │   ├── limits.rs
-│   │   │
-│   │   ├── api/
-│   │   │   ├── mod.rs
-│   │   │   ├── image.rs
-│   │   │   ├── animation.rs
-│   │   │   ├── metadata.rs
-│   │   │   └── options.rs
+│   │   ├── options.rs
 │   │   │
 │   │   ├── vp8/
 │   │   │   ├── mod.rs
@@ -313,15 +307,17 @@ docs/
 
 ## 3. 模块所有权
 
-### 3.1 `api`
+### 3.1 公共数据模型
 
-只拥有稳定公共数据模型，不执行 codec 工作：
+公共类型与维护其不变量的行为 owner 放在一起，由 crate 根显式 re-export：
 
-- `image.rs`：`Image`、`ImageInfo`、`Progress`。
-- `animation.rs`：`Animation`、`AnimationFrame`、`AnimationEncodeFrame`、
-  `AnimationEncodeOptions`。
-- `metadata.rs`：公共 `Metadata`。
-- `options.rs`：`DecodeOptions`、`LossyEncodeOptions` 和其他稳定选项。
+- `static_image.rs`：`Image`。
+- `animated_image.rs`：`Animation`、`AnimationFrame` 以及编码方向的帧模型。
+- `inspection.rs`：`ImageInfo`。
+- `incremental.rs`：`Progress`、`IncrementalImage`。
+- `options.rs`：方向对应的稳定选项。
+- `webp-container`：借用型 `Metadata<'a>` 与拥有型 `OwnedMetadata`；兼容门面可将
+  后者继续以 `Metadata` 名称导出。
 - `error.rs` 位于 crate 根，统一拥有 `DecodeError`、`DecodeErrorKind`、
   `EncodeError` 及其转换。
 
@@ -538,7 +534,7 @@ serialization 和 coefficient serialization 拆分，不得只按行数机械切
 
 | 现有位置 | 最终位置 |
 | --- | --- |
-| `webp/src/api.rs` | `api/**` 与 crate 根 `error.rs` |
+| `webp/src/api.rs` | 公共类型进入对应行为 owner；共享 metadata 进入 `webp-container`；错误保留在 crate 根 `error.rs` |
 | `webp/src/decoder.rs` | 静态路径进 `static_image.rs`；动画路径进 `animated_image.rs` |
 | `webp/src/decoder_tests.rs` | `static_image_tests.rs` 与 `animated_image_tests.rs` |
 | `webp/src/encoder.rs` | VP8L 部分进 `vp8l/image_writer/**`；RIFF 部分进 `webp-container`；产品组合进 `static_image.rs`/`animated_image.rs` |
@@ -734,8 +730,10 @@ inlining、数据布局或重复转换，再决定边界；不得无记录地放
 以下四项明确排除在架构迁移之外。只有第 8 节全部通过并形成稳定基线后，才分别建立
 独立任务、测试与性能记录；不得重新混入迁移分支。
 
-1. **完整 demux API — 已完成**：`Demuxer` 提供稳定零拷贝 parse、chunk/frame
-   iteration、随机查询与资源策略；兼容的 `Container`/`parse` 入口继续保留。
+1. **完整 RIFF demux API — 已完成**：`Demuxer` 提供稳定零拷贝 parse、chunk/frame
+   iteration、随机查询、simple/extended canvas 查询、固定 VP8/VP8L header 与布局一致性
+   校验及嵌套资源策略；兼容的 `Container`/`parse` 入口继续保留。流式输入状态由
+   `webp-decode` incremental API 持有，不在 complete-container demux 中复制。
 2. **完整 mux/editor API — 已完成**：`Muxer` 提供静态图像、动画帧和通用 owned chunk
    构造；`Editor` 提供 metadata/frame/chunk mutation、未知 chunk 保留以及无需像素
    重编码的 strict edit round trip。

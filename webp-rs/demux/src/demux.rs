@@ -93,6 +93,29 @@ impl<'a> Demuxer<'a> {
         self.vp8x
     }
 
+    /// Returns the canvas dimensions for either simple or extended WebP.
+    #[must_use]
+    pub fn canvas_dimensions(&self) -> Option<(u32, u32)> {
+        self.vp8x
+            .map(|header| (header.canvas_width, header.canvas_height))
+            .or_else(|| self.image.map(|image| (image.width, image.height)))
+    }
+
+    /// Returns whether the parsed image is animated.
+    #[must_use]
+    pub fn is_animated(&self) -> bool {
+        self.animation.is_some()
+    }
+
+    /// Returns the number of image frames exposed by the parsed container.
+    #[must_use]
+    pub fn frame_count(&self) -> usize {
+        self.animation.as_ref().map_or(
+            usize::from(self.image.is_some()),
+            crate::Animation::frame_count,
+        )
+    }
+
     /// Animation control data and validated frame descriptors, when present.
     #[must_use]
     pub fn animation(&self) -> Option<&crate::Animation<'a>> {
@@ -131,6 +154,9 @@ pub type Container<'a> = Demuxer<'a>;
 pub struct StillImage<'a> {
     alpha: Option<&'a [u8]>,
     bitstream: ImageBitstream<'a>,
+    width: u32,
+    height: u32,
+    alpha_hint: bool,
 }
 
 impl<'a> StillImage<'a> {
@@ -144,6 +170,27 @@ impl<'a> StillImage<'a> {
     #[must_use]
     pub fn bitstream(self) -> ImageBitstream<'a> {
         self.bitstream
+    }
+
+    /// Returns the width declared by the fixed VP8 or VP8L header.
+    #[must_use]
+    pub fn width(self) -> u32 {
+        self.width
+    }
+
+    /// Returns the height declared by the fixed VP8 or VP8L header.
+    #[must_use]
+    pub fn height(self) -> u32 {
+        self.height
+    }
+
+    /// Returns whether the container or lossless header signals alpha.
+    ///
+    /// The VP8L bit is a coding hint; actual pixel alpha remains a decoder
+    /// responsibility.
+    #[must_use]
+    pub fn has_alpha_hint(self) -> bool {
+        self.alpha.is_some() || self.alpha_hint
     }
 }
 
@@ -285,7 +332,7 @@ fn parse_with<'a>(
                     "duplicate VP8X chunk",
                 ));
             }
-            let parsed = parse_vp8x(payload, profile, limits, offset + CHUNK_HEADER_LEN)?;
+            let parsed = parse_vp8x(payload, limits, offset + CHUNK_HEADER_LEN)?;
             if vp8x.is_none() {
                 vp8x = Some(parsed);
             }
@@ -316,7 +363,17 @@ fn parse_with<'a>(
     if profile == CompatibilityProfile::SpecStrict {
         crate::layout::validate_strict_layout(&chunks, vp8x)?;
     }
-    let image = still_image(&chunks);
+    let image = still_image(&chunks, vp8x, limits)?;
+    if profile == CompatibilityProfile::SpecStrict
+        && image.is_some_and(StillImage::has_alpha_hint)
+        && vp8x.is_some_and(|header| !header.flags.alpha())
+    {
+        return Err(error(
+            ContainerErrorKind::InvalidContainer,
+            RIFF_HEADER_LEN,
+            "VP8X alpha flag is missing for the static image",
+        ));
+    }
     let animation = crate::animation::parse_animation(&chunks, vp8x, profile, limits)?;
     Ok(Demuxer {
         chunks,
@@ -329,7 +386,6 @@ fn parse_with<'a>(
 
 fn parse_vp8x(
     payload: &[u8],
-    profile: CompatibilityProfile,
     limits: &ContainerLimits,
     payload_offset: usize,
 ) -> Result<Vp8x, ContainerError> {
@@ -341,15 +397,8 @@ fn parse_vp8x(
         ));
     }
     let flags = Vp8xFlags::from_bits(payload[0]);
-    if profile == CompatibilityProfile::SpecStrict
-        && (flags.reserved_bits() != 0 || payload[1..4].iter().any(|&byte| byte != 0))
-    {
-        return Err(error(
-            ContainerErrorKind::InvalidContainer,
-            payload_offset,
-            "VP8X reserved fields are non-zero",
-        ));
-    }
+    // Reserved fields are writer-zero fields, but the WebP reader contract
+    // requires ignoring them for forward compatibility in every profile.
     let width = read_u24_le(payload[4..7].try_into().expect("validated VP8X width")) + 1;
     let height = read_u24_le(payload[7..10].try_into().expect("validated VP8X height")) + 1;
     if width > limits.max_width || height > limits.max_height {
@@ -368,6 +417,13 @@ fn parse_vp8x(
                 "canvas pixel count overflow",
             )
         })?;
+    if pixels > u64::from(u32::MAX) {
+        return Err(error(
+            ContainerErrorKind::InvalidDimensions,
+            payload_offset + 4,
+            "VP8X canvas exceeds the WebP pixel-product limit",
+        ));
+    }
     if pixels > limits.max_pixels {
         return Err(error(
             ContainerErrorKind::LimitExceeded,
@@ -382,16 +438,44 @@ fn parse_vp8x(
     })
 }
 
-fn still_image<'a>(chunks: &[Chunk<'a>]) -> Option<StillImage<'a>> {
-    let bitstream = chunks.iter().find_map(|chunk| match chunk.fourcc {
-        VP8 => Some(ImageBitstream::Vp8(chunk.payload)),
-        VP8L => Some(ImageBitstream::Vp8l(chunk.payload)),
-        _ => None,
-    })?;
-    Some(StillImage {
+fn still_image<'a>(
+    chunks: &[Chunk<'a>],
+    vp8x: Option<Vp8x>,
+    limits: &ContainerLimits,
+) -> Result<Option<StillImage<'a>>, ContainerError> {
+    let Some(chunk) = chunks
+        .iter()
+        .find(|chunk| matches!(chunk.fourcc, VP8 | VP8L))
+    else {
+        return Ok(None);
+    };
+    let header = crate::image_header::parse(
+        chunk.fourcc,
+        chunk.payload,
+        limits,
+        chunk.offset + CHUNK_HEADER_LEN,
+    )?;
+    if let Some(canvas) = vp8x
+        && (header.width != canvas.canvas_width || header.height != canvas.canvas_height)
+    {
+        return Err(error(
+            ContainerErrorKind::InvalidDimensions,
+            chunk.offset + CHUNK_HEADER_LEN,
+            "VP8X canvas does not match static image dimensions",
+        ));
+    }
+    let bitstream = match chunk.fourcc {
+        VP8 => ImageBitstream::Vp8(chunk.payload),
+        VP8L => ImageBitstream::Vp8l(chunk.payload),
+        _ => unreachable!("selected only VP8 or VP8L"),
+    };
+    Ok(Some(StillImage {
         alpha: first_payload(chunks, crate::ALPH),
         bitstream,
-    })
+        width: header.width,
+        height: header.height,
+        alpha_hint: header.alpha_hint,
+    }))
 }
 
 fn first_payload<'a>(chunks: &[Chunk<'a>], fourcc: FourCc) -> Option<&'a [u8]> {

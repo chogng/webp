@@ -4,8 +4,16 @@ use crate::CompatibilityProfile;
 use crate::DecodeError;
 use crate::DecodeErrorKind;
 use crate::DecodeLimits;
-use crate::ImageInfo;
 use crate::Metadata;
+
+/// Header information available without materializing decoded pixels.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ImageInfo {
+    pub width: u32,
+    pub height: u32,
+    pub has_alpha: bool,
+    pub is_animated: bool,
+}
 
 pub fn read_info(data: &[u8], limits: &DecodeLimits) -> Result<ImageInfo, DecodeError> {
     let container =

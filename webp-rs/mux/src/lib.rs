@@ -1,27 +1,31 @@
 #![forbid(unsafe_code)]
 //! Safe WebP RIFF construction and lossless container editing.
 
+mod adapter;
 mod chunk;
 mod editor;
+mod frame;
 mod mux;
+mod state;
+mod wire;
 
+#[doc(hidden)]
+pub use adapter::AnimationFrameMux;
+#[doc(hidden)]
+pub use adapter::AnimationMuxOptions;
+#[doc(hidden)]
+pub use adapter::serialize_animation;
+#[doc(hidden)]
+pub use adapter::serialize_animation_frame;
+#[doc(hidden)]
+pub use adapter::serialize_vp8;
+#[doc(hidden)]
+pub use adapter::serialize_vp8l;
 pub use chunk::MuxChunk;
 pub use editor::Editor;
-pub use mux::AnimationFrameInput;
-#[doc(hidden)]
-pub use mux::AnimationFrameMux;
-#[doc(hidden)]
-pub use mux::AnimationMuxOptions;
-pub use mux::FramePayload;
+pub use frame::AnimationFrameInput;
+pub use frame::FramePayload;
 pub use mux::Muxer;
-#[doc(hidden)]
-pub use mux::serialize_animation;
-#[doc(hidden)]
-pub use mux::serialize_animation_frame;
-#[doc(hidden)]
-pub use mux::serialize_vp8;
-#[doc(hidden)]
-pub use mux::serialize_vp8l;
 pub use webp_container::ALPH;
 pub use webp_container::ANIM;
 pub use webp_container::ANMF;

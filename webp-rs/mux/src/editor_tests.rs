@@ -6,9 +6,16 @@ use crate::ContainerErrorKind;
 use crate::FramePayload;
 use crate::Muxer;
 
+fn vp8l_payload(width: u32, height: u32, has_alpha: bool) -> Vec<u8> {
+    let fields = (width - 1) | ((height - 1) << 14) | (u32::from(has_alpha) << 28);
+    let mut payload = vec![0x2f];
+    payload.extend_from_slice(&fields.to_le_bytes());
+    payload
+}
+
 #[test]
 fn unchanged_editor_round_trips_strict_bytes_and_unknown_chunks() {
-    let bytes = Muxer::static_vp8l(2, 3, vec![1, 2, 3], false)
+    let bytes = Muxer::static_vp8l(2, 3, vp8l_payload(2, 3, false), false)
         .unwrap()
         .with_chunk(MuxChunk::new(*b"uNk!", vec![9, 8, 7]))
         .unwrap()
@@ -24,7 +31,8 @@ fn unchanged_editor_round_trips_strict_bytes_and_unknown_chunks() {
 
 #[test]
 fn metadata_edits_preserve_codec_and_unknown_payloads() {
-    let source = Muxer::static_vp8l(2, 3, vec![1, 2, 3], false)
+    let image = vp8l_payload(2, 3, false);
+    let source = Muxer::static_vp8l(2, 3, image.clone(), false)
         .unwrap()
         .with_chunk(MuxChunk::new(*b"uNk!", vec![9, 8, 7]))
         .unwrap()
@@ -38,7 +46,7 @@ fn metadata_edits_preserve_codec_and_unknown_payloads() {
 
     assert_eq!(parsed.metadata().exif, Some(&[4, 5][..]));
     assert_eq!(parsed.metadata().xmp, Some(&[6][..]));
-    assert_eq!(parsed.chunk(1).unwrap().payload, &[1, 2, 3]);
+    assert_eq!(parsed.chunk(1).unwrap().payload, image);
     assert!(
         parsed
             .unknown_chunks()
@@ -48,7 +56,8 @@ fn metadata_edits_preserve_codec_and_unknown_payloads() {
 
 #[test]
 fn metadata_edits_require_an_extended_container() {
-    let source = crate::serialize_vp8l(vec![1], 0, 0, false, Metadata::default()).unwrap();
+    let source =
+        crate::serialize_vp8l(vp8l_payload(1, 1, false), 0, 0, false, Metadata::default()).unwrap();
     let mut editor = Editor::parse(&source, &DemuxOptions::default()).unwrap();
 
     assert_eq!(
@@ -59,7 +68,7 @@ fn metadata_edits_require_an_extended_container() {
 
 #[test]
 fn removing_metadata_clears_its_vp8x_flag() {
-    let mut muxer = Muxer::static_vp8l(2, 3, vec![1], false).unwrap();
+    let mut muxer = Muxer::static_vp8l(2, 3, vp8l_payload(2, 3, false), false).unwrap();
     muxer.set_xmp(vec![9]).unwrap();
     let source = muxer.finish().unwrap();
     let mut editor = Editor::parse(&source, &DemuxOptions::default()).unwrap();
@@ -85,7 +94,7 @@ fn frame_edits_keep_animation_container_valid() {
             dispose_to_background: false,
             blend: true,
             alpha: None,
-            payload: FramePayload::Vp8l(&[1, 2]),
+            payload: FramePayload::Vp8l(&vp8l_payload(2, 2, false)),
         })
         .unwrap();
     let source = muxer.finish().unwrap();
@@ -103,7 +112,7 @@ fn frame_edits_keep_animation_container_valid() {
                     dispose_to_background: true,
                     blend: false,
                     alpha: None,
-                    payload: FramePayload::Vp8l(&[3]),
+                    payload: FramePayload::Vp8l(&vp8l_payload(2, 2, false)),
                 },
             )
             .unwrap()
@@ -117,4 +126,18 @@ fn frame_edits_keep_animation_container_valid() {
     .unwrap();
 
     assert_eq!(parsed.animation().unwrap().frame(0).unwrap().duration_ms, 7);
+}
+
+#[test]
+fn failed_metadata_removal_does_not_partially_mutate_chunks() {
+    let mut muxer = Muxer::static_vp8l(2, 2, vp8l_payload(2, 2, false), false).unwrap();
+    muxer.set_xmp(vec![7]).unwrap();
+    let mut editor = Editor::parse(&muxer.finish().unwrap(), &DemuxOptions::default()).unwrap();
+    editor.replace_chunk(0, MuxChunk::new(crate::VP8X, vec![0]));
+
+    assert_eq!(
+        editor.remove_xmp().unwrap_err().kind(),
+        ContainerErrorKind::InvalidContainer
+    );
+    assert_eq!(editor.metadata().xmp, Some(&[7][..]));
 }

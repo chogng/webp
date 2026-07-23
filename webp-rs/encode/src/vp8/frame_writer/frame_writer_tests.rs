@@ -3,6 +3,10 @@ use webp_decode::DecodeLimits;
 use webp_decode::vp8_codec;
 use webp_decode::vp8_codec::decode_intra_frame;
 use webp_decode::vp8_codec::parse_riff_payload;
+use webp_dsp::ChromaMode;
+use webp_dsp::Intra16Mode;
+use webp_dsp::MacroblockPixels;
+use webp_dsp::MacroblockPredictionEdges;
 
 #[test]
 fn neutral_key_frames_parse_and_decode_at_visible_edge_sizes() {
@@ -263,17 +267,17 @@ fn intra16_selector_uses_vertical_prediction_when_top_edge_matches_source() {
         &[128; 64],
         8,
         matrix,
-        vp8_codec::MacroblockPredictionEdges {
+        MacroblockPredictionEdges {
             top_y: Some(top_y),
             top_u: Some([128; 8]),
             top_v: Some([128; 8]),
-            ..vp8_codec::MacroblockPredictionEdges::default()
+            ..MacroblockPredictionEdges::default()
         },
     )
     .unwrap();
     assert_eq!(
         block.luma,
-        vp8_codec::LumaMode::Sixteen(vp8_codec::Intra16Mode::Vertical)
+        vp8_codec::LumaMode::Sixteen(Intra16Mode::Vertical)
     );
     assert!(coefficients.y2.iter().all(|&value| value == 0));
     assert!(coefficients.luma.iter().flatten().all(|&value| value == 0));
@@ -306,7 +310,7 @@ fn factored_intra16_search_matches_exhaustive_mode_pairs() {
     });
     let u: [u8; 64] = std::array::from_fn(|index| (index * 13 + 41) as u8);
     let v: [u8; 64] = std::array::from_fn(|index| (index * 17 + 19) as u8);
-    let edges = vp8_codec::MacroblockPredictionEdges {
+    let edges = MacroblockPredictionEdges {
         top_y: Some(std::array::from_fn(|index| 31 + index as u8 * 9)),
         left_y: Some(std::array::from_fn(|index| {
             211_u8.wrapping_sub(index as u8 * 5)
@@ -322,7 +326,7 @@ fn factored_intra16_search_matches_exhaustive_mode_pairs() {
             203_u8.wrapping_sub(index as u8 * 9)
         })),
         top_left_v: 89,
-        ..vp8_codec::MacroblockPredictionEdges::default()
+        ..MacroblockPredictionEdges::default()
     };
     let factored = select_intra16_macroblock(&y, 16, &u, &v, 8, matrix, edges).unwrap();
     let exhaustive = exhaustive_intra16_search(&y, &u, &v, matrix, edges);
@@ -334,24 +338,24 @@ fn exhaustive_intra16_search(
     u: &[u8; 64],
     v: &[u8; 64],
     matrix: vp8_codec::DequantizationMatrix,
-    edges: vp8_codec::MacroblockPredictionEdges,
+    edges: MacroblockPredictionEdges,
 ) -> (
     IntraMacroblock,
     Vp8DcMacroblockCoefficients,
-    vp8_codec::MacroblockPixels,
+    MacroblockPixels,
 ) {
     let mut best = None;
     for luma_mode in [
-        vp8_codec::Intra16Mode::Dc,
-        vp8_codec::Intra16Mode::Vertical,
-        vp8_codec::Intra16Mode::Horizontal,
-        vp8_codec::Intra16Mode::TrueMotion,
+        Intra16Mode::Dc,
+        Intra16Mode::Vertical,
+        Intra16Mode::Horizontal,
+        Intra16Mode::TrueMotion,
     ] {
         for chroma_mode in [
-            vp8_codec::ChromaMode::Dc,
-            vp8_codec::ChromaMode::Vertical,
-            vp8_codec::ChromaMode::Horizontal,
-            vp8_codec::ChromaMode::TrueMotion,
+            ChromaMode::Dc,
+            ChromaMode::Vertical,
+            ChromaMode::Horizontal,
+            ChromaMode::TrueMotion,
         ] {
             let block = IntraMacroblock {
                 segment: 0,

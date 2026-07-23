@@ -277,22 +277,8 @@ pub(crate) fn wrap_vp8l_with_metadata(
     has_alpha: bool,
     metadata: &Metadata,
 ) -> Result<Vec<u8>, EncodeError> {
-    webp_mux::serialize_vp8l(
-        payload,
-        width,
-        height,
-        has_alpha,
-        borrowed_metadata(metadata),
-    )
-    .map_err(map_container_error)
-}
-
-fn borrowed_metadata(metadata: &Metadata) -> webp_mux::Metadata<'_> {
-    webp_mux::Metadata {
-        iccp: metadata.iccp.as_deref(),
-        exif: metadata.exif.as_deref(),
-        xmp: metadata.xmp.as_deref(),
-    }
+    webp_mux::serialize_vp8l(payload, width, height, has_alpha, metadata.borrowed())
+        .map_err(map_container_error)
 }
 
 #[cfg(test)]

@@ -1,10 +1,16 @@
 #![forbid(unsafe_code)]
-//! Safe, zero-copy parsing of WebP RIFF containers.
+//! Safe, zero-copy parsing of complete WebP RIFF containers.
+//!
+//! The crate owns RIFF/chunk layout, fixed VP8/VP8L image-header inspection,
+//! borrowed frame and metadata views, compatibility policy, and resource
+//! limits. Incremental input state belongs to `webp-decode`; pixel decoding
+//! remains with the codec crates.
 
 mod animation;
 mod arithmetic;
 mod chunk;
 mod demux;
+mod image_header;
 mod layout;
 mod options;
 

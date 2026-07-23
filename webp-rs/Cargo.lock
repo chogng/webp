@@ -216,7 +216,6 @@ version = "0.1.0"
 dependencies = [
  "webp-container",
  "webp-demux",
- "webp-utils",
 ]
 
 [[package]]

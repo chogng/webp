@@ -64,13 +64,15 @@ It is the candidate PR vector list once the public decoder can accept valid
 VP8L and VP8 inputs; until then it remains a verified external corpus rather
 than a falsely passing decode test.
 
-Generate the committed structural-malformation corpus with:
+Ensure the ignored local fixture cache is present and complete with:
 
 ```text
-cd webp-rs && cargo run -p xtask -- fixtures generate-malformed
+cd webp-rs && cargo run -p xtask -- fixtures ensure
 ```
 
-The generator is idempotent; direct API tests classify each generated input.
+The command validates the content-addressed manifest and performs no writes on
+a cache hit. Normal tests read the committed immutable generation without
+regenerating it; use `fixtures verify` for a read-only integrity check.
 
 `[clic]` pins the benchmark data identity and its validation split. The actual
 images belong in the ignored `third_party/benchdata/clic/` directory and are

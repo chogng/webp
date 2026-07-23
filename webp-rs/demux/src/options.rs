@@ -31,7 +31,10 @@ pub struct ContainerLimits {
     pub max_frames: u32,
     pub max_total_frame_pixels: u64,
     pub max_metadata_bytes: usize,
-    /// Maximum number of top-level RIFF chunks retained by a demux result.
+    /// Maximum top-level chunk count and nested animation-chunk count.
+    ///
+    /// The limit is applied independently to each collection so neither the
+    /// retained top-level view nor ANMF scanning can grow without a bound.
     pub max_chunks: u32,
 }
 

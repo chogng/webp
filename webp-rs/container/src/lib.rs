@@ -26,5 +26,6 @@ pub use fourcc::XMP;
 #[doc(hidden)]
 pub use fourcc::is_known;
 pub use metadata::Metadata;
+pub use metadata::OwnedMetadata;
 pub use vp8x::Vp8x;
 pub use vp8x::Vp8xFlags;

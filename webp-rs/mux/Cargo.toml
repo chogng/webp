@@ -13,4 +13,3 @@ workspace = true
 [dependencies]
 webp-container = { path = "../container" }
 webp-demux = { path = "../demux" }
-webp-utils = { path = "../utils" }

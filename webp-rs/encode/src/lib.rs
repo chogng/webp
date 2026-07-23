@@ -35,7 +35,7 @@ pub use static_image::encode_lossy_rgba_with_alpha_options;
 pub use static_image::encode_lossy_rgba_with_options;
 pub use webp_container::AlphaCompression;
 pub use webp_container::AlphaFilter;
-pub use webp_decode::Metadata;
+pub use webp_container::OwnedMetadata as Metadata;
 
 #[cfg(feature = "animation")]
 pub use animated_image::encode_lossless_animation;

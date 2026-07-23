@@ -8,25 +8,9 @@ use crate::DecodeErrorKind;
 
 use crate::vp8::BoolDecoder;
 use crate::vp8::FirstPartitionHeader;
-
-/// One VP8 intra 4×4 prediction mode.
-///
-/// Numeric values match VP8's B-mode entropy contexts and therefore can be
-/// used directly to index the fixed B_PRED probability table.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-#[repr(u8)]
-pub enum Intra4Mode {
-    Dc = 0,
-    TrueMotion = 1,
-    Vertical = 2,
-    Horizontal = 3,
-    DiagonalDownRight = 4,
-    VerticalRight = 5,
-    DiagonalDownLeft = 6,
-    VerticalLeft = 7,
-    HorizontalDown = 8,
-    HorizontalUp = 9,
-}
+pub use webp_dsp::ChromaMode;
+pub use webp_dsp::Intra4Mode;
+pub use webp_dsp::Intra16Mode;
 
 /// The luma prediction choice for one VP8 intra macroblock.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -35,35 +19,6 @@ pub enum LumaMode {
     Sixteen(Intra16Mode),
     /// Each luma 4×4 block supplies its own prediction mode in raster order.
     FourByFour([Intra4Mode; 16]),
-}
-
-/// One of VP8's four 16×16 luma prediction modes.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum Intra16Mode {
-    Dc,
-    Vertical,
-    Horizontal,
-    TrueMotion,
-}
-
-impl Intra16Mode {
-    const fn context(self) -> Intra4Mode {
-        match self {
-            Self::Dc => Intra4Mode::Dc,
-            Self::Vertical => Intra4Mode::Vertical,
-            Self::Horizontal => Intra4Mode::Horizontal,
-            Self::TrueMotion => Intra4Mode::TrueMotion,
-        }
-    }
-}
-
-/// One of VP8's four chroma prediction modes.
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub enum ChromaMode {
-    Dc,
-    Vertical,
-    Horizontal,
-    TrueMotion,
 }
 
 /// Intra controls parsed for one VP8 macroblock.
@@ -115,8 +70,8 @@ pub fn parse_intra_mode_row(
             && bits.read_bool(header.coefficients.skip_probability)?;
         let luma = if bits.read_bool(145)? {
             let mode = decode_luma16_mode(bits)?;
-            top.fill(mode.context());
-            left.fill(mode.context());
+            top.fill(intra16_context(mode));
+            left.fill(intra16_context(mode));
             LumaMode::Sixteen(mode)
         } else {
             let mut modes = [Intra4Mode::Dc; 16];
@@ -142,6 +97,15 @@ pub fn parse_intra_mode_row(
         };
     }
     Ok(())
+}
+
+const fn intra16_context(mode: Intra16Mode) -> Intra4Mode {
+    match mode {
+        Intra16Mode::Dc => Intra4Mode::Dc,
+        Intra16Mode::Vertical => Intra4Mode::Vertical,
+        Intra16Mode::Horizontal => Intra4Mode::Horizontal,
+        Intra16Mode::TrueMotion => Intra4Mode::TrueMotion,
+    }
 }
 
 fn decode_luma16_mode(bits: &mut BoolDecoder<'_>) -> Result<Intra16Mode, DecodeError> {

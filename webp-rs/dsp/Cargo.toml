@@ -5,7 +5,7 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Pure scalar and accelerated WebP pixel kernels"
+description = "Pure scalar WebP pixel kernels and acceleration baseline"
 
 [lints]
 workspace = true

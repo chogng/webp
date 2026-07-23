@@ -136,17 +136,9 @@ fn wrap_lossless_animation(
         },
         has_alpha,
         &frames,
-        borrowed_metadata(metadata),
+        metadata.borrowed(),
     )
     .map_err(map_container_error)
-}
-
-fn borrowed_metadata(metadata: &Metadata) -> webp_mux::Metadata<'_> {
-    webp_mux::Metadata {
-        iccp: metadata.iccp.as_deref(),
-        exif: metadata.exif.as_deref(),
-        xmp: metadata.xmp.as_deref(),
-    }
 }
 
 fn map_container_error(error: webp_mux::ContainerError) -> EncodeError {

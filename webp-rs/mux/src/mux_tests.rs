@@ -1,11 +1,18 @@
 //! Tests for WebP muxing.
 
-use super::*;
+use crate::*;
+
+fn vp8l_payload(width: u32, height: u32, has_alpha: bool) -> Vec<u8> {
+    let fields = (width - 1) | ((height - 1) << 14) | (u32::from(has_alpha) << 28);
+    let mut payload = vec![0x2f];
+    payload.extend_from_slice(&fields.to_le_bytes());
+    payload
+}
 
 #[test]
 fn static_vp8l_serialization_preserves_chunk_order_and_padding() {
     let encoded = serialize_vp8l(
-        vec![1, 2, 3],
+        vp8l_payload(2, 3, true),
         2,
         3,
         true,

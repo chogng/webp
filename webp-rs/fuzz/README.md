@@ -8,6 +8,7 @@ rustup toolchain install nightly
 cargo +nightly fuzz run container_raw -- -dict=fuzz/dictionaries/webp.dict
 cargo +nightly fuzz run incremental_raw -- -dict=fuzz/dictionaries/webp.dict
 cargo +nightly fuzz run animation_raw -- -dict=fuzz/dictionaries/webp.dict
+cargo +nightly fuzz run editor_raw -- -dict=fuzz/dictionaries/webp.dict
 cargo +nightly fuzz run vp8l_header_raw -- -dict=fuzz/dictionaries/webp.dict
 cargo +nightly fuzz run vp8l_raw -- -dict=fuzz/dictionaries/webp.dict
 cargo +nightly fuzz run vp8l_huffman
@@ -54,14 +55,18 @@ partition and a probability sequence, then drives the bounded boolean decoder
 until a semantic EOF or work limit. `vp8_partition_raw` mutates a complete
 raw VP8 payload through key-frame parsing, first-partition controls, and token
 partition boundary validation. `vp8_transforms` drives arbitrary signed 4×4
-coefficient blocks through the scalar VP8 inverse DCT and WHT primitives.
+blocks through the scalar VP8 forward/inverse DCT and WHT primitives, including
+the widened public integer entry points.
 `vp8_coefficients` varies a bounded token partition, coefficient type,
 neighbour context, and scan start through the VP8 coefficient entropy decoder.
 `vp8_residuals` extends this to all coefficient blocks in one intra macroblock
 while varying its top and left non-zero contexts.
-Each uses explicit byte, dimension, metadata, allocation, and work limits. Run
+`editor_raw` parses compatible containers into owned chunks, exercises
+metadata, generic chunk, still-image, animation-frame, and canvas mutations,
+then requires every successful output to parse under the strict profile.
+Each target uses explicit byte, dimension, metadata, allocation, and work
+limits. Run
 `tools/update-fuzz-dictionary.sh` after refreshing the test-only oracle to copy
 the current upstream dictionary into the checked-in fuzz target.
 
-Future targets will cover mux/demux and encode/decode round trips once those
-public APIs exist.
+Future targets will cover encode/decode round trips.

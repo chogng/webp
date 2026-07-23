@@ -57,6 +57,25 @@ pub struct AnimationFrame<'a> {
     pub bitstream: FrameBitstream<'a>,
 }
 
+impl AnimationFrame<'_> {
+    /// Returns whether ALPH or the VP8L fixed header signals transparency.
+    ///
+    /// The VP8L bit is a coding hint; actual pixel alpha remains a decoder
+    /// responsibility.
+    #[must_use]
+    pub fn has_alpha_hint(&self) -> bool {
+        self.alpha.is_some()
+            || match self.bitstream {
+                FrameBitstream::Vp8(_) => false,
+                FrameBitstream::Vp8l(payload) => payload
+                    .get(1..5)
+                    .and_then(|bytes| bytes.try_into().ok())
+                    .map(u32::from_le_bytes)
+                    .is_some_and(|fields| fields & (1 << 28) != 0),
+            }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FrameBitstream<'a> {
     Vp8(&'a [u8]),
@@ -96,6 +115,7 @@ pub(crate) fn parse_animation<'a>(
     let background_bgra: [u8; 4] = anim.payload[..4].try_into().expect("fixed ANIM color");
     let loop_count = u16::from_le_bytes([anim.payload[4], anim.payload[5]]);
     let mut total_pixels = 0_u64;
+    let mut total_frame_chunks = 0_u32;
     let mut frames = Vec::new();
     for chunk in chunks.iter().filter(|chunk| chunk.fourcc == ANMF) {
         if frames.len() >= limits.max_frames as usize {
@@ -105,7 +125,7 @@ pub(crate) fn parse_animation<'a>(
                 "animation exceeds max_frames",
             ));
         }
-        let frame = parse_anmf(chunk, vp8x, profile)?;
+        let frame = parse_anmf(chunk, vp8x, profile, limits, &mut total_frame_chunks)?;
         let frame_pixels = u64::from(frame.width)
             .checked_mul(u64::from(frame.height))
             .ok_or_else(|| {
@@ -146,7 +166,7 @@ pub(crate) fn parse_animation<'a>(
         ));
     }
     if profile == CompatibilityProfile::SpecStrict
-        && frames.iter().any(|frame| frame.alpha.is_some())
+        && frames.iter().any(AnimationFrame::has_alpha_hint)
         && !vp8x.flags.alpha()
     {
         return Err(error(
@@ -166,6 +186,8 @@ fn parse_anmf<'a>(
     chunk: &Chunk<'a>,
     vp8x: Vp8x,
     profile: CompatibilityProfile,
+    limits: &ContainerLimits,
+    total_frame_chunks: &mut u32,
 ) -> Result<AnimationFrame<'a>, ContainerError> {
     const ANMF_HEADER_LEN: usize = 16;
     if chunk.payload.len() < ANMF_HEADER_LEN {
@@ -223,18 +245,14 @@ fn parse_anmf<'a>(
             .expect("validated ANMF duration"),
     );
     let flags = chunk.payload[15];
-    if profile == CompatibilityProfile::SpecStrict && flags & !0b11 != 0 {
-        return Err(error(
-            ContainerErrorKind::InvalidContainer,
-            chunk.offset + CHUNK_HEADER_LEN + 15,
-            "ANMF reserved bits are non-zero",
-        ));
-    }
+    // Reserved bits are ignored by readers for forward compatibility.
 
     let nested = &chunk.payload[ANMF_HEADER_LEN..];
     let mut offset = 0_usize;
     let mut alpha = None;
     let mut bitstream = None;
+    let mut image_header = None;
+    let mut seen_unknown = false;
     while offset < nested.len() {
         if nested.len() - offset < CHUNK_HEADER_LEN {
             return Err(error(
@@ -252,6 +270,14 @@ fn parse_anmf<'a>(
                 .expect("checked ANMF size"),
         );
         let next = checked_chunk_end(offset, size, nested.len())?;
+        if *total_frame_chunks >= limits.max_chunks {
+            return Err(error(
+                ContainerErrorKind::LimitExceeded,
+                chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN + offset,
+                "animation nested chunks exceed max_chunks",
+            ));
+        }
+        *total_frame_chunks += 1;
         let padding_len = (size & 1) as usize;
         let payload_end = next - padding_len;
         if profile == CompatibilityProfile::SpecStrict
@@ -267,7 +293,10 @@ fn parse_anmf<'a>(
         let payload = &nested[offset + CHUNK_HEADER_LEN..payload_end];
         match fourcc {
             ALPH => {
-                if alpha.replace(payload).is_some() || bitstream.is_some() {
+                if (profile == CompatibilityProfile::SpecStrict && seen_unknown)
+                    || alpha.replace(payload).is_some()
+                    || bitstream.is_some()
+                {
                     return Err(error(
                         ContainerErrorKind::InvalidContainer,
                         chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN + offset,
@@ -276,24 +305,52 @@ fn parse_anmf<'a>(
                 }
             }
             VP8 => {
-                if bitstream.replace(FrameBitstream::Vp8(payload)).is_some() {
+                if (profile == CompatibilityProfile::SpecStrict && seen_unknown)
+                    || bitstream.is_some()
+                {
                     return Err(error(
                         ContainerErrorKind::InvalidContainer,
                         chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN + offset,
                         "ANMF contains multiple image bitstreams",
                     ));
                 }
+                image_header = Some(crate::image_header::parse(
+                    VP8,
+                    payload,
+                    limits,
+                    chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN + offset + CHUNK_HEADER_LEN,
+                )?);
+                bitstream = Some(FrameBitstream::Vp8(payload));
             }
-            VP8L if alpha.is_some()
-                || bitstream.replace(FrameBitstream::Vp8l(payload)).is_some() =>
+            VP8L => {
+                if (profile == CompatibilityProfile::SpecStrict && seen_unknown)
+                    || alpha.is_some()
+                    || bitstream.is_some()
+                {
+                    return Err(error(
+                        ContainerErrorKind::InvalidContainer,
+                        chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN + offset,
+                        "ANMF ALPH cannot accompany VP8L or duplicate a bitstream",
+                    ));
+                }
+                image_header = Some(crate::image_header::parse(
+                    VP8L,
+                    payload,
+                    limits,
+                    chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN + offset + CHUNK_HEADER_LEN,
+                )?);
+                bitstream = Some(FrameBitstream::Vp8l(payload));
+            }
+            _ if profile == CompatibilityProfile::SpecStrict
+                && webp_container::is_known(fourcc) =>
             {
                 return Err(error(
                     ContainerErrorKind::InvalidContainer,
                     chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN + offset,
-                    "ANMF ALPH cannot accompany VP8L or duplicate a bitstream",
+                    "known top-level chunk is not valid ANMF frame data",
                 ));
             }
-            VP8L => {}
+            _ if profile == CompatibilityProfile::SpecStrict => seen_unknown = true,
             _ => {}
         }
         offset = next;
@@ -305,6 +362,14 @@ fn parse_anmf<'a>(
             "ANMF frame has no VP8 or VP8L bitstream",
         )
     })?;
+    let image_header = image_header.expect("bitstream and fixed header are stored together");
+    if image_header.width != width || image_header.height != height {
+        return Err(error(
+            ContainerErrorKind::InvalidDimensions,
+            chunk.offset + CHUNK_HEADER_LEN + ANMF_HEADER_LEN,
+            "ANMF dimensions do not match its image bitstream",
+        ));
+    }
     Ok(AnimationFrame {
         x,
         y,

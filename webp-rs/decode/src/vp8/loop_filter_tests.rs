@@ -85,49 +85,6 @@ fn zero_base_filter_level_disables_deltas_for_the_whole_frame() {
 }
 
 #[test]
-fn scalar_filters_match_vp8_two_four_and_six_tap_rules() {
-    let mut simple = [100, 100, 100, 110, 110, 110];
-    assert!(filter_simple_edge(&mut simple, 3, 1, 25));
-    assert_eq!(simple, [100, 100, 102, 107, 110, 110]);
-
-    let hev_strength = LoopFilterStrength {
-        level: 20,
-        inner_limit: 100,
-        edge_limit: 50,
-        hev_threshold: 0,
-    };
-    let mut high_variance = [100, 100, 100, 100, 110, 140, 140, 140];
-    assert!(filter_normal_edge(
-        &mut high_variance,
-        4,
-        1,
-        hev_strength,
-        true
-    ));
-    assert_eq!(high_variance, [100, 100, 100, 99, 111, 140, 140, 140]);
-
-    let smooth_strength = LoopFilterStrength {
-        level: 20,
-        inner_limit: 10,
-        edge_limit: 100,
-        hev_threshold: 20,
-    };
-    let mut macroblock = [100, 100, 100, 100, 110, 110, 110, 110];
-    assert!(filter_normal_edge(
-        &mut macroblock,
-        4,
-        1,
-        smooth_strength,
-        true
-    ));
-    assert_eq!(macroblock, [100, 101, 103, 104, 106, 107, 109, 110]);
-
-    let mut inner = [100, 100, 100, 100, 110, 110, 110, 110];
-    assert!(filter_normal_edge(&mut inner, 4, 1, smooth_strength, false));
-    assert_eq!(inner, [100, 100, 102, 104, 106, 108, 110, 110]);
-}
-
-#[test]
 fn row_filter_applies_luma_internal_edges_only_when_requested() {
     let strength = LoopFilterStrength {
         level: 10,
@@ -180,21 +137,4 @@ fn row_filter_applies_luma_internal_edges_only_when_requested() {
             .iter()
             .all(|&sample| sample == 100 || sample == 110)
     );
-}
-
-#[test]
-fn scalar_filters_skip_out_of_bounds_and_sharp_edges() {
-    let strength = LoopFilterStrength {
-        level: 10,
-        inner_limit: 5,
-        edge_limit: 10,
-        hev_threshold: 0,
-    };
-    let mut short = [100_u8; 4];
-    assert!(!filter_simple_edge(&mut short, 1, 1, 10));
-    assert!(!filter_normal_edge(&mut short, 2, 1, strength, true));
-
-    let mut sharp = [0, 0, 0, 0, 255, 255, 255, 255];
-    assert!(!filter_normal_edge(&mut sharp, 4, 1, strength, true));
-    assert_eq!(sharp, [0, 0, 0, 0, 255, 255, 255, 255]);
 }

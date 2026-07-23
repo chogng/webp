@@ -21,13 +21,18 @@ webp-rs/
 ## Ownership rules
 
 - `container` defines what shared WebP container fields mean. It does not read
-  or write complete containers.
-- `demux` owns byte parsing, compatibility policy, resource limits, borrowed
-  chunks, and parsed animation models.
+  or write complete containers. It owns both borrowed and owned raw metadata
+  models so neither direction-specific codec crate owns shared container data.
+- `demux` owns complete-container byte parsing, fixed VP8/VP8L header
+  inspection, compatibility policy, resource limits, borrowed chunks, and
+  parsed animation models. Incremental input state remains in `decode`.
 - `mux` owns output allocation, owned chunks, serialization, and lossless
   editing. Its editor composes the public demux and mux capabilities.
-- `dsp` owns stateless pixel kernels used in both directions. It cannot depend
-  on a codec orchestrator.
+- `dsp` owns stateless pixel kernels used in both directions. Its current VP8
+  surface includes transforms, intra prediction, residue/sample composition,
+  and loop-filter edge arithmetic. Quantization policy, header-derived filter
+  controls, and frame orchestration remain with the codec owners. `dsp` cannot
+  depend on a codec orchestrator.
 - `sharpyuv` owns RGB-to-YUV reconstruction-aware sampling and cannot depend on
   the VP8 encoder.
 - `utils` contains only format-neutral primitives with multiple consumers. A

@@ -102,9 +102,23 @@ pub(crate) fn transforms(input: &[u8]) {
     }
     let _ = inverse_dct_4x4(coefficients);
     let _ = inverse_wht_4x4(coefficients);
+    let _ = forward_dct_4x4(coefficients);
+    let _ = forward_wht_4x4(coefficients);
     let widened = coefficients.map(i32::from);
     let residue = inverse_dct_4x4_i32(widened);
     let _ = inverse_wht_4x4_i32(widened);
+    let _ = forward_dct_4x4_i32(widened);
+    let _ = forward_wht_4x4_i32(widened);
+    let arbitrary_i32 = std::array::from_fn(|index| {
+        let offset = (index * 4) % 32;
+        i32::from_le_bytes(std::array::from_fn(|byte| {
+            input.get(offset + byte).copied().unwrap_or(0)
+        }))
+    });
+    let _ = inverse_dct_4x4_i32(arbitrary_i32);
+    let _ = inverse_wht_4x4_i32(arbitrary_i32);
+    let _ = forward_dct_4x4_i32(arbitrary_i32);
+    let _ = forward_wht_4x4_i32(arbitrary_i32);
     let _ = combine_macroblock_prediction(
         MacroblockPixels {
             y: [128; 256],

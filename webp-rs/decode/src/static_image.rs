@@ -1,11 +1,30 @@
-//! Internal static-image decode dispatch.
+//! Static-image result and decode orchestration.
 
 use crate::DecodeError;
 use crate::DecodeErrorKind;
 use crate::DecodeOptions;
-use crate::Image;
 
-pub(crate) fn decode(data: &[u8], options: &DecodeOptions) -> Result<Image, DecodeError> {
+/// A decoded static WebP image in straight RGBA8.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Image {
+    pub width: u32,
+    pub height: u32,
+    pub rgba: Vec<u8>,
+}
+
+/// Decodes a supported static WebP image to straight RGBA8.
+///
+/// M1 supports static VP8L images, including transforms, color cache,
+/// meta-Huffman groups, and backward references. M2 supports VP8 key frames.
+/// M3 supports their `ALPH` planes. With the `animation` feature, animated
+/// containers use the separate animation decode API; incremental codec state
+/// remains unavailable.
+///
+/// # Errors
+///
+/// Returns container-validation, codec, resource-limit, or unsupported-feature
+/// errors. The function never substitutes an incomplete decode result.
+pub fn decode(data: &[u8], options: &DecodeOptions) -> Result<Image, DecodeError> {
     let container = crate::container_adapter::parse(data, options.compatibility, &options.limits)?;
     if let Some(chunk) = container
         .chunks()
