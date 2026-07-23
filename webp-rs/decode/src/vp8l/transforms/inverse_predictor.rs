@@ -1,6 +1,7 @@
 use crate::DecodeError;
 use crate::DecodeErrorKind;
 use crate::vp8l::header::BlockTransformDescriptor;
+#[cfg(test)]
 use crate::vp8l::pixel::extend_rgba_from_argb;
 use crate::vp8l::transforms::predictor::PredictorMode;
 
@@ -85,6 +86,7 @@ fn predictor_layout(
 
 /// Converts packed residuals one row at a time and reconstructs each row while
 /// it is still cache-hot, avoiding a separate full-frame RGBA conversion pass.
+#[cfg(test)]
 pub(in crate::vp8l) fn inverse_predictor_argb_to_rgba(
     pixels: &[u32],
     descriptor: BlockTransformDescriptor,

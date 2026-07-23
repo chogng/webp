@@ -158,6 +158,59 @@ pub fn copy_lz77_pixels_preallocated(
     copy_lz77_pixels_inner::<true>(output, length, distance, output_limit, budget)
 }
 
+/// Appends an overlap-safe backward reference to an RGBA8 pixel store whose
+/// complete final capacity was reserved before entropy decoding.
+#[inline]
+pub fn copy_lz77_rgba_preallocated(
+    output: &mut Vec<u8>,
+    length: usize,
+    distance: usize,
+    output_limit: usize,
+    budget: &mut WorkBudget,
+) -> Result<(), DecodeError> {
+    if !output.len().is_multiple_of(4) {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L RGBA history has unexpected length",
+        ));
+    }
+    let produced = output.len() / 4;
+    validate_copy(produced, length, distance, output_limit)?;
+    budget.consume(u64::try_from(length).map_err(|_| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "copy length does not fit work counter",
+        )
+    })?)?;
+    let append_bytes = length.checked_mul(4).ok_or_else(|| {
+        DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L RGBA copy byte size overflow",
+        )
+    })?;
+    if output.capacity().saturating_sub(output.len()) < append_bytes {
+        return Err(DecodeError::new(
+            DecodeErrorKind::AllocationFailed,
+            None,
+            "preallocated VP8L RGBA history is too small",
+        ));
+    }
+
+    let distance_bytes = distance * 4;
+    let mut remaining = length;
+    while remaining != 0 {
+        let chunk_pixels = remaining.min(distance);
+        let chunk_bytes = chunk_pixels * 4;
+        let start = output.len() - distance_bytes;
+        output.extend_from_within(start..start + chunk_bytes);
+        remaining -= chunk_pixels;
+    }
+    Ok(())
+}
+
 #[inline]
 fn copy_lz77_pixels_inner<const PREALLOCATED: bool>(
     output: &mut Vec<u32>,
@@ -557,6 +610,51 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn rgba_copy_preserves_overlap_history_and_budget_transactionality() {
+        for initial_len in 1..=8 {
+            for distance in 1..=initial_len {
+                for length in 1..=16 {
+                    let initial = (0..initial_len)
+                        .flat_map(|value| {
+                            let value = value as u8;
+                            [value, value.wrapping_add(1), value.wrapping_add(2), 255]
+                        })
+                        .collect::<Vec<_>>();
+                    let mut expected_words = initial
+                        .chunks_exact(4)
+                        .map(|pixel| u32::from_le_bytes(pixel.try_into().unwrap()))
+                        .collect::<Vec<_>>();
+                    slow_copy(&mut expected_words, length, distance);
+                    let expected = expected_words
+                        .into_iter()
+                        .flat_map(u32::to_le_bytes)
+                        .collect::<Vec<_>>();
+                    let mut actual = Vec::with_capacity((initial_len + length) * 4);
+                    actual.extend_from_slice(&initial);
+                    let mut budget = WorkBudget::new(length as u64);
+                    copy_lz77_rgba_preallocated(
+                        &mut actual,
+                        length,
+                        distance,
+                        initial_len + length,
+                        &mut budget,
+                    )
+                    .unwrap();
+                    assert_eq!(actual, expected);
+                    assert_eq!(budget.remaining(), 0);
+                }
+            }
+        }
+
+        let mut output = Vec::with_capacity(8);
+        output.extend_from_slice(&[1, 2, 3, 4]);
+        let original = output.clone();
+        let mut budget = WorkBudget::new(0);
+        assert!(copy_lz77_rgba_preallocated(&mut output, 1, 1, 2, &mut budget).is_err());
+        assert_eq!(output, original);
     }
 
     #[test]

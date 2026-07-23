@@ -418,10 +418,24 @@ CLIC 等大型 benchmark corpus 后续采用同一身份原则，但不与 fixtu
 
 ### Phase D：decoder pixel-store
 
-- 冻结当前 full-image allocations、layout conversions 和 copy bytes。
-- 建立单一 pixel backing 与 validated `DecodePlan`。
-- 先删除整图重复 allocation/copy，再考虑 transform fusion。
-- 任何新 streaming 必须证明 backward-reference history 的完整性。
+- **完成**：冻结旧路径 census。无 indexing 时主图为 entropy `Vec<u32>` 加最终
+  `Vec<u8>` 两份 full-image allocation，并写出 `pixels × 4` layout conversion；
+  indexing 还增加 expanded ARGB backing。predictor 的旧行融合虽减少独立 pass，
+  仍同时持有两份整图 allocation。
+- **完成**：`DecodePlan` 在主 entropy 前验证 coded/final geometry、transform
+  逆序终点、output/allocation/work limits、retained transform bytes、kernel family
+  与 storage census；主图从 entropy/LZ77 起只拥有一份预分配 RGBA backing。
+- **完成**：predictor、color、subtract-green 原位处理 RGBA；palette 从后向前在同一
+  backing 内扩张。主图 full-image allocation 从 2（palette 为 3）降为 1，
+  layout-copy bytes 从 `pixels × 4`（palette 更多）降为 0；transform subimage 仍各自
+  保留一份必要的 packed backing。
+- **完成**：RGBA LZ77 copy 保留完整历史、先验证/扣减 WorkBudget 再修改，重叠 copy
+  与 packed reference 差分通过；没有引入 row/ring streaming。limits 与既有保守错误
+  边界保持不变。
+- **完成**：CLIC-102 的 306 个相同标准流相对 Phase C archive 三轮交替中位
+  15,158.119 ms 降至 13,242.972 ms（-12.634%）；同一进程口径峰值 RSS
+  905,658,368 B 降至 869,613,568 B（-3.980%）。workspace、fixture、上游 corpus、
+  animation/ALPH、truncation、malformed、limit 与 WorkBudget gates 全部通过。
 
 ### Phase E：Huffman/kernel families
 

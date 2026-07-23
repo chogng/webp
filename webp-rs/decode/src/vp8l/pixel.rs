@@ -22,6 +22,7 @@ pub(super) const fn unpack_rgba(pixel: u32) -> [u8; 4] {
     ]
 }
 
+#[cfg(test)]
 pub(super) fn extend_rgba_from_argb(output: &mut Vec<u8>, pixels: &[u32]) {
     let mut blocks = pixels.chunks_exact(8);
     for block in &mut blocks {

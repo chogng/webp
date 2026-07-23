@@ -6,13 +6,13 @@ use crate::checked_image_bytes;
 use crate::vp8l::header::HEADER_LEN;
 use crate::vp8l::header::Vp8lHeader;
 use crate::vp8l::header::parse_header;
-use crate::vp8l::image_stream::pixel_buffer::PixelBuffer;
-use crate::vp8l::image_stream::symbol_stream::decode_image_data;
+use crate::vp8l::image_stream::decode_plan::{DecodePlan, KernelFamily};
+use crate::vp8l::image_stream::symbol_stream::decode_image_data_rgba;
 use crate::vp8l::image_stream::transform_list::DecodedTransform;
 use crate::vp8l::image_stream::transform_list::read_transform_list;
-use crate::vp8l::transforms::inverse_color::inverse_color_argb;
-use crate::vp8l::transforms::inverse_color::inverse_subtract_green_argb;
-use crate::vp8l::transforms::inverse_indexing::inverse_color_indexing_argb;
+use crate::vp8l::transforms::inverse_color::{inverse_color_rgba, inverse_subtract_green_rgba};
+use crate::vp8l::transforms::inverse_indexing::inverse_color_indexing_rgba;
+use crate::vp8l::transforms::inverse_predictor::inverse_predictor_rgba;
 
 #[cfg(test)]
 use crate::vp8l::image_stream::decode_profile::DecodePhaseTimings;
@@ -55,9 +55,9 @@ pub fn decode_literal_only(
 /// references are supported. The transform list may be empty or contain
 /// subtract-green, predictor, color, and color-indexing transforms. Main
 /// images may use spatial meta-Huffman groups; transform subimages cannot.
-/// Internally decoded samples are packed as `0xAARRGGBB` until entropy
-/// expansion is complete, then inverse-transformed and emitted in RGBA byte
-/// order.
+/// Transform subimages use packed `0xAARRGGBB` table storage. The main image
+/// is entropy-expanded and inverse-transformed in one final-order RGBA byte
+/// backing.
 pub fn decode_no_transform(
     data: &[u8],
     limits: &DecodeLimits,
@@ -105,39 +105,55 @@ fn decode_no_transform_inner(
         limits,
         &mut retained_transform_bytes,
     )?;
+    let plan = DecodePlan::build(header, decoded_transforms, retained_transform_bytes, limits)?;
+    debug_assert_eq!(plan.initial_work_units(), limits.max_work_units);
+    debug_assert_eq!(plan.storage().full_image_allocations, 1);
+    debug_assert_eq!(plan.storage().full_image_copy_bytes, 0);
+    debug_assert_eq!(plan.storage().peak_image_backing_bytes, rgba_len);
+    if plan.kernel() != KernelFamily::ScalarRgba {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L decode plan selected an unsupported kernel",
+        ));
+    }
     #[cfg(test)]
     let entropy_started = std::time::Instant::now();
     #[cfg(test)]
     if timings.is_some() {
         reset_entropy_path_counters();
     }
-    let output = decode_image_data(
+    let mut output = decode_image_data_rgba(
         &mut bits,
-        decoded_transforms.coded_width,
-        decoded_transforms.coded_height,
-        true,
+        plan.coded_width(),
+        plan.coded_height(),
         &mut budget,
         limits,
-        retained_transform_bytes,
-        rgba_len,
+        plan.retained_transform_bytes(),
+        plan.rgba_len(),
     )?;
+    if output.len() / 4 != plan.coded_pixels() {
+        return Err(DecodeError::new(
+            DecodeErrorKind::InvalidBitstream,
+            None,
+            "VP8L entropy output does not match planned coded geometry",
+        ));
+    }
     #[cfg(test)]
     if let Some(timings) = timings.as_mut() {
         timings.entropy += entropy_started.elapsed();
         timings.entropy_paths.add_assign(entropy_path_counters());
     }
-    let mut output = PixelBuffer::Argb(output);
-
-    for transform in decoded_transforms.transforms.iter().rev() {
+    for transform in plan.transforms().iter().rev() {
         match transform {
-            DecodedTransform::SubtractGreen => inverse_subtract_green_argb(output.argb_mut()?),
+            DecodedTransform::SubtractGreen => inverse_subtract_green_rgba(&mut output),
             DecodedTransform::Predictor {
                 descriptor,
                 mode_pixels,
             } => {
                 #[cfg(test)]
                 let predictor_started = std::time::Instant::now();
-                output.inverse_predictor(*descriptor, mode_pixels)?;
+                inverse_predictor_rgba(&mut output, *descriptor, mode_pixels)?;
                 #[cfg(test)]
                 if let Some(timings) = timings.as_mut() {
                     timings.predictor += predictor_started.elapsed();
@@ -146,29 +162,21 @@ fn decode_no_transform_inner(
             DecodedTransform::Color {
                 descriptor,
                 multipliers,
-            } => inverse_color_argb(output.argb_mut()?, *descriptor, multipliers)?,
+            } => inverse_color_rgba(&mut output, *descriptor, multipliers)?,
             DecodedTransform::ColorIndexing {
                 descriptor,
                 palette,
-            } => inverse_color_indexing_argb(
-                output.argb_mut()?,
+            } => inverse_color_indexing_rgba(
+                &mut output,
                 *descriptor,
                 palette,
-                retained_transform_bytes,
-                rgba_len,
-                limits.max_alloc_bytes,
+                plan.retained_transform_bytes(),
+                plan.rgba_len(),
+                plan.max_alloc_bytes(),
             )?,
         }
     }
-    drop(decoded_transforms);
-    #[cfg(test)]
-    let conversion_started = std::time::Instant::now();
-    let rgba = output.into_rgba(rgba_len)?;
-    #[cfg(test)]
-    if let Some(timings) = timings.as_mut() {
-        timings.rgba_conversion += conversion_started.elapsed();
-    }
-
+    let (header, rgba) = plan.finish(output)?;
     Ok(LiteralImage { header, rgba })
 }
 

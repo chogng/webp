@@ -45,6 +45,70 @@ pub(in crate::vp8l) fn decode_image_data(
     retained_bytes: usize,
     final_rgba_bytes: usize,
 ) -> Result<Vec<u32>, DecodeError> {
+    decode_image_data_inner(
+        bits,
+        width,
+        height,
+        is_level0,
+        budget,
+        limits,
+        retained_bytes,
+        final_rgba_bytes,
+        OutputLayout::PackedArgb,
+    )?
+    .into_pixels()
+}
+
+/// Decodes the main entropy image directly into its final RGBA byte backing.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::vp8l) fn decode_image_data_rgba(
+    bits: &mut BitReader<'_>,
+    width: u32,
+    height: u32,
+    budget: &mut WorkBudget,
+    limits: &DecodeLimits,
+    retained_bytes: usize,
+    final_rgba_bytes: usize,
+) -> Result<Vec<u8>, DecodeError> {
+    if !final_rgba_bytes.is_multiple_of(4) {
+        return Err(DecodeError::new(
+            DecodeErrorKind::LimitExceeded,
+            None,
+            "VP8L final RGBA byte length is not pixel-aligned",
+        ));
+    }
+    let final_pixels = final_rgba_bytes / 4;
+    decode_image_data_inner(
+        bits,
+        width,
+        height,
+        true,
+        budget,
+        limits,
+        retained_bytes,
+        final_rgba_bytes,
+        OutputLayout::Rgba { final_pixels },
+    )?
+    .into_rgba()
+}
+
+enum OutputLayout {
+    PackedArgb,
+    Rgba { final_pixels: usize },
+}
+
+#[allow(clippy::too_many_arguments)]
+fn decode_image_data_inner(
+    bits: &mut BitReader<'_>,
+    width: u32,
+    height: u32,
+    is_level0: bool,
+    budget: &mut WorkBudget,
+    limits: &DecodeLimits,
+    retained_bytes: usize,
+    final_rgba_bytes: usize,
+    output_layout: OutputLayout,
+) -> Result<PixelOutput, DecodeError> {
     budget.consume(1)?;
     let color_cache_bits = if bits.read_bit()? {
         budget.consume(1)?;
@@ -91,7 +155,19 @@ pub(in crate::vp8l) fn decode_image_data(
         )?)?)
     };
     let mut code_cursor = codes.cursor(width)?;
-    let mut output = PixelOutput::new(color_cache_bits, pixels)?;
+    let mut output = match output_layout {
+        OutputLayout::PackedArgb => PixelOutput::new_packed(color_cache_bits, pixels)?,
+        OutputLayout::Rgba { final_pixels } => {
+            if final_pixels < pixels {
+                return Err(DecodeError::new(
+                    DecodeErrorKind::InvalidBitstream,
+                    None,
+                    "VP8L final RGBA backing is smaller than the coded image",
+                ));
+            }
+            PixelOutput::new_rgba(color_cache_bits, final_pixels)?
+        }
+    };
     let mut shifted_bits = bits.shifted();
 
     while output.len() < pixels {
@@ -113,7 +189,7 @@ pub(in crate::vp8l) fn decode_image_data(
     }
 
     drop(shifted_bits);
-    Ok(output.into_pixels())
+    Ok(output)
 }
 
 #[allow(clippy::too_many_arguments)]

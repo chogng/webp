@@ -855,6 +855,60 @@ nested group-map token 也通过同一 sink，再用经过 canonical-tail 校验
 Phase B 与 Phase C 封口。下一提交进入 decoder validated plan / single pixel backing；
 不得把 private sidecar 或 prepared cache 带回标准路径。
 
+### Phase D：validated DecodePlan 与单一主图 backing
+
+Date: 2026-07-23。Base: `main@fa5ac9518c7a9955daf82c0d93dc1dc762b24405`。
+Branch/worktree: 本地 `main` 根工作区，未创建 worktree。
+
+旧 decoder census 在实现前冻结：普通主图由 entropy/LZ77 `Vec<u32>` 和最终
+`Vec<u8>` 两份 full-image allocation 共同存活，至少写出 `pixels × 4` layout
+conversion；palette 路径另有 expanded ARGB backing。predictor 的旧逐行转换减少了
+独立 pass，但没有删除第二份 allocation。transform subimage、palette、Huffman 与
+cache 是独立的 bounded retained resource，不伪装成主图 backing。
+
+本阶段建立不可变 `DecodePlan`，统一验证 fixed header、coded/final geometry、
+transform 执行终点、output/allocation/work limits、retained transform bytes、scalar
+kernel family 与 storage census。主 entropy/LZ77 直接写入按最终 RGBA 大小预分配的
+唯一 backing；predictor、color 与 subtract-green 原位执行，palette 按行/像素从后
+向前在同一 allocation 中展开。transform subimage 仍使用各自唯一的 packed backing，
+因为它们是后续 plan 必须保留的小表，而不是重复主图。
+
+- allocation/copy：主图 full-image allocation 普通路径 **2 → 1**，palette 路径
+  **3 → 1**；完整图 layout-copy bytes 从普通路径 `pixels × 4`、palette 路径更多，
+  降为 **0**。`DecodeStorageCensus` 将结果锁为 one allocation / zero full-image
+  copy；两行 packed palette 的测试同时验证 expansion 前后 backing address 与
+  capacity 不变。
+- history/error：RGBA LZ77 保留从像素零开始的完整 history，没有 row/ring shortcut；
+  overlap copy 与 `Vec<u32>` reference 差分一致，且失败 copy 在 WorkBudget 与 output
+  上均保持 transactionality。既有 allocation-limit 保守算式特意保留，因此
+  malformed/truncated/limit 的错误种类与边界不被放宽。
+- correctness：`cargo test --workspace` 全过；decoder VP8L 为 136 passed、3 ignored
+  （另显式运行 `decode_phases_clic`）；`cargo clippy -p webp-decode --all-targets --
+  -D warnings` 通过；fixture 为 CacheHit / 158 files / identity
+  `d2e8c97b528349bef6e0db899f3e87fa53cf55c94402fb38be55f7776ddadd93`。上游 lossless、
+  pinned-libwebp round-trip、所有字节截断、animation state/ALPH、cache、copy、
+  palette、predictor/color/subtract-green、limits 与 WorkBudget 均通过。
+- same-input performance：分别从 Phase C archive 与当前树独立 release 构建，
+  对同一 CLIC-102 / m0+m3+m6 / 306 streams / 3,022,297,644 RGBA bytes 做三轮交替。
+  Phase C 为 `15,158.119 / 15,086.947 / 15,159.785 ms`，当前为
+  `13,209.091 / 13,242.972 / 13,334.765 ms`；中位 **15,158.119 →
+  13,242.972 ms（-12.634%）**，每轮 checksum 均为 `997056`。
+- pinned C：标准 `bash tools/benchmark-vp8l-clic.sh 1 4` 同轮 aggregate 为
+  libwebp 14,147.086 ms、Rust 13,336.991 ms，输入 streams、RGBA bytes 与 checksum
+  完全相同，即该轮 Rust 快 5.726%。单方法独立 sanity 为 m0 3,944.310 ms、
+  m3 4,719.231 ms、m6 4,622.474 ms。
+- phase census：release profiler 的三个 method 均报告
+  `rgba_conversion_ms=0.000`；entropy 直接产出 RGBA，predictor 保持原位。该字段不把
+  transform 工作误计为零，只证明已删除独立全图 layout-conversion phase。
+- resource：宿主边界 `/usr/bin/time -l`、相同 306-stream process policy 下，
+  Phase C/current 峰值 RSS 为 **905,658,368 / 869,613,568 B
+  （-36,044,800 B，-3.980%）**；user/sys 为 14.42/0.35 s 与 12.73/0.26 s。
+  release `decode_bench` 为 628,704 → 659,600 B，**+30,896 B（+4.914%）**。
+
+决定：**promote**。标准 stream/input bytes 未改变，完整 history、limit 与错误语义
+保持，CPU、RSS、allocation 与 copy 同时改善。Phase D 封口；Phase E 只能在这份
+ownership 上收紧 Huffman view/kernel，不得恢复长期双表或第二份主图 backing。
+
 ## 每次新实验的登记模板
 
 ```text
