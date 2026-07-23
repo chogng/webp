@@ -1,6 +1,6 @@
 # 标准 VP8L 架构设计与研究处置
 
-状态：**目标架构；以标准 VP8L 为唯一产品格式**
+状态：**标准 VP8L 产品架构已在 ARM64 封口；x86-64 外部验收待完成**
 
 本文把 VP8L 性能研究收敛为下一阶段可执行的架构契约。完整原始指标、实验分支、
 提交与报告位置仍由 [`performance/vp8l.md`](performance/vp8l.md) 维护；本文不复制
@@ -382,12 +382,19 @@ CLIC 等大型 benchmark corpus 后续采用同一身份原则，但不与 fixtu
 
 ### Phase A：泛化基线
 
-- 固定 pinned libwebp commit、工具链、命令和 source SHA。
-- corpus 至少分为 photo、alpha、palette/cache、tiny/icon、copy-heavy、synthetic、
-  very-large 和 animation/ALPH reuse。
-- 同时记录 aggregate、per-image p50/p95/worst、输入 bytes、pixels、CPU、RSS、
-  allocation/copy census 和 binary delta。
-- ARM64 与 x86-64 分开封口；单线程先于 SIMD 和并行。
+- **ARM64 完成**：pinned libwebp 固定为
+  `733c91e461c18cf1127c9ed0a80dccbcfed599d3`，工具链固定为 stable
+  `rustc 1.97.1` / LLVM 22.1.6；runner、artifact SHA、交替顺序与原始轮次均进入
+  性能账本。
+- **ARM64 完成**：photo/very-large 使用 CLIC-102；alpha、palette/cache、tiny/edge、
+  copy-heavy、synthetic 与 transform 使用 17-file 独立验收集和 41-file
+  MustAccept；animation/ALPH reuse 使用 workspace 的帧复用、container 与增量测试。
+  upstream smoke 的 68 个锁定文件也全部通过。
+- **ARM64 完成**：记录 aggregate、per-image p50/p95/worst、输入/输出 bytes、CPU、
+  RSS、allocation/copy census 与 fresh-archive binary delta。17-file 三档均由项目
+  decoder 和 pinned libwebp exact；CLIC 当前两档共 204 条流也通过 pinned oracle。
+- **外部验收**：本机只有 Apple ARM64。x86-64 的 scalar/SIMD、CPU、RSS、tail 与
+  binary 数据不得由交叉编译或 ARM64 推断，保留为唯一未满足的外部硬件 gate。
 
 ### Phase B：编码共享 IR
 
@@ -459,9 +466,23 @@ CLIC 等大型 benchmark corpus 后续采用同一身份原则，但不与 fixtu
 
 ### Phase F：联合选择与并行
 
-- bounded portfolio 只使用编码时特征和 exact cost。
-- 在 disjoint corpus 决策，formal corpus 不调参。
-- 并行只优化 throughput，必须保持 bytes deterministic。
+- **完成**：产品 portfolio 对每个请求 profile 只构建 single 与对应 spatial plan。
+  `PortfolioCost` 使用 exact stream bits、超过 10-bit root 的预测 secondary lookup、
+  source-row 上的真实 group-map runs 与 table/map bytes；运行时不解码候选。
+- **完成**：Compact 的 rate envelope 为零；LowLatency 只在逐图 exact-bit floor 的
+  1% 内按 decode-work/memory 选择。正常路径只 materialize 胜者，plan/cost 失败严格
+  回退到同 profile 的旧 control，Default path 与 bytes 不变。
+- **完成**：权重只在独立的 65-image training/MustAccept/edge 集合上校准；
+  `(latency=1, memory=1)` 同时达到项目 decoder 与 pinned libwebp eligible-set oracle，
+  formal CLIC 没有参与调参。
+- **完成**：CLIC-102 最终 exact bytes 与 Phase E 相同；编码三轮中位 Compact
+  9,480.561 → 9,476.237 ms（-0.046%），LowLatency
+  9,207.787 → 9,196.702 ms（-0.120%）。17-file 跨域集相对 Default 的 aggregate
+  encode 为 -17.243%/-21.229%，decode 为 -9.420%/-12.148%，体积为
+  -5.549%/-4.488%。
+- **完成**：候选并行 screen 虽降低 wall time，却令 user CPU 相对 Phase E 增加约
+  13%，因此已回滚。产品路径不创建线程；相同输入、profile 与 toolchain 的 bytes
+  deterministic。
 
 ## 8. 晋级与停止条件
 

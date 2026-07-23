@@ -6,7 +6,8 @@
 | libwebp 基准 | pinned libwebp m3 | 102 / 102 | 1 | 267,917,268 | 1,007,432,548 | 4,881 ms | 54.9 | 206.4 | 51.6 | 基准 | +1.093% | 102/102 | `733c91e`；[quality gates](../../docs/quality-gates.md) |
 | libwebp 基准 | pinned libwebp m6 | 102 / 102 | 1 | 265,020,980 | 1,007,432,548 | 4,777 ms | 55.5 | 210.9 | 52.7 | 基准 | 基准 | 102/102 | `733c91e`；[quality gates](../../docs/quality-gates.md) |
 | libwebp 基准 | pinned libwebp m0+m3+m6 | 102 / 306 | 1 | 823,204,804 | 3,022,297,644 | 14,363 ms | 57.3 | 210.4 | 52.6 | 基准 | 三种标准流合计 | 306/306 | `733c91e`；[backend record](</Users/lance/.codex/worktrees/4c95/webp/tools/vp8l-backend-bakeoff/RESULTS.md>) |
-| 标准 VP8L 纪录 | 当前 Rust，m0+m3+m6 | 102 / 306 | 1 | 823,204,804 | 3,022,297,644 | 14,009 ms | 58.8 | 215.7 | 53.9 | **快 2.5%**，同输入同轮次 | 相同 | 306/306 | main lineage；最初记录于 `eca32b4` |
+| 标准 VP8L 历史纪录 | Rust `eca32b4`，m0+m3+m6 | 102 / 306 | 1 | 823,204,804 | 3,022,297,644 | 14,009 ms | 58.8 | 215.7 | 53.9 | **快 2.5%**，同输入同轮次 | 相同 | 306/306 | main lineage；最初记录于 `eca32b4` |
+| 标准 VP8L 架构封口 | ARM64 `main@8abbbd86`，m0+m3+m6 | 102 / 306 | 1 | 823,204,804 | 3,022,297,644 | 14,720 ms | 55.9 | 205.3 | 51.3 | 同一锁定 corpus 下比 pinned C 慢 4.458% | 相同 | 306/306；malformed/truncation/limits/WorkBudget 全过 | Phase E `f76fb6ad`；Phase F 不改变 decoder 或这 306 条流；见下方 Phase E/F |
 | 标准 VP8L 自编码流纪录 | Rust `fast_no_cache` | 102 / 102 | 1 | 724,306,686 | 1,007,432,548 | 2,613 ms | 277.2 | 385.5 | 96.4 | 约快 45.3%†，相对 m6 C 基准 | +173.302% | 102/102，两套 decoder | `codex/vp8l-fast-decode-profile@232a32c`；[report](</Users/lance/.codex/worktrees/c68f/webp/docs/vp8l-fast-decode-research.md>) |
 | 标准 VP8L 自编码 Pareto | Rust `FastDecodeCompact` | 102 / 102 | 1 | 617,958,802 | 1,007,432,548 | 4,034 ms | 153.2 | 249.7 | 62.4 | 同流比 pinned C 快 24.4%†；相对 m6 C 快 32.4%† | +133.174% | E37 产品流 306/306 byte identity；E33 两套 decoder 408/408；Default 不变 | decode `9776da40`；encode `b3b96fdc`；[decode report](../../experiments/vp8l-coarse-spatial-product/REPORT.md)；[encode report](../../experiments/vp8l-packed-writer-product/REPORT.md) |
 | 标准 VP8L 自编码 Pareto | Rust `FastDecodeLowLatency` | 102 / 102 | 1 | 625,321,072 | 1,007,432,548 | 4,010 ms | 156.0 | 251.3 | 62.8 | 同流比 pinned C 快 24.1%†；相对 m6 C 快 32.8%† | +135.952% | E37 产品流 306/306 byte identity；E33 两套 decoder 408/408；Default 不变 | decode `9776da40`；encode `b3b96fdc`；[decode report](../../experiments/vp8l-coarse-spatial-product/REPORT.md)；[encode report](../../experiments/vp8l-packed-writer-product/REPORT.md) |
@@ -954,6 +955,98 @@ generic table。
 决定：**promote**。entry/wire/error 行为不变，fresh aggregate 与 binary 同时小幅
 改善，table handle 明确收紧。Phase E 封口；下一阶段只在 disjoint calibration 上做
 bounded portfolio，不在 formal corpus 调参。
+
+### Phase F：calibrated bounded portfolio 与 ARM64 产品封口
+
+Date: 2026-07-23。Base:
+`main@f76fb6ad68b4ecf78c2f9eec2b05329690dc9111`。产品提交：
+`8abbbd864d877c9da212878ba369f2e27a97dbe4`。Branch/worktree: 用户明确要求直接使用
+本地 `main` 根工作区，本阶段没有创建 worktree，也没有读取、清理或迁移历史 dirty
+研究树。Host: Apple ARM64 / macOS 26.4.1，stable
+`rustc 1.97.1 (8bab26f4f 2026-07-14)` / LLVM 22.1.6。pinned libwebp:
+`733c91e461c18cf1127c9ed0a80dccbcfed599d3`。
+
+产品 portfolio 的边界是 single 与“请求 profile 自己的 spatial candidate”，不是跨
+resolution 的无限候选。每个 candidate 只持有 `EntropyPlan`/`SpatialPlan`，成本为
+exact payload bits、预测超过 10-bit root 的 secondary Huffman lookups、按 source row
+加权的真实 group-map runs，以及 table/map bytes。Compact 不允许任何 rate overhead；
+LowLatency 的 eligible set 被逐图 exact-bit floor 的 1% 封顶。正常路径只写一次获胜
+payload；任何 plan/cost overflow 或 allocation failure 都进入原同 profile control。
+运行时不通过实际 decode 候选来选择。
+
+- calibration：独立 65-image 集合由 24 张未进入 formal 的 CLIC training 图和 41 张
+  MustAccept/edge 图组成。项目 decoder 使用 9 rounds，pinned libwebp 使用
+  5 rounds × 5 iterations。仓库工具
+  `tools/analyze-vp8l-portfolio.py` 在预声明的正整数系数网格中选择最小
+  `(latency=1, memory=1)`；两个 decoder 都精确命中 eligible-set oracle。项目
+  selected/oracle 为 `1,107,288,449/1,107,288,449 ns`，pinned C 为
+  `1,072,084,472/1,072,084,472 ns`，选择计数 single/Compact/LowLatency 为
+  `36/0/29`，总 exact bits `1,329,359,645`。formal CLIC 没有参与系数调整。
+- CLIC formal validation：最终 committed binary SHA-256
+  `5eb6da65986ee7ed9ff70316a5c65286001d170ae30f1d688a1cbae5561b3636`。
+  Compact 三轮为 `9,568.752/9,476.237/9,444.694 ms`，中位相对 Phase E
+  `9,480.561 → 9,476.237 ms`（**-0.046%**）；LowLatency 为
+  `9,196.702/9,238.275/9,151.384 ms`，中位
+  `9,207.787 → 9,196.702 ms`（**-0.120%**）。输出保持
+  `617,958,802/625,321,072 B`，分别与 Phase E 全部逐字节相同。
+- CLIC per-image tail：相对 Phase E，Compact 的 p50/p95/worst 为
+  `-0.107%/+1.501%/+2.137%`，LowLatency 为
+  `-0.104%/+1.220%/+2.631%`。两档 aggregate 均不回退，p95 小于 1.6%，worst 没有
+  超过 5% screen stop rule；这些 tail 原样登记，未用于重新调参。
+- CLIC process resources：Compact/LowLatency 的中位 wall 为
+  `14.608/14.321 s`，中位 user 为 `14.170/13.921 s`，中位 sys 为
+  `0.395/0.399 s`；峰值 RSS 为 `1,216,774,144/1,209,892,864 B`。相对 Phase E
+  分别为 -0.106%/+0.015%，因此只记 neutral，没有宣称新的 RSS 收益。
+- MustAccept encode：最终 normal path 五轮 inner median 为 Default/Compact/
+  LowLatency `221.201/180.908/172.629 ms`，bytes
+  `18,301,768/17,242,142/17,430,934`。Compact/LowLatency 相对 Phase E 分别
+  **-1.741%/-1.353%**，相对 Default 体积 -5.790%/-4.758%。
+- cross-domain acceptance：独立 17-file 静态集包括 4 个 tiny/edge、4 个
+  ALPH/alpha-cache、4 个一般 lossless，以及 cache-11、dual-transform、solid
+  copy-heavy、color-transform 和 2048² random-alpha。三轮 inner aggregate 的
+  Default/Compact/LowLatency encode 为 `213.336/176.549/168.047 ms`，decode 为
+  `102.390/92.744/89.952 ms`，输出为
+  `17,798,652/16,811,048/16,999,840 B`。因此两 profile 相对 Default 的 encode
+  为 -17.243%/-21.229%，decode 为 -9.420%/-12.148%，体积为
+  -5.549%/-4.488%。
+- cross-domain tails：Compact/LowLatency encode absolute
+  p50/p95/worst 为 `0.518/137.585/137.585 ms` 和
+  `0.471/128.851/128.851 ms`；相对 Default 的 p50 为 -16.546%/-23.506%，相对
+  worst 为 +55.445%/+51.706%，但该 worst 是 1×1 的固定开销
+  `19.042/18.584 µs`，不是大图 tail。decode absolute p50/p95/worst 为
+  `0.302/76.454/76.454 ms` 和 `0.319/74.174/74.174 ms`；相对 Default 的 p50 为
+  -26.741%/-29.611%，1×1 worst 为 +15.454%/+16.663%
+  (`11.834/11.958 µs`)。
+- cross-domain process resources：encode 的 Default/Compact/LowLatency 中位
+  user+sys 为 `305.800/269.029/260.964 ms`，峰值 RSS
+  `163,954,688/144,719,872/144,588,800 B`；decode 为
+  `108.199/98.307/95.424 ms` 与
+  `40,206,336/39,190,528/39,157,760 B`。
+- correctness/resources：Default 从 Phase E archive 到当前 16 张 CLIC
+  `diff -qr` 零差异；204 个 CLIC profile streams 和上述 17×3 streams 均由项目
+  decoder exact，pinned libwebp 分别 204/204 与 51/51 exact。锁定 upstream smoke
+  68/68 通过，workspace 与全 target Clippy 通过；malformed、逐 byte truncation、
+  allocation limits、WorkBudget、animation/ALPH reuse 均保持 Phase D/E gates。
+  encoder normal path 仍只有一个最终 payload，decoder census 仍为一份 full-image
+  backing / 零 full-image layout copy。fresh Phase E/Phase F archive 的 release
+  `encode_bench` 为 `704,816 → 704,464 B`（-352 B，-0.050%）。
+- rejected work：最初跨 resolution portfolio 在 CLIC Compact 省 0.176% bytes，
+  但 MustAccept aggregate encode +27.1%、p95 +32.7%、worst +34.6%，已回滚。候选
+  planner 并行 screen 将 wall 从约 213.9 ms 降至 200.6–202.9 ms，却比 Phase E
+  184.1 ms 慢且 user CPU 约 +13%，也已回滚。产品没有线程，重复运行 bytes
+  deterministic。
+
+原始证据根目录：
+`/private/tmp/vp8l-phase-f-calibration.e3xqjH`；关键子目录为
+`training-project`、`training-libwebp`、`clic-direct-final`、`must-direct-final`
+和 `cross-domain-acceptance`。runner、校准器与 empty-run guard 已进入上述产品提交，
+所以外部原始目录消失后仍可用同一锁定 corpus 重建。
+
+决定：**promote 并封口 ARM64 产品实现**。当前 ARM64 decoder 在相同 CLIC-306 标准流
+上相对 pinned libwebp 仍慢 4.458%，这是诚实保留的硬差距，不用 private cache 或不同
+bytes 掩盖。显式 profile 的自编码标准流仍形成速度/体积 Pareto。唯一尚未满足的是
+真实 x86-64 主机上的 scalar/SIMD、CPU、RSS、tail 与 binary 外部验收；没有用交叉编译
+或 ARM64 结果伪造该结论。
 
 ## 每次新实验的登记模板
 
