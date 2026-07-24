@@ -2,7 +2,7 @@
 
 use super::EncodeError;
 use super::spatial_cluster::cluster_tokens;
-use super::token_stream::{EntropyFrequencies, TokenStream, token_span};
+use super::token_stream::{EntropyFrequencies, SpatialBlockStatistics, TokenStream, token_span};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum SpatialProfile {
@@ -26,7 +26,7 @@ impl SpatialGrid {
         }
     }
 
-    const fn block_pixels(self) -> usize {
+    pub(crate) const fn block_pixels(self) -> usize {
         self.block_pixels
     }
 
@@ -77,9 +77,17 @@ impl SpatialPlan {
         stream: &TokenStream,
         grid: SpatialGrid,
     ) -> Result<Self, EncodeError> {
-        let geometry = stream.geometry();
         let statistics = stream.spatial_statistics(grid.block_pixels())?;
-        let clustered = cluster_tokens(&statistics, grid.maximum_groups())?;
+        Self::build_for_grid_with_statistics(stream, grid, &statistics)
+    }
+
+    pub(super) fn build_for_grid_with_statistics(
+        stream: &TokenStream,
+        grid: SpatialGrid,
+        statistics: &SpatialBlockStatistics,
+    ) -> Result<Self, EncodeError> {
+        let geometry = stream.geometry();
+        let clustered = cluster_tokens(statistics, grid.maximum_groups())?;
         let mut frequencies = Vec::new();
         frequencies
             .try_reserve_exact(clustered.group_count)

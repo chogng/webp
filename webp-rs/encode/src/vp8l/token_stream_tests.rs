@@ -60,6 +60,25 @@ fn canonical_stream_counts_cache_hits_without_changing_token_order() {
 }
 
 #[test]
+fn coarse_spatial_statistics_match_aggregated_fine_blocks() {
+    let width = 137;
+    let height = 151;
+    let mut rgba = Vec::with_capacity(width * height * 4);
+    for index in 0..width * height {
+        rgba.extend_from_slice(&[index as u8, (index >> 3) as u8, (index >> 7) as u8, u8::MAX]);
+    }
+    let stream = TokenStream::collect(&rgba, width, false, false, 0).expect("collect stream");
+    let (_, aggregated) = stream
+        .spatial_statistics_pair(32, 128)
+        .expect("aggregate fine statistics");
+    let direct = stream
+        .spatial_statistics(128)
+        .expect("collect coarse statistics");
+    assert_eq!(aggregated.block_width(), direct.block_width());
+    assert_eq!(aggregated.blocks(), direct.blocks());
+}
+
+#[test]
 fn canonical_stream_rejects_incoherent_private_geometry_and_cache_limits() {
     assert_eq!(
         TokenStream::collect(&[1, 2, 3, 4], 0, false, false, 0).err(),

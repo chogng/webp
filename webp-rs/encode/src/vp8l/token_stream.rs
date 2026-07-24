@@ -201,7 +201,7 @@ pub(super) struct TokenStatistics {
 
 pub(super) const COARSE_HISTOGRAM_BINS: usize = 8;
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(super) struct BlockHistogram {
     channels: [[u32; COARSE_HISTOGRAM_BINS]; 4],
     literals: u32,
@@ -230,6 +230,25 @@ impl BlockHistogram {
                     .ok_or_else(EncodeError::output_size_overflow)?;
             }
         }
+        Ok(())
+    }
+
+    fn merge(&mut self, other: Self) -> Result<(), EncodeError> {
+        for (target, source) in self.channels.iter_mut().zip(other.channels) {
+            for (target, source) in target.iter_mut().zip(source) {
+                *target = target
+                    .checked_add(source)
+                    .ok_or_else(EncodeError::output_size_overflow)?;
+            }
+        }
+        self.literals = self
+            .literals
+            .checked_add(other.literals)
+            .ok_or_else(EncodeError::output_size_overflow)?;
+        self.branches = self
+            .branches
+            .checked_add(other.branches)
+            .ok_or_else(EncodeError::output_size_overflow)?;
         Ok(())
     }
 
@@ -290,6 +309,41 @@ impl SpatialBlockStatistics {
             .add(token)
     }
 
+    fn coarsen(&self, block_pixels: usize) -> Result<Self, EncodeError> {
+        if block_pixels < self.block_pixels || !block_pixels.is_multiple_of(self.block_pixels) {
+            return Err(EncodeError::output_size_overflow());
+        }
+        let scale = block_pixels / self.block_pixels;
+        let block_width = self.block_width.div_ceil(scale);
+        let block_height = self.blocks.len() / self.block_width;
+        let coarse_height = block_height.div_ceil(scale);
+        let block_count = block_width
+            .checked_mul(coarse_height)
+            .ok_or_else(EncodeError::output_size_overflow)?;
+        let mut blocks = Vec::new();
+        blocks
+            .try_reserve_exact(block_count)
+            .map_err(|_| EncodeError::allocation_failed())?;
+        blocks.resize(block_count, BlockHistogram::default());
+        for (index, &block) in self.blocks.iter().enumerate() {
+            let row = index / self.block_width / scale;
+            let column = index % self.block_width / scale;
+            let coarse = row
+                .checked_mul(block_width)
+                .and_then(|offset| offset.checked_add(column))
+                .ok_or_else(EncodeError::output_size_overflow)?;
+            blocks
+                .get_mut(coarse)
+                .ok_or_else(EncodeError::output_size_overflow)?
+                .merge(block)?;
+        }
+        Ok(Self {
+            block_pixels,
+            block_width,
+            blocks,
+        })
+    }
+
     pub(super) const fn block_width(&self) -> usize {
         self.block_width
     }
@@ -343,6 +397,16 @@ impl ParseMode {
 pub(super) struct ResidualImage {
     geometry: TokenGeometry,
     pixels: Vec<u32>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+enum ParsedToken {
+    Literal,
+    Copy { length: usize, distance: usize },
+}
+
+pub(super) struct CompressedParse {
+    tokens: Vec<ParsedToken>,
 }
 
 impl ResidualImage {
@@ -402,6 +466,52 @@ impl ResidualImage {
             .max_by_key(|&bits| (hits[usize::from(bits - 1)], u8::MAX - bits))
             .filter(|&bits| hits[usize::from(bits - 1)] != 0)
             .unwrap_or(0)
+    }
+
+    pub(super) fn parse_compressed(
+        &self,
+        parse_mode: ParseMode,
+    ) -> Result<CompressedParse, EncodeError> {
+        let mut tokens = Vec::new();
+        tokens
+            .try_reserve_exact(self.pixels.len())
+            .map_err(|_| EncodeError::allocation_failed())?;
+        let mut finder = MatchFinder::allocate(self.pixels.len())
+            .map_err(|_| EncodeError::allocation_failed())?;
+        let mut index = 0_usize;
+        while index < self.pixels.len() {
+            let found = finder.find(&self.pixels, index, parse_mode.chain_depth());
+            let mut current_inserted = false;
+            let use_match = if found.length < 3 {
+                false
+            } else if parse_mode.is_lazy() && index + 1 < self.pixels.len() {
+                finder.insert(&self.pixels, index);
+                current_inserted = true;
+                let next = finder.find(&self.pixels, index + 1, parse_mode.chain_depth());
+                next.length <= found.length.saturating_add(1)
+            } else {
+                true
+            };
+            if use_match {
+                tokens.push(ParsedToken::Copy {
+                    length: found.length,
+                    distance: found.distance,
+                });
+                for skipped in index..index + found.length {
+                    if skipped != index || !current_inserted {
+                        finder.insert(&self.pixels, skipped);
+                    }
+                }
+                index += found.length;
+                continue;
+            }
+            if !current_inserted {
+                finder.insert(&self.pixels, index);
+            }
+            tokens.push(ParsedToken::Literal);
+            index += 1;
+        }
+        Ok(CompressedParse { tokens })
     }
 }
 
@@ -539,6 +649,15 @@ impl TokenStream {
         color_cache_bits: u8,
         parse_mode: ParseMode,
     ) -> Result<Self, EncodeError> {
+        let parse = residuals.parse_compressed(parse_mode)?;
+        Self::collect_compressed_from_parse(residuals, &parse, color_cache_bits)
+    }
+
+    pub(super) fn collect_compressed_from_parse(
+        residuals: &ResidualImage,
+        parse: &CompressedParse,
+        color_cache_bits: u8,
+    ) -> Result<Self, EncodeError> {
         if color_cache_bits > MAX_ENCODER_COLOR_CACHE_BITS {
             return Err(EncodeError::output_size_overflow());
         }
@@ -549,64 +668,54 @@ impl TokenStream {
         let mut frequencies = EntropyFrequencies::for_color_cache(color_cache_bits);
         let mut census = TokenCensus::default();
         let mut color_cache = [0_u32; MAX_COLOR_CACHE_SIZE];
-        let mut finder = MatchFinder::allocate(residuals.pixels.len())
-            .map_err(|_| EncodeError::allocation_failed())?;
         let mut index = 0_usize;
-        while index < residuals.pixels.len() {
-            let found = finder.find(&residuals.pixels, index, parse_mode.chain_depth());
-            let mut current_inserted = false;
-            let use_match = if found.length < 3 {
-                false
-            } else if parse_mode.is_lazy() && index + 1 < residuals.pixels.len() {
-                finder.insert(&residuals.pixels, index);
-                current_inserted = true;
-                let next = finder.find(&residuals.pixels, index + 1, parse_mode.chain_depth());
-                next.length <= found.length.saturating_add(1)
-            } else {
-                true
-            };
-            if use_match {
-                let token = EntropyToken::Copy {
-                    length: found.length,
-                    distance_code: distance_code(residuals.geometry.width(), found.distance),
-                };
-                frequencies.add_token(token)?;
-                census.add_copy(found.length)?;
-                for skipped in index..index + found.length {
-                    if skipped != index || !current_inserted {
-                        finder.insert(&residuals.pixels, skipped);
+        for &parsed in &parse.tokens {
+            match parsed {
+                ParsedToken::Copy { length, distance } => {
+                    let token = EntropyToken::Copy {
+                        length,
+                        distance_code: distance_code(residuals.geometry.width(), distance),
+                    };
+                    frequencies.add_token(token)?;
+                    census.add_copy(length)?;
+                    let end = index
+                        .checked_add(length)
+                        .ok_or_else(EncodeError::output_size_overflow)?;
+                    for &color in residuals
+                        .pixels
+                        .get(index..end)
+                        .ok_or_else(EncodeError::output_size_overflow)?
+                    {
+                        update_color_cache(&mut color_cache, color_cache_bits, color);
                     }
-                    update_color_cache(
-                        &mut color_cache,
-                        color_cache_bits,
-                        residuals.pixels[skipped],
-                    );
+                    tokens.push(token);
+                    index = end;
                 }
-                tokens.push(token);
-                index += found.length;
-                continue;
+                ParsedToken::Literal => {
+                    let color = *residuals
+                        .pixels
+                        .get(index)
+                        .ok_or_else(EncodeError::output_size_overflow)?;
+                    let cache_index = if color_cache_bits == 0 {
+                        0
+                    } else {
+                        color_cache_index(color, color_cache_bits)
+                    };
+                    let token = if color_cache_bits != 0 && color_cache[cache_index] == color {
+                        census.add_cache()?;
+                        EntropyToken::Cache(cache_index)
+                    } else {
+                        census.add_literal()?;
+                        EntropyToken::Literal(unpack_argb(color))
+                    };
+                    frequencies.add_token(token)?;
+                    tokens.push(token);
+                    color_cache[cache_index] = color;
+                    index = index
+                        .checked_add(1)
+                        .ok_or_else(EncodeError::output_size_overflow)?;
+                }
             }
-
-            if !current_inserted {
-                finder.insert(&residuals.pixels, index);
-            }
-            let color = residuals.pixels[index];
-            let cache_index = if color_cache_bits == 0 {
-                0
-            } else {
-                color_cache_index(color, color_cache_bits)
-            };
-            let token = if color_cache_bits != 0 && color_cache[cache_index] == color {
-                census.add_cache()?;
-                EntropyToken::Cache(cache_index)
-            } else {
-                census.add_literal()?;
-                EntropyToken::Literal(unpack_argb(color))
-            };
-            frequencies.add_token(token)?;
-            tokens.push(token);
-            color_cache[cache_index] = color;
-            index += 1;
         }
         if census.token_count()? != tokens.len()
             || census.pixel_count()? != residuals.geometry.pixels()
@@ -655,6 +764,16 @@ impl TokenStream {
                 .ok_or_else(EncodeError::output_size_overflow)?;
         }
         Ok(statistics)
+    }
+
+    pub(super) fn spatial_statistics_pair(
+        &self,
+        fine_block_pixels: usize,
+        coarse_block_pixels: usize,
+    ) -> Result<(SpatialBlockStatistics, SpatialBlockStatistics), EncodeError> {
+        let fine = self.spatial_statistics(fine_block_pixels)?;
+        let coarse = fine.coarsen(coarse_block_pixels)?;
+        Ok((fine, coarse))
     }
 }
 

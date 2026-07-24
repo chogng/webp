@@ -5,7 +5,7 @@ use super::packet_sink::PackedTokenWriter;
 use super::predictor_plan::PredictorPlan;
 use super::source_analysis::SourceAnalysis;
 use super::spatial_plan::{SpatialGrid, SpatialPlan, SpatialProfile, fine_spatial_grid};
-use super::token_stream::{ParseMode, ResidualImage, TokenStream, token_span};
+use super::token_stream::{CompressedParse, ParseMode, ResidualImage, TokenStream, token_span};
 use super::{
     BitWriter, COLOR_TRANSFORM_BLOCK_BITS, ColorTransformPlan, EncodeError, validate_input,
     wrap_vp8l, write_bits, write_color_transform_image, write_compact_entropy_image,
@@ -87,6 +87,7 @@ pub(crate) fn encode(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, En
             &transforms.predictor,
         )?;
         let selected_cache = residuals.select_color_cache_bits();
+        let parse = residuals.parse_compressed(ParseMode::Greedy)?;
         let mut transform_bits = usize::MAX;
         let mut has_copies = false;
         for color_cache_bits in [0, selected_cache]
@@ -99,8 +100,8 @@ pub(crate) fn encode(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, En
                 has_alpha,
                 transforms.clone(),
                 &residuals,
+                &parse,
                 color_cache_bits,
-                ParseMode::Greedy,
             )?;
             transform_bits = transform_bits.min(candidate.payload_bits);
             has_copies |= candidate.stream.statistics().census().copy_tokens() != 0;
@@ -122,6 +123,7 @@ pub(crate) fn encode(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, En
             &lazy_transforms.predictor,
         )?;
         let lazy_cache = lazy_residuals.select_color_cache_bits();
+        let parse = lazy_residuals.parse_compressed(ParseMode::LazyDeep)?;
         for color_cache_bits in
             [0, lazy_cache]
                 .into_iter()
@@ -133,8 +135,8 @@ pub(crate) fn encode(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, En
                 has_alpha,
                 lazy_transforms.clone(),
                 &lazy_residuals,
+                &parse,
                 color_cache_bits,
-                ParseMode::LazyDeep,
             )?;
             retain_smaller(&mut best, candidate);
         }
@@ -149,29 +151,25 @@ fn build_candidate(
     has_alpha: bool,
     transforms: TransformCandidate,
     residuals: &ResidualImage,
+    parse: &CompressedParse,
     color_cache_bits: u8,
-    parse_mode: ParseMode,
 ) -> Result<Candidate, EncodeError> {
-    let stream =
-        TokenStream::collect_compressed_with_spatial(residuals, color_cache_bits, parse_mode)?;
+    let stream = TokenStream::collect_compressed_from_parse(residuals, parse, color_cache_bits)?;
     let transform_bits = transform_prefix_bits(width, height, has_alpha, &transforms)?;
     let single = select_entropy(stream.statistics())?;
     let single_bits = single.main_bits(color_cache_bits)?;
-    let mut spatial = None;
-    for grid in [fine_spatial_grid(), SpatialProfile::Compact.grid()] {
-        let candidate = SpatialCandidate::build(&stream, grid)?;
-        if spatial
-            .as_ref()
-            .is_none_or(|current: &SpatialCandidate| candidate.encoded_bits < current.encoded_bits)
-        {
-            spatial = Some(candidate);
-        }
-    }
-    let (layout, layout_bits) = if spatial
-        .as_ref()
-        .is_some_and(|candidate| candidate.encoded_bits < single_bits)
-    {
-        let spatial = spatial.ok_or_else(EncodeError::output_size_overflow)?;
+    let fine_grid = fine_spatial_grid();
+    let compact_grid = SpatialProfile::Compact.grid();
+    let (fine_statistics, compact_statistics) =
+        stream.spatial_statistics_pair(fine_grid.block_pixels(), compact_grid.block_pixels())?;
+    let fine = SpatialCandidate::build(&stream, fine_grid, &fine_statistics)?;
+    let compact = SpatialCandidate::build(&stream, compact_grid, &compact_statistics)?;
+    let spatial = if fine.encoded_bits < compact.encoded_bits {
+        fine
+    } else {
+        compact
+    };
+    let (layout, layout_bits) = if spatial.encoded_bits < single_bits {
         let spatial_bits = spatial.encoded_bits;
         (CandidateLayout::Spatial(Box::new(spatial)), spatial_bits)
     } else {
@@ -217,8 +215,12 @@ fn select_entropy(
 }
 
 impl SpatialCandidate {
-    fn build(stream: &TokenStream, grid: SpatialGrid) -> Result<Self, EncodeError> {
-        let spatial = SpatialPlan::build_for_grid(stream, grid)?;
+    fn build(
+        stream: &TokenStream,
+        grid: SpatialGrid,
+        statistics: &super::token_stream::SpatialBlockStatistics,
+    ) -> Result<Self, EncodeError> {
+        let spatial = SpatialPlan::build_for_grid_with_statistics(stream, grid, statistics)?;
         let map_stream = build_group_map_stream(&spatial)?;
         let map_entropy = select_entropy(map_stream.statistics())?;
         let mut groups = Vec::new();
