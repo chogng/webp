@@ -21,3 +21,16 @@ fn adaptive_plan_is_bounded_and_covers_every_block() {
     assert_eq!(modes.len(), width.div_ceil(16) * height.div_ceil(16));
     assert!(modes.iter().all(|mode| CANDIDATE_MODES.contains(mode)));
 }
+
+#[test]
+fn adaptive_plan_supports_large_bounded_blocks() {
+    let rgba = [11, 23, 37, 255].repeat(17 * 19);
+    let plan = PredictorPlan::adaptive_with_block_bits(&rgba, 17, true, None, 9)
+        .expect("build large predictor plan");
+    assert_eq!(plan.block_bits(), 9);
+    assert!(plan.mode_at(17 * 18, 17).is_some());
+    assert_eq!(
+        PredictorPlan::adaptive_with_block_bits(&rgba, 17, true, None, 10).err(),
+        Some(EncodeError::SizeOverflow)
+    );
+}

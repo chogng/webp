@@ -2,7 +2,9 @@
 
 use super::entropy_plan::EntropyPlan;
 use super::packet_sink::PackedTokenWriter;
-use super::predictor_plan::PredictorPlan;
+use super::predictor_plan::{
+    LARGE_ADAPTIVE_PREDICTOR_BLOCK_BITS, LARGE_ADAPTIVE_PREDICTOR_PIXEL_LIMIT, PredictorPlan,
+};
 use super::source_analysis::SourceAnalysis;
 use super::spatial_plan::{SpatialGrid, SpatialPlan, SpatialProfile, fine_spatial_grid};
 use super::token_stream::{CompressedParse, ParseMode, ResidualImage, TokenStream, token_span};
@@ -44,6 +46,11 @@ pub(crate) fn encode(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, En
     let width_usize = usize::try_from(width).map_err(|_| EncodeError::input_size_overflow())?;
     let analysis = SourceAnalysis::collect(rgba, width_usize)?;
     let has_alpha = analysis.facts().has_alpha();
+    let predictor_block_bits = if rgba.len() / 4 > LARGE_ADAPTIVE_PREDICTOR_PIXEL_LIMIT {
+        LARGE_ADAPTIVE_PREDICTOR_BLOCK_BITS
+    } else {
+        super::predictor_plan::ADAPTIVE_PREDICTOR_BLOCK_BITS
+    };
     let selected_color =
         super::source_analysis::optimize_color_transform(rgba, analysis.color_transform());
     if let Some(palette) = analysis.into_palette() {
@@ -74,7 +81,19 @@ pub(crate) fn encode(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, En
             transforms.push(TransformCandidate {
                 color,
                 subtract_green: true,
-                predictor: PredictorPlan::adaptive(rgba, width_usize, true, color)?,
+                predictor: if predictor_block_bits
+                    == super::predictor_plan::ADAPTIVE_PREDICTOR_BLOCK_BITS
+                {
+                    PredictorPlan::adaptive(rgba, width_usize, true, color)?
+                } else {
+                    PredictorPlan::adaptive_with_block_bits(
+                        rgba,
+                        width_usize,
+                        true,
+                        color,
+                        predictor_block_bits,
+                    )?
+                },
             });
         }
     }

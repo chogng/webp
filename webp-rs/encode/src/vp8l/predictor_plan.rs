@@ -7,6 +7,8 @@ const CORE_CANDIDATE_MODES: usize = 6;
 const EXTENDED_MODE_PIXEL_LIMIT: usize = 1 << 20;
 const CANDIDATE_MODES: [u8; 14] = [1, 2, 7, 11, 12, 13, 0, 3, 4, 5, 6, 8, 9, 10];
 pub(super) const ADAPTIVE_PREDICTOR_BLOCK_BITS: u8 = 4;
+pub(super) const LARGE_ADAPTIVE_PREDICTOR_BLOCK_BITS: u8 = 9;
+pub(super) const LARGE_ADAPTIVE_PREDICTOR_PIXEL_LIMIT: usize = EXTENDED_MODE_PIXEL_LIMIT;
 
 #[derive(Clone)]
 pub(super) enum PredictorPlan {
@@ -26,6 +28,25 @@ impl PredictorPlan {
         subtract_green: bool,
         color_transform: Option<ColorTransformPlan>,
     ) -> Result<Self, EncodeError> {
+        Self::adaptive_with_block_bits(
+            rgba,
+            width,
+            subtract_green,
+            color_transform,
+            ADAPTIVE_PREDICTOR_BLOCK_BITS,
+        )
+    }
+
+    pub(super) fn adaptive_with_block_bits(
+        rgba: &[u8],
+        width: usize,
+        subtract_green: bool,
+        color_transform: Option<ColorTransformPlan>,
+        block_bits: u8,
+    ) -> Result<Self, EncodeError> {
+        if !(2..=9).contains(&block_bits) {
+            return Err(EncodeError::output_size_overflow());
+        }
         let pixels = rgba.len() / 4;
         let height = pixels / width;
         // Keep the full VP8L mode portfolio on ordinary images, but cap the
@@ -35,7 +56,7 @@ impl PredictorPlan {
         } else {
             &CANDIDATE_MODES[..CORE_CANDIDATE_MODES]
         };
-        let block_size = 1_usize << ADAPTIVE_PREDICTOR_BLOCK_BITS;
+        let block_size = 1_usize << block_bits;
         let block_width = width.div_ceil(block_size);
         let block_height = height.div_ceil(block_size);
         let mut transformed = Vec::new();
@@ -52,13 +73,24 @@ impl PredictorPlan {
         }
         // For a fixed block size, minimizing Shannon entropy is equivalent to
         // maximizing sum(count * log2(count)) across the channel histograms.
-        let count_log_count = std::array::from_fn::<_, 257, _>(|count| {
-            if count == 0 {
+        let maximum_count = block_size
+            .checked_mul(block_size)
+            .ok_or_else(EncodeError::output_size_overflow)?;
+        let mut count_log_count = Vec::new();
+        count_log_count
+            .try_reserve_exact(
+                maximum_count
+                    .checked_add(1)
+                    .ok_or_else(EncodeError::output_size_overflow)?,
+            )
+            .map_err(|_| EncodeError::allocation_failed())?;
+        for count in 0..=maximum_count {
+            count_log_count.push(if count == 0 {
                 0
             } else {
                 ((count as f64) * (count as f64).log2() * 1024.0).round() as u64
-            }
-        });
+            });
+        }
         let mut modes = Vec::new();
         modes
             .try_reserve_exact(
@@ -74,7 +106,7 @@ impl PredictorPlan {
                 let x_end = (x_start + block_size).min(width);
                 let y_end = (y_start + block_size).min(height);
                 let mut concentration = [0_u64; CANDIDATE_MODES.len()];
-                let mut histograms = [[[0_u16; 256]; 4]; CANDIDATE_MODES.len()];
+                let mut histograms = [[[0_u32; 256]; 4]; CANDIDATE_MODES.len()];
                 for y in y_start..y_end {
                     for x in x_start..x_end {
                         let index = y * width + x;
@@ -103,7 +135,7 @@ impl PredictorPlan {
             }
         }
         Ok(Self::Blocks {
-            block_bits: ADAPTIVE_PREDICTOR_BLOCK_BITS,
+            block_bits,
             block_width,
             modes,
         })
@@ -139,14 +171,14 @@ impl PredictorPlan {
 }
 
 fn add_residual(
-    histogram: &mut [[u16; 256]; 4],
+    histogram: &mut [[u32; 256]; 4],
     concentration: &mut u64,
     residual: [u8; 4],
-    count_log_count: &[u64; 257],
+    count_log_count: &[u64],
 ) {
     for (channel, symbol) in residual.into_iter().enumerate() {
         let count = &mut histogram[channel][usize::from(symbol)];
-        let previous = usize::from(*count);
+        let previous = *count as usize;
         *count = count.saturating_add(1);
         *concentration = concentration.saturating_add(
             count_log_count[previous + 1].saturating_sub(count_log_count[previous]),
