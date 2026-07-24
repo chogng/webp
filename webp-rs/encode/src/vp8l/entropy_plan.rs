@@ -11,10 +11,23 @@ use super::{
 
 const NORMAL_TABLE_FIXED_BITS: usize = 63;
 
-#[derive(Clone, Copy)]
 enum TableHeader {
-    Normal,
+    NormalFixed,
+    NormalRle(NormalTableHeader),
     Simple { first: u8, second: Option<u8> },
+}
+
+struct NormalTableHeader {
+    code_length_lengths: Vec<u8>,
+    codes_to_store: usize,
+    tokens: Vec<CodeLengthToken>,
+    bits: usize,
+}
+
+#[derive(Clone, Copy)]
+struct CodeLengthToken {
+    symbol: u8,
+    extra_bits: u8,
 }
 
 pub(crate) struct EntropyPlan {
@@ -78,7 +91,7 @@ impl EntropyPlan {
                 prepare_compact_table(values)
             } else {
                 let (lengths, table) = prepare_adaptive_table(values)?;
-                Ok((lengths, table, TableHeader::Normal))
+                Ok((lengths, table, TableHeader::NormalFixed))
             }
         };
         let (green_lengths, green, green_header) = prepare(frequencies.green())?;
@@ -103,11 +116,11 @@ impl EntropyPlan {
 
         let mut table_bits = 0_usize;
         for (lengths, header) in [
-            (&green_lengths, headers[0]),
-            (&red_lengths, headers[1]),
-            (&blue_lengths, headers[2]),
-            (&alpha_lengths, headers[3]),
-            (&distance_lengths, headers[4]),
+            (&green_lengths, &headers[0]),
+            (&red_lengths, &headers[1]),
+            (&blue_lengths, &headers[2]),
+            (&alpha_lengths, &headers[3]),
+            (&distance_lengths, &headers[4]),
         ] {
             table_bits = table_bits
                 .checked_add(table_header_bits(lengths.len(), header)?)
@@ -207,16 +220,17 @@ impl EntropyPlan {
 
     pub(crate) fn write_tables(&self, bits: &mut BitWriter) -> Result<(), EncodeError> {
         for (lengths, header) in [
-            (&self.green_lengths, self.headers[0]),
-            (&self.red_lengths, self.headers[1]),
-            (&self.blue_lengths, self.headers[2]),
-            (&self.alpha_lengths, self.headers[3]),
-            (&self.distance_lengths, self.headers[4]),
+            (&self.green_lengths, &self.headers[0]),
+            (&self.red_lengths, &self.headers[1]),
+            (&self.blue_lengths, &self.headers[2]),
+            (&self.alpha_lengths, &self.headers[3]),
+            (&self.distance_lengths, &self.headers[4]),
         ] {
             match header {
-                TableHeader::Normal => write_normal_table(bits, lengths)?,
+                TableHeader::NormalFixed => write_normal_table(bits, lengths)?,
+                TableHeader::NormalRle(header) => write_normal_header(bits, header)?,
                 TableHeader::Simple { first, second } => {
-                    write_simple_header(bits, first, second)?;
+                    write_simple_header(bits, *first, *second)?;
                 }
             }
         }
@@ -273,16 +287,187 @@ pub(crate) fn riff_bytes(payload_bits: usize) -> Result<usize, EncodeError> {
         .ok_or_else(EncodeError::output_size_overflow)
 }
 
-fn table_header_bits(alphabet_len: usize, header: TableHeader) -> Result<usize, EncodeError> {
+fn table_header_bits(alphabet_len: usize, header: &TableHeader) -> Result<usize, EncodeError> {
     match header {
-        TableHeader::Normal => alphabet_len
+        TableHeader::NormalFixed => alphabet_len
             .checked_mul(4)
             .and_then(|bits| bits.checked_add(NORMAL_TABLE_FIXED_BITS))
             .ok_or_else(EncodeError::output_size_overflow),
+        TableHeader::NormalRle(header) => Ok(header.bits),
         TableHeader::Simple { first, second } => {
-            Ok(3 + if first <= 1 { 1 } else { 8 } + usize::from(second.is_some()) * 8)
+            Ok(3 + if *first <= 1 { 1 } else { 8 } + usize::from(second.is_some()) * 8)
         }
     }
+}
+
+fn prepare_normal_header(lengths: &[u8]) -> Result<TableHeader, EncodeError> {
+    let tokens = code_length_tokens(lengths)?;
+    let mut frequencies = [0_u32; 19];
+    for token in &tokens {
+        let frequency = frequencies
+            .get_mut(usize::from(token.symbol))
+            .ok_or_else(EncodeError::output_size_overflow)?;
+        *frequency = frequency
+            .checked_add(1)
+            .ok_or_else(EncodeError::output_size_overflow)?;
+    }
+    let (code_length_lengths, code_length_table) = prepare_adaptive_table(&frequencies)?;
+    let mut codes_to_store = super::CODE_LENGTH_CODE_ORDER.len();
+    while codes_to_store > 4
+        && code_length_lengths[super::CODE_LENGTH_CODE_ORDER[codes_to_store - 1]] == 0
+    {
+        codes_to_store -= 1;
+    }
+    let mut bits = 1_usize
+        .checked_add(4)
+        .and_then(|bits| bits.checked_add(codes_to_store * 3))
+        .and_then(|bits| bits.checked_add(1))
+        .ok_or_else(EncodeError::output_size_overflow)?;
+    for token in &tokens {
+        let symbol_bits = code_length_table
+            .codes
+            .get(usize::from(token.symbol))
+            .map(|&(_, width)| usize::from(width))
+            .ok_or_else(EncodeError::output_size_overflow)?;
+        bits = bits
+            .checked_add(symbol_bits)
+            .and_then(|bits| bits.checked_add(code_length_extra_width(token.symbol)))
+            .ok_or_else(EncodeError::output_size_overflow)?;
+    }
+    let fixed_bits = lengths
+        .len()
+        .checked_mul(4)
+        .and_then(|bits| bits.checked_add(NORMAL_TABLE_FIXED_BITS))
+        .ok_or_else(EncodeError::output_size_overflow)?;
+    if bits >= fixed_bits {
+        return Ok(TableHeader::NormalFixed);
+    }
+    Ok(TableHeader::NormalRle(NormalTableHeader {
+        code_length_lengths,
+        codes_to_store,
+        tokens,
+        bits,
+    }))
+}
+
+fn code_length_tokens(lengths: &[u8]) -> Result<Vec<CodeLengthToken>, EncodeError> {
+    let mut tokens = Vec::new();
+    tokens
+        .try_reserve_exact(lengths.len())
+        .map_err(|_| EncodeError::allocation_failed())?;
+    let mut previous = 8_u8;
+    let mut index = 0_usize;
+    while index < lengths.len() {
+        let value = lengths[index];
+        let mut end = index + 1;
+        while end < lengths.len() && lengths[end] == value {
+            end += 1;
+        }
+        let repetitions = end - index;
+        if value == 0 {
+            push_repeated_zeros(&mut tokens, repetitions);
+        } else {
+            push_repeated_values(&mut tokens, repetitions, value, previous);
+            previous = value;
+        }
+        index = end;
+    }
+    Ok(tokens)
+}
+
+fn push_repeated_values(
+    tokens: &mut Vec<CodeLengthToken>,
+    mut repetitions: usize,
+    value: u8,
+    previous: u8,
+) {
+    if value != previous {
+        tokens.push(CodeLengthToken {
+            symbol: value,
+            extra_bits: 0,
+        });
+        repetitions -= 1;
+    }
+    while repetitions != 0 {
+        if repetitions < 3 {
+            for _ in 0..repetitions {
+                tokens.push(CodeLengthToken {
+                    symbol: value,
+                    extra_bits: 0,
+                });
+            }
+            break;
+        }
+        let repeated = repetitions.min(6);
+        tokens.push(CodeLengthToken {
+            symbol: 16,
+            extra_bits: (repeated - 3) as u8,
+        });
+        repetitions -= repeated;
+    }
+}
+
+fn push_repeated_zeros(tokens: &mut Vec<CodeLengthToken>, mut repetitions: usize) {
+    while repetitions != 0 {
+        if repetitions < 3 {
+            for _ in 0..repetitions {
+                tokens.push(CodeLengthToken {
+                    symbol: 0,
+                    extra_bits: 0,
+                });
+            }
+            break;
+        } else if repetitions < 11 {
+            tokens.push(CodeLengthToken {
+                symbol: 17,
+                extra_bits: (repetitions - 3) as u8,
+            });
+            break;
+        }
+        let repeated = repetitions.min(138);
+        tokens.push(CodeLengthToken {
+            symbol: 18,
+            extra_bits: (repeated - 11) as u8,
+        });
+        repetitions -= repeated;
+    }
+}
+
+const fn code_length_extra_width(symbol: u8) -> usize {
+    match symbol {
+        16 => 2,
+        17 => 3,
+        18 => 7,
+        _ => 0,
+    }
+}
+
+fn write_normal_header(
+    writer: &mut BitWriter,
+    header: &NormalTableHeader,
+) -> Result<(), EncodeError> {
+    write_bits(writer, 0, 1)?;
+    write_bits(
+        writer,
+        u32::try_from(header.codes_to_store - 4)
+            .map_err(|_| EncodeError::output_size_overflow())?,
+        4,
+    )?;
+    for &symbol in &super::CODE_LENGTH_CODE_ORDER[..header.codes_to_store] {
+        write_bits(writer, u32::from(header.code_length_lengths[symbol]), 3)?;
+    }
+    write_bits(writer, 0, 1)?;
+    let table = canonical_table(&header.code_length_lengths)?;
+    for token in &header.tokens {
+        super::huffman::write_table_symbol(writer, &table, usize::from(token.symbol))?;
+        match token.symbol {
+            16 => write_bits(writer, u32::from(token.extra_bits), 2)?,
+            17 => write_bits(writer, u32::from(token.extra_bits), 3)?,
+            18 => write_bits(writer, u32::from(token.extra_bits), 7)?,
+            _ => {}
+        }
+    }
+    Ok(())
 }
 
 fn add_weighted_width(total: usize, frequency: u32, width: u8) -> Result<usize, EncodeError> {
@@ -319,7 +504,8 @@ fn prepare_compact_table(
 
     let lengths = huffman_lengths(frequencies)?;
     let table = canonical_table(&lengths)?;
-    Ok((lengths, table, TableHeader::Normal))
+    let header = prepare_normal_header(&lengths)?;
+    Ok((lengths, table, header))
 }
 
 fn huffman_lengths(frequencies: &[u32]) -> Result<Vec<u8>, EncodeError> {

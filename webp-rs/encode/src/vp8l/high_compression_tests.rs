@@ -69,3 +69,21 @@ fn high_compression_preserves_tiny_palette_and_transparent_inputs() {
         );
     }
 }
+
+#[test]
+fn high_compression_round_trips_a_full_byte_palette() {
+    let width = 256;
+    let mut row = Vec::new();
+    for index in 0..256_u16 {
+        row.extend_from_slice(&[
+            index as u8,
+            index.wrapping_mul(29) as u8,
+            index.wrapping_mul(71) as u8,
+            u8::MAX,
+        ]);
+    }
+    let rgba = row.repeat(4);
+    let encoded = encode(width, 4, &rgba).expect("encode full byte palette");
+    let decoded = decode(&encoded, &DecodeOptions::default()).expect("decode full byte palette");
+    assert_eq!(decoded.rgba, rgba);
+}

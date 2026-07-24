@@ -26,6 +26,7 @@ pub(crate) use self::token_stream::select_left_predictor;
 use self::token_stream::{
     CHANNEL_ALPHABET_SIZE, DISTANCE_ALPHABET_SIZE, FIRST_CACHE_SYMBOL, GREEN_ALPHABET_SIZE,
 };
+use self::token_stream::{ParseMode, ResidualImage};
 
 pub(crate) const MAX_DIMENSION: u32 = 1 << 14;
 const SIGNATURE: u8 = 0x2f;
@@ -101,8 +102,10 @@ pub fn encode_vp8l_payload(
     }
     let has_alpha = facts.has_alpha();
     let color_transform = analysis.color_transform();
-    if let Some(palette) = analysis.into_palette() {
-        return encode_palette_vp8l_payload(width, height, has_alpha, palette);
+    if facts.palette_colors().is_some_and(|colors| colors <= 16) {
+        if let Some(palette) = analysis.into_palette() {
+            return encode_palette_vp8l_payload(width, height, has_alpha, palette, false);
+        }
     }
     let transformed = match color_transform {
         Some(plan) => apply_forward_color_transform(rgba, plan)?,
@@ -146,11 +149,12 @@ pub fn encode_vp8l_payload(
     ))
 }
 
-fn encode_palette_vp8l_payload(
+pub(super) fn encode_palette_vp8l_payload(
     width: u32,
     height: u32,
     has_alpha: bool,
     palette: source_analysis::PalettePlan,
+    compact: bool,
 ) -> Result<(Vec<u8>, bool), EncodeError> {
     let mut bits = BitWriter::new();
     write_vp8l_header(&mut bits, width, height, has_alpha)?;
@@ -162,24 +166,60 @@ fn encode_palette_vp8l_payload(
             .map_err(|_| EncodeError::output_size_overflow())?,
         8,
     )?;
-    write_palette_image(&mut bits, palette.entries())?;
+    write_palette_image(&mut bits, palette.entries(), compact)?;
     write_bits(&mut bits, 0, 1)?; // Transform-list terminator.
 
-    let color_cache_bits = select_color_cache_bits(
+    let selected_cache_bits = select_color_cache_bits(
         palette.indexed_rgba(),
         palette.indexed_width(),
         false,
         false,
     );
-    let stream = TokenStream::collect(
-        palette.indexed_rgba(),
-        palette.indexed_width(),
-        false,
-        false,
-        color_cache_bits,
-    )?;
-    let plan = entropy_plan::EntropyPlan::build_for_stream(stream.statistics())?;
-    plan.write_main_prefix(&mut bits, color_cache_bits)?;
+    let (stream, plan) = if compact {
+        let residuals = ResidualImage::collect_with_predictor(
+            palette.indexed_rgba(),
+            palette.indexed_width(),
+            false,
+            None,
+            &predictor_plan::PredictorPlan::None,
+        )?;
+        let mut best = None;
+        for color_cache_bits in [0, selected_cache_bits]
+            .into_iter()
+            .take(if selected_cache_bits == 0 { 1 } else { 2 })
+        {
+            for parse_mode in [ParseMode::Greedy, ParseMode::LazyDeep] {
+                let stream = TokenStream::collect_compressed_with_spatial(
+                    &residuals,
+                    color_cache_bits,
+                    parse_mode,
+                    None,
+                )?;
+                let plan =
+                    entropy_plan::EntropyPlan::build_compact_for_stream(stream.statistics())?;
+                let encoded_bits = plan.main_bits(color_cache_bits)?;
+                if best
+                    .as_ref()
+                    .is_none_or(|(_, _, best_bits)| encoded_bits < *best_bits)
+                {
+                    best = Some((stream, plan, encoded_bits));
+                }
+            }
+        }
+        let (stream, plan, _) = best.ok_or_else(EncodeError::output_size_overflow)?;
+        (stream, plan)
+    } else {
+        let stream = TokenStream::collect(
+            palette.indexed_rgba(),
+            palette.indexed_width(),
+            false,
+            false,
+            selected_cache_bits,
+        )?;
+        let plan = entropy_plan::EntropyPlan::build_for_stream(stream.statistics())?;
+        (stream, plan)
+    };
+    plan.write_main_prefix(&mut bits, stream.color_cache_bits())?;
     Ok((
         write_packed_tokens(bits, stream.tokens(), &plan)?,
         has_alpha,
@@ -219,8 +259,20 @@ pub(crate) fn try_make_palette_plan(
     Ok(source_analysis::SourceAnalysis::collect(rgba, width)?.into_palette())
 }
 
-fn write_palette_image(writer: &mut BitWriter, entries: &[[u8; 4]]) -> Result<(), EncodeError> {
-    write_literal_entropy_image_prefix(writer, false)?;
+fn write_palette_image(
+    writer: &mut BitWriter,
+    entries: &[[u8; 4]],
+    compact: bool,
+) -> Result<(), EncodeError> {
+    let mut deltas = Vec::new();
+    deltas
+        .try_reserve_exact(
+            entries
+                .len()
+                .checked_mul(4)
+                .ok_or_else(EncodeError::output_size_overflow)?,
+        )
+        .map_err(|_| EncodeError::allocation_failed())?;
     let mut previous = [0_u8; 4];
     for (index, entry) in entries.iter().copied().enumerate() {
         let delta = if index == 0 {
@@ -233,10 +285,51 @@ fn write_palette_image(writer: &mut BitWriter, entries: &[[u8; 4]]) -> Result<()
                 entry[3].wrapping_sub(previous[3]),
             ]
         };
-        for channel in [delta[1], delta[0], delta[2], delta[3]] {
+        deltas.extend_from_slice(&delta);
+        previous = entry;
+    }
+    if compact {
+        write_compact_entropy_image(writer, &deltas, entries.len())
+    } else {
+        write_literal_rgba_entropy_image(writer, &deltas)
+    }
+}
+
+pub(super) fn write_compact_entropy_image(
+    writer: &mut BitWriter,
+    rgba: &[u8],
+    width: usize,
+) -> Result<(), EncodeError> {
+    let stream = TokenStream::collect(rgba, width, false, false, 0)?;
+    let plan = entropy_plan::EntropyPlan::build_compact_for_stream(stream.statistics())?;
+    let compressed_bits = 1_usize
+        .checked_add(plan.encoded_bits()?)
+        .ok_or_else(EncodeError::output_size_overflow)?;
+    let mut literal = BitWriter::new();
+    write_literal_rgba_entropy_image(&mut literal, rgba)?;
+    if compressed_bits >= literal.bit_len() {
+        return write_literal_rgba_entropy_image(writer, rgba);
+    }
+    write_bits(writer, 0, 1)?;
+    plan.write_tables(writer)?;
+    let prefix = std::mem::take(writer);
+    let mut packed = PackedTokenWriter::from_prefix(prefix, plan.token_bits())?;
+    for &token in stream.tokens() {
+        packed.write_token(token, plan.tables())?;
+    }
+    *writer = packed.into_prefix()?;
+    Ok(())
+}
+
+fn write_literal_rgba_entropy_image(
+    writer: &mut BitWriter,
+    rgba: &[u8],
+) -> Result<(), EncodeError> {
+    write_literal_entropy_image_prefix(writer, false)?;
+    for pixel in rgba.chunks_exact(4) {
+        for channel in [pixel[1], pixel[0], pixel[2], pixel[3]] {
             write_fixed_symbol(writer, channel)?;
         }
-        previous = entry;
     }
     Ok(())
 }

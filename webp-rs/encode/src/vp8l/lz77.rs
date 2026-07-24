@@ -4,7 +4,8 @@ const MIN_MATCH_LENGTH: usize = 3;
 const MAX_MATCH_LENGTH: usize = 4096;
 const MAX_LINEAR_DISTANCE: usize = 1_048_456;
 const MAX_HASH_BITS: u8 = 17;
-const MAX_CHAIN_DEPTH: usize = 8;
+pub(super) const DEFAULT_CHAIN_DEPTH: usize = 8;
+pub(super) const DEEP_CHAIN_DEPTH: usize = 32;
 
 const PLANE_TO_CODE: [u8; 128] = [
     96, 73, 55, 39, 23, 13, 5, 1, 255, 255, 255, 255, 255, 255, 255, 255, 101, 78, 58, 42, 26, 16,
@@ -49,7 +50,7 @@ impl MatchFinder {
         self.heads[slot] = index as u32;
     }
 
-    pub(super) fn find(&self, pixels: &[u32], index: usize) -> Match {
+    pub(super) fn find(&self, pixels: &[u32], index: usize, chain_depth: usize) -> Match {
         if index + MIN_MATCH_LENGTH > pixels.len() {
             return Match::default();
         }
@@ -57,7 +58,7 @@ impl MatchFinder {
         let mut candidate = self.heads[slot];
         let mut best = Match::default();
         let limit = MAX_MATCH_LENGTH.min(pixels.len() - index);
-        for _ in 0..MAX_CHAIN_DEPTH {
+        for _ in 0..chain_depth {
             if candidate == u32::MAX {
                 break;
             }

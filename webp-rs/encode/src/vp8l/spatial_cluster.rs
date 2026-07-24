@@ -4,27 +4,28 @@ use std::cmp::Reverse;
 use std::collections::BTreeMap;
 
 use super::EncodeError;
-use super::token_stream::{BlockHistogram, SpatialBlockStatistics};
+use super::token_stream::{BlockHistogram, COARSE_HISTOGRAM_BINS, SpatialBlockStatistics};
 
 impl BlockHistogram {
     fn signature(self) -> Signature {
         let total = self.literals().saturating_add(self.branches()).max(1);
-        let channels = self.channels();
-        Signature {
-            bins: [
-                channels[0].symbol() >> 5,
-                channels[1].symbol() >> 5,
-                channels[2].symbol() >> 5,
-                channels[3].symbol() >> 5,
-                (self.branches().saturating_mul(4) / total).min(3) as u8,
-            ],
+        let literals = self.literals().max(1);
+        let mut bins = [0_u8; 4 * COARSE_HISTOGRAM_BINS + 1];
+        for (channel, histogram) in self.channels().iter().enumerate() {
+            for (bin, &count) in histogram.iter().enumerate() {
+                bins[channel * COARSE_HISTOGRAM_BINS + bin] =
+                    ((count * 15) / literals).min(15) as u8;
+            }
         }
+        bins[4 * COARSE_HISTOGRAM_BINS] =
+            (self.branches().saturating_mul(15) / total).min(15) as u8;
+        Signature { bins }
     }
 }
 
 #[derive(Clone, Copy, Eq, Ord, PartialEq, PartialOrd)]
 struct Signature {
-    bins: [u8; 5],
+    bins: [u8; 4 * COARSE_HISTOGRAM_BINS + 1],
 }
 
 impl Signature {

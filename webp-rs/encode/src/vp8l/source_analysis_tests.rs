@@ -45,6 +45,25 @@ fn fused_color_scores_match_the_established_candidate_selection() {
     assert_eq!(selected, established_color_transform_selection(&rgba));
 }
 
+#[test]
+fn full_byte_palette_is_remapped_into_unpacked_indices() {
+    let mut rgba = Vec::new();
+    for index in 0..256_u16 {
+        rgba.extend_from_slice(&[
+            index as u8,
+            index.wrapping_mul(29) as u8,
+            index.wrapping_mul(71) as u8,
+            u8::MAX,
+        ]);
+    }
+    let analysis = SourceAnalysis::collect(&rgba, 256).expect("analyze byte palette");
+    assert_eq!(analysis.facts().palette_colors(), Some(256));
+    let palette = analysis.into_palette().expect("build byte palette");
+    assert_eq!(palette.entries().len(), 256);
+    assert_eq!(palette.indexed_width(), 256);
+    assert_eq!(palette.indexed_rgba().len(), rgba.len());
+}
+
 fn established_color_transform_selection(rgba: &[u8]) -> Option<ColorTransformPlan> {
     if rgba.len() / 4 < MIN_COLOR_TRANSFORM_PIXELS {
         return None;

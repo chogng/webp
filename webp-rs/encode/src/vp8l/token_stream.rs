@@ -2,7 +2,7 @@
 
 use super::ColorTransformPlan;
 use super::EncodeError;
-use super::lz77::{MatchFinder, distance_code};
+use super::lz77::{DEEP_CHAIN_DEPTH, DEFAULT_CHAIN_DEPTH, MatchFinder, distance_code};
 use super::predictor_plan::{PredictorPlan, residual_pixel};
 use super::prefix::encode_prefix as vp8l_prefix;
 use super::source_analysis::forward_color_pixel;
@@ -199,32 +199,11 @@ pub(super) struct TokenStatistics {
     census: TokenCensus,
 }
 
-#[derive(Clone, Copy, Default)]
-pub(super) struct Majority {
-    symbol: u8,
-    balance: i32,
-}
-
-impl Majority {
-    fn add(&mut self, symbol: u8) -> Result<(), EncodeError> {
-        if self.balance == 0 {
-            self.symbol = symbol;
-            self.balance = 1;
-        } else if self.symbol == symbol {
-            self.balance = self
-                .balance
-                .checked_add(1)
-                .ok_or_else(EncodeError::output_size_overflow)?;
-        } else {
-            self.balance -= 1;
-        }
-        Ok(())
-    }
-}
+pub(super) const COARSE_HISTOGRAM_BINS: usize = 8;
 
 #[derive(Clone, Copy, Default)]
 pub(super) struct BlockHistogram {
-    channels: [Majority; 4],
+    channels: [[u32; COARSE_HISTOGRAM_BINS]; 4],
     literals: u32,
     branches: u32,
 }
@@ -233,8 +212,11 @@ impl BlockHistogram {
     fn add(&mut self, token: EntropyToken) -> Result<(), EncodeError> {
         match token {
             EntropyToken::Literal(rgba) => {
-                for (majority, symbol) in self.channels.iter_mut().zip(rgba) {
-                    majority.add(symbol)?;
+                for (histogram, symbol) in self.channels.iter_mut().zip(rgba) {
+                    let bin = usize::from(symbol >> 5);
+                    histogram[bin] = histogram[bin]
+                        .checked_add(1)
+                        .ok_or_else(EncodeError::output_size_overflow)?;
                 }
                 self.literals = self
                     .literals
@@ -259,7 +241,7 @@ impl BlockHistogram {
         self.literals as u64 + self.branches as u64
     }
 
-    pub(super) const fn channels(self) -> [Majority; 4] {
+    pub(super) const fn channels(self) -> [[u32; COARSE_HISTOGRAM_BINS]; 4] {
         self.channels
     }
 
@@ -269,12 +251,6 @@ impl BlockHistogram {
 
     pub(super) const fn literals(self) -> u32 {
         self.literals
-    }
-}
-
-impl Majority {
-    pub(super) const fn symbol(self) -> u8 {
-        self.symbol
     }
 }
 
@@ -353,7 +329,20 @@ pub(crate) struct TokenStream {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum ParseMode {
     Greedy,
-    Lazy,
+    LazyDeep,
+}
+
+impl ParseMode {
+    const fn chain_depth(self) -> usize {
+        match self {
+            Self::Greedy => DEFAULT_CHAIN_DEPTH,
+            Self::LazyDeep => DEEP_CHAIN_DEPTH,
+        }
+    }
+
+    const fn is_lazy(self) -> bool {
+        matches!(self, Self::LazyDeep)
+    }
 }
 
 pub(super) struct ResidualImage {
@@ -604,11 +593,14 @@ impl TokenStream {
             .transpose()?;
         let mut index = 0_usize;
         while index < residuals.pixels.len() {
-            let found = finder.find(&residuals.pixels, index);
+            let found = finder.find(&residuals.pixels, index, parse_mode.chain_depth());
+            let mut current_inserted = false;
             let use_match = if found.length < 3 {
                 false
-            } else if parse_mode == ParseMode::Lazy && index + 1 < residuals.pixels.len() {
-                let next = finder.find(&residuals.pixels, index + 1);
+            } else if parse_mode.is_lazy() && index + 1 < residuals.pixels.len() {
+                finder.insert(&residuals.pixels, index);
+                current_inserted = true;
+                let next = finder.find(&residuals.pixels, index + 1, parse_mode.chain_depth());
                 next.length <= found.length.saturating_add(1)
             } else {
                 true
@@ -624,7 +616,9 @@ impl TokenStream {
                     blocks.add(index, residuals.geometry.width(), token)?;
                 }
                 for skipped in index..index + found.length {
-                    finder.insert(&residuals.pixels, skipped);
+                    if skipped != index || !current_inserted {
+                        finder.insert(&residuals.pixels, skipped);
+                    }
                     update_color_cache(
                         &mut color_cache,
                         color_cache_bits,
@@ -636,7 +630,9 @@ impl TokenStream {
                 continue;
             }
 
-            finder.insert(&residuals.pixels, index);
+            if !current_inserted {
+                finder.insert(&residuals.pixels, index);
+            }
             let color = residuals.pixels[index];
             let cache_index = if color_cache_bits == 0 {
                 0

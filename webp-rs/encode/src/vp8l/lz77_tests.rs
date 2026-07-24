@@ -8,7 +8,7 @@ fn bounded_chain_finds_non_adjacent_and_overlapping_matches() {
         finder.insert(&pixels, index);
     }
     assert_eq!(
-        finder.find(&pixels, 5),
+        finder.find(&pixels, 5, DEFAULT_CHAIN_DEPTH),
         Match {
             length: 4,
             distance: 5,
@@ -18,7 +18,7 @@ fn bounded_chain_finds_non_adjacent_and_overlapping_matches() {
         finder.insert(&pixels, index);
     }
     assert_eq!(
-        finder.find(&pixels, 9),
+        finder.find(&pixels, 9, DEFAULT_CHAIN_DEPTH),
         Match {
             length: 4,
             distance: 4,

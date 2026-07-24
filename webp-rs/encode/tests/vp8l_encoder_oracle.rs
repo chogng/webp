@@ -71,6 +71,7 @@ fn high_compression_predictor_and_distance_streams_round_trip_through_pinned_lib
     for (case, (width, height, rgba)) in [
         (129, 127, correlated_color_input(129, 127)),
         non_palette_copy_case(),
+        full_palette_case(),
     ]
     .into_iter()
     .enumerate()
@@ -182,6 +183,19 @@ fn non_palette_copy_case() -> (u32, u32, Vec<u8>) {
         }
     }
     (32, 17, rgba)
+}
+
+fn full_palette_case() -> (u32, u32, Vec<u8>) {
+    let mut row = Vec::new();
+    for index in 0..256_u16 {
+        row.extend_from_slice(&[
+            index as u8,
+            index.wrapping_mul(29) as u8,
+            index.wrapping_mul(71) as u8,
+            u8::MAX,
+        ]);
+    }
+    (256, 4, row.repeat(4))
 }
 
 fn correlated_color_input(width: u32, height: u32) -> Vec<u8> {

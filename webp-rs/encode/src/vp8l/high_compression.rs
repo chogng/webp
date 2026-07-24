@@ -8,8 +8,8 @@ use super::spatial_plan::{SpatialPlan, SpatialProfile};
 use super::token_stream::{ParseMode, ResidualImage, TokenStream, token_span};
 use super::{
     BitWriter, COLOR_TRANSFORM_BLOCK_BITS, ColorTransformPlan, EncodeError, validate_input,
-    wrap_vp8l, write_bits, write_color_transform_image, write_fixed_symbol,
-    write_literal_entropy_image_prefix, write_vp8l_header,
+    wrap_vp8l, write_bits, write_color_transform_image, write_compact_entropy_image,
+    write_vp8l_header,
 };
 
 #[derive(Clone)]
@@ -43,12 +43,14 @@ pub(crate) fn encode(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, En
     validate_input(width, height, rgba)?;
     let width_usize = usize::try_from(width).map_err(|_| EncodeError::input_size_overflow())?;
     let analysis = SourceAnalysis::collect(rgba, width_usize)?;
-    if analysis.has_palette() {
-        let (payload, _) = super::encode_vp8l_payload(width, height, rgba)?;
+    let has_alpha = analysis.facts().has_alpha();
+    let selected_color =
+        super::source_analysis::optimize_color_transform(rgba, analysis.color_transform());
+    if let Some(palette) = analysis.into_palette() {
+        let (payload, _) =
+            super::encode_palette_vp8l_payload(width, height, has_alpha, palette, true)?;
         return wrap_vp8l(payload);
     }
-    let has_alpha = analysis.facts().has_alpha();
-    let selected_color = analysis.color_transform();
     let mut best: Option<Candidate> = None;
     let mut transforms = Vec::new();
     transforms.push(TransformCandidate {
@@ -130,17 +132,13 @@ pub(crate) fn encode(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, En
                 lazy_transforms.clone(),
                 &lazy_residuals,
                 color_cache_bits,
-                ParseMode::Lazy,
+                ParseMode::LazyDeep,
             )?;
             retain_smaller(&mut best, candidate);
         }
     }
-    write_candidate(
-        width,
-        height,
-        has_alpha,
-        best.ok_or_else(EncodeError::output_size_overflow)?,
-    )
+    let best = best.ok_or_else(EncodeError::output_size_overflow)?;
+    write_candidate(width, height, has_alpha, best)
 }
 
 fn build_candidate(
@@ -367,31 +365,11 @@ fn write_predictor_plan(
     let mode_height = height.div_ceil(block_size);
     let mode_pixels =
         build_predictor_mode_pixels(width, mode_width, mode_height, block_size, plan)?;
-    let stream = TokenStream::collect(
+    write_compact_entropy_image(
+        writer,
         &mode_pixels,
         usize::try_from(mode_width).map_err(|_| EncodeError::output_size_overflow())?,
-        false,
-        false,
-        0,
-    )?;
-    let entropy = select_entropy(stream.statistics())?;
-    let compressed_bits = 1_usize
-        .checked_add(entropy.encoded_bits()?)
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let literal_bits = literal_predictor_bits(&mode_pixels)?;
-    if compressed_bits < literal_bits {
-        write_bits(writer, 0, 1)?;
-        entropy.write_tables(writer)?;
-        let prefix = std::mem::take(writer);
-        let mut packed = PackedTokenWriter::from_prefix(prefix, entropy.token_bits())?;
-        for &token in stream.tokens() {
-            packed.write_token(token, entropy.tables())?;
-        }
-        *writer = packed.into_prefix()?;
-    } else {
-        write_literal_predictor_plan(writer, &mode_pixels)?;
-    }
-    Ok(())
+    )
 }
 
 fn build_predictor_mode_pixels(
@@ -432,25 +410,6 @@ fn build_predictor_mode_pixels(
         }
     }
     Ok(pixels)
-}
-
-fn literal_predictor_bits(mode_pixels: &[u8]) -> Result<usize, EncodeError> {
-    let mut writer = BitWriter::new();
-    write_literal_predictor_plan(&mut writer, mode_pixels)?;
-    Ok(writer.bit_len())
-}
-
-fn write_literal_predictor_plan(
-    writer: &mut BitWriter,
-    mode_pixels: &[u8],
-) -> Result<(), EncodeError> {
-    write_literal_entropy_image_prefix(writer, false)?;
-    for pixel in mode_pixels.chunks_exact(4) {
-        for channel in [pixel[1], pixel[0], pixel[2], pixel[3]] {
-            write_fixed_symbol(writer, channel)?;
-        }
-    }
-    Ok(())
 }
 
 #[cfg(test)]

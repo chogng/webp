@@ -3,8 +3,9 @@
 use super::ColorTransformPlan;
 use super::EncodeError;
 
-const MAX_ENCODER_PALETTE_SIZE: usize = 16;
+const MAX_ENCODER_PALETTE_SIZE: usize = 256;
 const MIN_COLOR_TRANSFORM_PIXELS: usize = 256;
+const COLOR_OPTIMIZATION_SAMPLE_LIMIT: usize = 1 << 13;
 const FNV_OFFSET_BASIS: u64 = 0xcbf2_9ce4_8422_2325;
 const FNV_PRIME: u64 = 0x0000_0100_0000_01b3;
 
@@ -100,7 +101,6 @@ impl SourceFacts {
         self.transparent_pixels
     }
 
-    #[cfg(test)]
     pub(super) const fn palette_colors(self) -> Option<usize> {
         self.palette_colors
     }
@@ -222,10 +222,6 @@ impl SourceAnalysis {
         self.color_transform
     }
 
-    pub(super) const fn has_palette(&self) -> bool {
-        self.palette.is_some()
-    }
-
     pub(super) fn into_palette(self) -> Option<PalettePlan> {
         self.palette
     }
@@ -260,6 +256,78 @@ pub(super) fn forward_color_pixel(pixel: &[u8], plan: ColorTransformPlan) -> [u8
     ]
 }
 
+pub(super) fn optimize_color_transform(
+    rgba: &[u8],
+    initial: Option<ColorTransformPlan>,
+) -> Option<ColorTransformPlan> {
+    let pixels = rgba.len() / 4;
+    if pixels < MIN_COLOR_TRANSFORM_PIXELS {
+        return None;
+    }
+    let stride = pixels.div_ceil(COLOR_OPTIMIZATION_SAMPLE_LIMIT).max(1);
+    let mut plan = initial.unwrap_or(ColorTransformPlan {
+        green_to_red: 0,
+        green_to_blue: 0,
+        red_to_blue: 0,
+    });
+    plan.green_to_red = (i8::MIN..=i8::MAX)
+        .min_by_key(|&multiplier| {
+            sampled_red_score(rgba, stride, multiplier)
+                .saturating_add(u64::from(multiplier.unsigned_abs()))
+        })
+        .unwrap_or(0);
+    for _ in 0..2 {
+        plan.green_to_blue = (i8::MIN..=i8::MAX)
+            .min_by_key(|&multiplier| {
+                sampled_blue_score(rgba, stride, multiplier, plan.red_to_blue)
+                    .saturating_add(u64::from(multiplier.unsigned_abs()))
+            })
+            .unwrap_or(0);
+        plan.red_to_blue = (i8::MIN..=i8::MAX)
+            .min_by_key(|&multiplier| {
+                sampled_blue_score(rgba, stride, plan.green_to_blue, multiplier)
+                    .saturating_add(u64::from(multiplier.unsigned_abs()))
+            })
+            .unwrap_or(0);
+    }
+    let baseline = rgba
+        .chunks_exact(4)
+        .step_by(stride)
+        .map(|pixel| color_score(pixel[0], pixel[2]))
+        .sum::<u64>();
+    let transformed = rgba
+        .chunks_exact(4)
+        .step_by(stride)
+        .map(|pixel| {
+            let pixel = forward_color_pixel(pixel, plan);
+            color_score(pixel[0], pixel[2])
+        })
+        .sum::<u64>();
+    (transformed < baseline).then_some(plan)
+}
+
+fn sampled_red_score(rgba: &[u8], stride: usize, green_to_red: i8) -> u64 {
+    rgba.chunks_exact(4)
+        .step_by(stride)
+        .map(|pixel| {
+            signed_byte_magnitude(
+                pixel[0].wrapping_sub(color_transform_delta(pixel[1], green_to_red) as u8),
+            ) as u64
+        })
+        .sum()
+}
+
+fn sampled_blue_score(rgba: &[u8], stride: usize, green_to_blue: i8, red_to_blue: i8) -> u64 {
+    rgba.chunks_exact(4)
+        .step_by(stride)
+        .map(|pixel| {
+            let delta = color_transform_delta(pixel[1], green_to_blue)
+                + color_transform_delta(pixel[0], red_to_blue);
+            signed_byte_magnitude(pixel[2].wrapping_sub(delta as u8)) as u64
+        })
+        .sum()
+}
+
 fn select_color_transform_from_scores(
     pixels: usize,
     scores: [u64; 1 + COLOR_TRANSFORM_CANDIDATES.len()],
@@ -284,13 +352,18 @@ fn select_color_transform_from_scores(
 
 fn build_palette_plan(
     entries: Vec<[u8; 4]>,
-    indices: Vec<u8>,
+    mut indices: Vec<u8>,
     width: usize,
 ) -> Result<PalettePlan, EncodeError> {
+    let (entries, remap) = minimize_palette_deltas(entries);
+    for index in &mut indices {
+        *index = remap[usize::from(*index)];
+    }
     let indices_per_pixel = match entries.len() {
         1..=2 => 8,
         3..=4 => 4,
         5..=16 => 2,
+        17..=256 => 1,
         _ => return Err(EncodeError::output_size_overflow()),
     };
     let indexed_width = width.div_ceil(indices_per_pixel);
@@ -318,6 +391,54 @@ fn build_palette_plan(
         indexed_rgba,
         indexed_width,
     })
+}
+
+fn minimize_palette_deltas(entries: Vec<[u8; 4]>) -> (Vec<[u8; 4]>, Vec<u8>) {
+    let mut remaining = entries.into_iter().enumerate().collect::<Vec<_>>();
+    remaining.sort_unstable_by_key(|&(_, color)| packed_argb(color));
+    let transparent_black =
+        if remaining.len() > 17 && remaining.first().is_some_and(|&(_, color)| color == [0; 4]) {
+            Some(remaining.remove(0))
+        } else {
+            None
+        };
+    let palette_size = remaining.len() + usize::from(transparent_black.is_some());
+    let mut ordered = Vec::with_capacity(palette_size);
+    let mut remap = vec![0_u8; palette_size];
+    let mut previous = [0_u8; 4];
+    while !remaining.is_empty() {
+        let best = remaining
+            .iter()
+            .enumerate()
+            .min_by_key(|&(_, &(_, color))| {
+                (palette_delta_cost(color, previous), packed_argb(color))
+            })
+            .map(|(index, _)| index)
+            .expect("nonempty palette remainder has a nearest entry");
+        let (old_index, color) = remaining.swap_remove(best);
+        remap[old_index] =
+            u8::try_from(ordered.len()).expect("VP8L palette index remains byte-sized");
+        ordered.push(color);
+        previous = color;
+    }
+    if let Some((old_index, color)) = transparent_black {
+        remap[old_index] =
+            u8::try_from(ordered.len()).expect("VP8L palette index remains byte-sized");
+        ordered.push(color);
+    }
+    (ordered, remap)
+}
+
+fn palette_delta_cost(color: [u8; 4], previous: [u8; 4]) -> u32 {
+    let component = |channel: usize| {
+        let delta = color[channel].wrapping_sub(previous[channel]);
+        u32::from(delta.min(delta.wrapping_neg()))
+    };
+    9 * (component(0) + component(1) + component(2)) + component(3)
+}
+
+const fn packed_argb(color: [u8; 4]) -> u32 {
+    u32::from_be_bytes([color[3], color[0], color[1], color[2]])
 }
 
 const fn color_transform_delta(channel: u8, multiplier: i8) -> i16 {

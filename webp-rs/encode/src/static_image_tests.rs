@@ -99,8 +99,8 @@ fn encoder_uses_cache_and_lz77_on_non_palette_images() {
     assert!(
         try_make_palette_plan(&cache_rgba, cache_width)
             .expect("inspect cache input palette")
-            .is_none(),
-        "the cache input has more than the encoder's palette bound"
+            .is_some(),
+        "the high-compression planner accepts the wider byte palette"
     );
     let cache_bits = select_color_cache_bits(&cache_rgba, cache_width, true, false);
     let cache_stream = TokenStream::collect(&cache_rgba, cache_width, true, false, cache_bits)
@@ -125,8 +125,8 @@ fn encoder_uses_cache_and_lz77_on_non_palette_images() {
     assert!(
         try_make_palette_plan(&copy_rgba, copy_width)
             .expect("inspect copy input palette")
-            .is_none(),
-        "the copy input has more than the encoder's palette bound"
+            .is_some(),
+        "the high-compression planner accepts the wider byte palette"
     );
     assert!(select_left_predictor(&copy_rgba, copy_width));
     let copy_stream =
