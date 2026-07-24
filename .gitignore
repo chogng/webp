@@ -44,3 +44,6 @@
 /experiments/**/invalidated-runs/**/*.json
 /experiments/**/__pycache__/
 /experiments/**/*.pyc
+
+
+.DS_Store

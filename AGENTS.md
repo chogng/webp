@@ -1,4 +1,8 @@
-the upstream `../codex`
+the upstream `../libwebp`
+
+# Instructions
+
+- Keep reading the instructions in [`.github/instructions/`](.github/instructions/).
 
 # Module organization
 
@@ -15,19 +19,3 @@ the upstream `../codex`
 - Use the workspace's stable Rust toolchain for normal formatting, building, linting, and testing.
 - Use nightly only for a command that explicitly requires it, such as `cargo fuzz` or Miri. Do not introduce a repository-wide nightly requirement for ordinary development.
 - Keep formatting policy in the root `rustfmt.toml`; do not duplicate rustfmt-enforced layout rules in this file.
-
-# Tests
-
-## Test module organization
-
-- When adding a new test module, define its contents in a separate sibling file rather than inline in the implementation file.
-- Use an explicit `#[path = "..._tests.rs"]` attribute so the test filename is descriptive and easy to locate:
-
-```rust
-#[cfg(test)]
-#[path = "parser_tests.rs"]
-mod tests;
-```
-
-- This applies only when introducing a new test module. Do not move or rewrite existing inline `#[cfg(test)] mod tests { ... }` modules solely to follow this convention.
-- Do not add tests for values that are statically defined.
