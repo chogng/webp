@@ -10,31 +10,54 @@ pub enum SpatialProfile {
     LowLatency,
 }
 
-impl SpatialProfile {
-    pub(crate) const fn block_pixels(self) -> usize {
-        match self {
-            Self::Compact => 128,
-            Self::LowLatency => 256,
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct SpatialGrid {
+    block_pixels: usize,
+    maximum_groups: usize,
+    wire_block_bits: u8,
+}
+
+impl SpatialGrid {
+    const fn new(block_pixels: usize, maximum_groups: usize, wire_block_bits: u8) -> Self {
+        Self {
+            block_pixels,
+            maximum_groups,
+            wire_block_bits,
         }
     }
 
-    pub(crate) const fn maximum_groups(self) -> usize {
+    const fn block_pixels(self) -> usize {
+        self.block_pixels
+    }
+
+    const fn maximum_groups(self) -> usize {
+        self.maximum_groups
+    }
+
+    const fn wire_block_bits(self) -> u8 {
+        self.wire_block_bits
+    }
+}
+
+pub(crate) const fn fine_spatial_grid() -> SpatialGrid {
+    SpatialGrid::new(32, 64, 3)
+}
+
+impl SpatialProfile {
+    pub(crate) const fn grid(self) -> SpatialGrid {
         match self {
-            Self::Compact => 64,
-            Self::LowLatency => 16,
+            Self::Compact => SpatialGrid::new(128, 64, 5),
+            Self::LowLatency => SpatialGrid::new(256, 16, 6),
         }
     }
 
     pub(crate) const fn wire_block_bits(self) -> u8 {
-        match self {
-            Self::Compact => 5,
-            Self::LowLatency => 6,
-        }
+        self.grid().wire_block_bits()
     }
 }
 
 pub(crate) struct SpatialPlan {
-    profile: SpatialProfile,
+    grid: SpatialGrid,
     image_width: usize,
     image_height: usize,
     map_width: usize,
@@ -47,11 +70,16 @@ impl SpatialPlan {
         stream: &TokenStream,
         profile: SpatialProfile,
     ) -> Result<Self, EncodeError> {
+        Self::build_for_grid(stream, profile.grid())
+    }
+
+    pub(crate) fn build_for_grid(
+        stream: &TokenStream,
+        grid: SpatialGrid,
+    ) -> Result<Self, EncodeError> {
         let geometry = stream.geometry();
-        let clustered = cluster_tokens(
-            stream.spatial_blocks(profile.block_pixels())?,
-            profile.maximum_groups(),
-        )?;
+        let statistics = stream.spatial_statistics(grid.block_pixels())?;
+        let clustered = cluster_tokens(&statistics, grid.maximum_groups())?;
         let mut frequencies = Vec::new();
         frequencies
             .try_reserve_exact(clustered.group_count)
@@ -67,7 +95,7 @@ impl SpatialPlan {
                 pixel,
                 geometry.width(),
                 clustered.block_width,
-                profile.block_pixels(),
+                grid.block_pixels(),
             );
             frequencies[usize::from(clustered.assignments[block])].add_token(token)?;
             pixel = pixel
@@ -75,7 +103,7 @@ impl SpatialPlan {
                 .ok_or_else(EncodeError::output_size_overflow)?;
         }
         Ok(Self {
-            profile,
+            grid,
             image_width: geometry.width(),
             image_height: geometry.height(),
             map_width: clustered.block_width,
@@ -101,7 +129,7 @@ impl SpatialPlan {
             pixel,
             self.image_width,
             self.map_width,
-            self.profile.block_pixels(),
+            self.grid.block_pixels(),
         );
         usize::from(self.group_map[block])
     }
@@ -111,7 +139,7 @@ impl SpatialPlan {
     }
 
     pub(crate) fn decode_group_runs(&self) -> Result<usize, EncodeError> {
-        let block_pixels = self.profile.block_pixels();
+        let block_pixels = self.grid.block_pixels();
         let mut runs = 0_usize;
         for (block_y, map_row) in self.group_map.chunks_exact(self.map_width).enumerate() {
             let row_runs = 1_usize + map_row.windows(2).filter(|pair| pair[0] != pair[1]).count();
@@ -139,6 +167,10 @@ impl SpatialPlan {
             .checked_mul(5 * 2048)
             .and_then(|bytes| bytes.checked_add(self.group_map.len() * 2))
             .ok_or_else(EncodeError::output_size_overflow)
+    }
+
+    pub(crate) const fn wire_block_bits(&self) -> u8 {
+        self.grid.wire_block_bits()
     }
 }
 

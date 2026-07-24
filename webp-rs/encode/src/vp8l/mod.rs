@@ -193,7 +193,6 @@ pub(super) fn encode_palette_vp8l_payload(
                     &residuals,
                     color_cache_bits,
                     parse_mode,
-                    None,
                 )?;
                 let plan =
                     entropy_plan::EntropyPlan::build_compact_for_stream(stream.statistics())?;

@@ -290,10 +290,6 @@ impl SpatialBlockStatistics {
             .add(token)
     }
 
-    pub(super) const fn block_pixels(&self) -> usize {
-        self.block_pixels
-    }
-
     pub(super) const fn block_width(&self) -> usize {
         self.block_width
     }
@@ -323,7 +319,6 @@ pub(crate) struct TokenStream {
     color_cache_bits: u8,
     tokens: Vec<EntropyToken>,
     statistics: TokenStatistics,
-    spatial_blocks: Option<SpatialBlockStatistics>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -425,26 +420,6 @@ impl TokenStream {
             use_left_predictor,
             color_cache_bits,
             None,
-            None,
-        )
-    }
-
-    pub(super) fn collect_for_spatial(
-        rgba: &[u8],
-        width: usize,
-        use_subtract_green: bool,
-        use_left_predictor: bool,
-        color_cache_bits: u8,
-        block_pixels: usize,
-    ) -> Result<Self, EncodeError> {
-        Self::collect_internal(
-            rgba,
-            width,
-            use_subtract_green,
-            use_left_predictor,
-            color_cache_bits,
-            None,
-            Some(block_pixels),
         )
     }
 
@@ -455,7 +430,6 @@ impl TokenStream {
         use_left_predictor: bool,
         color_cache_bits: u8,
         color_transform: Option<ColorTransformPlan>,
-        spatial_block_pixels: Option<usize>,
     ) -> Result<Self, EncodeError> {
         let pixels = rgba.len() / 4;
         if width == 0
@@ -480,9 +454,6 @@ impl TokenStream {
         let mut frequencies = EntropyFrequencies::for_color_cache(color_cache_bits);
         let mut census = TokenCensus::default();
         let mut color_cache = [0_u32; MAX_COLOR_CACHE_SIZE];
-        let mut spatial_blocks = spatial_block_pixels
-            .map(|block_pixels| SpatialBlockStatistics::new(geometry, block_pixels))
-            .transpose()?;
         let mut index = 0_usize;
         let mut previous = None;
         while index < pixels {
@@ -519,9 +490,6 @@ impl TokenStream {
                     for _ in 0..length {
                         update_color_cache(&mut color_cache, color_cache_bits, pack_argb(residual));
                     }
-                    if let Some(blocks) = spatial_blocks.as_mut() {
-                        blocks.add(index, width, token)?;
-                    }
                     tokens.push(token);
                     index += length;
                     previous = Some(residual);
@@ -542,9 +510,6 @@ impl TokenStream {
                 EntropyToken::Literal(residual)
             };
             frequencies.add_token(token)?;
-            if let Some(blocks) = spatial_blocks.as_mut() {
-                blocks.add(index, width, token)?;
-            }
             tokens.push(token);
             color_cache[cache_index] = color;
             index += 1;
@@ -566,7 +531,6 @@ impl TokenStream {
                 frequencies,
                 census,
             },
-            spatial_blocks,
         })
     }
 
@@ -574,7 +538,6 @@ impl TokenStream {
         residuals: &ResidualImage,
         color_cache_bits: u8,
         parse_mode: ParseMode,
-        spatial_block_pixels: Option<usize>,
     ) -> Result<Self, EncodeError> {
         if color_cache_bits > MAX_ENCODER_COLOR_CACHE_BITS {
             return Err(EncodeError::output_size_overflow());
@@ -588,9 +551,6 @@ impl TokenStream {
         let mut color_cache = [0_u32; MAX_COLOR_CACHE_SIZE];
         let mut finder = MatchFinder::allocate(residuals.pixels.len())
             .map_err(|_| EncodeError::allocation_failed())?;
-        let mut spatial_blocks = spatial_block_pixels
-            .map(|block_pixels| SpatialBlockStatistics::new(residuals.geometry, block_pixels))
-            .transpose()?;
         let mut index = 0_usize;
         while index < residuals.pixels.len() {
             let found = finder.find(&residuals.pixels, index, parse_mode.chain_depth());
@@ -612,9 +572,6 @@ impl TokenStream {
                 };
                 frequencies.add_token(token)?;
                 census.add_copy(found.length)?;
-                if let Some(blocks) = spatial_blocks.as_mut() {
-                    blocks.add(index, residuals.geometry.width(), token)?;
-                }
                 for skipped in index..index + found.length {
                     if skipped != index || !current_inserted {
                         finder.insert(&residuals.pixels, skipped);
@@ -647,9 +604,6 @@ impl TokenStream {
                 EntropyToken::Literal(unpack_argb(color))
             };
             frequencies.add_token(token)?;
-            if let Some(blocks) = spatial_blocks.as_mut() {
-                blocks.add(index, residuals.geometry.width(), token)?;
-            }
             tokens.push(token);
             color_cache[cache_index] = color;
             index += 1;
@@ -669,7 +623,6 @@ impl TokenStream {
                 frequencies,
                 census,
             },
-            spatial_blocks,
         })
     }
 
@@ -689,14 +642,19 @@ impl TokenStream {
         &self.statistics
     }
 
-    pub(super) fn spatial_blocks(
+    pub(super) fn spatial_statistics(
         &self,
         block_pixels: usize,
-    ) -> Result<&SpatialBlockStatistics, EncodeError> {
-        self.spatial_blocks
-            .as_ref()
-            .filter(|statistics| statistics.block_pixels() == block_pixels)
-            .ok_or_else(EncodeError::output_size_overflow)
+    ) -> Result<SpatialBlockStatistics, EncodeError> {
+        let mut statistics = SpatialBlockStatistics::new(self.geometry, block_pixels)?;
+        let mut pixel = 0_usize;
+        for &token in &self.tokens {
+            statistics.add(pixel, self.geometry.width(), token)?;
+            pixel = pixel
+                .checked_add(token_span(token))
+                .ok_or_else(EncodeError::output_size_overflow)?;
+        }
+        Ok(statistics)
     }
 }
 

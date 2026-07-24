@@ -4,7 +4,7 @@ use super::entropy_plan::EntropyPlan;
 use super::packet_sink::PackedTokenWriter;
 use super::predictor_plan::PredictorPlan;
 use super::source_analysis::SourceAnalysis;
-use super::spatial_plan::{SpatialPlan, SpatialProfile};
+use super::spatial_plan::{SpatialGrid, SpatialPlan, SpatialProfile, fine_spatial_grid};
 use super::token_stream::{ParseMode, ResidualImage, TokenStream, token_span};
 use super::{
     BitWriter, COLOR_TRANSFORM_BLOCK_BITS, ColorTransformPlan, EncodeError, validate_input,
@@ -52,6 +52,7 @@ pub(crate) fn encode(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, En
         return wrap_vp8l(payload);
     }
     let mut best: Option<Candidate> = None;
+    let mut lazy_portfolio = Vec::new();
     let mut transforms = Vec::new();
     transforms.push(TransformCandidate {
         color: None,
@@ -86,6 +87,8 @@ pub(crate) fn encode(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, En
             &transforms.predictor,
         )?;
         let selected_cache = residuals.select_color_cache_bits();
+        let mut transform_bits = usize::MAX;
+        let mut has_copies = false;
         for color_cache_bits in [0, selected_cache]
             .into_iter()
             .take(if selected_cache == 0 { 1 } else { 2 })
@@ -99,19 +102,18 @@ pub(crate) fn encode(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, En
                 color_cache_bits,
                 ParseMode::Greedy,
             )?;
+            transform_bits = transform_bits.min(candidate.payload_bits);
+            has_copies |= candidate.stream.statistics().census().copy_tokens() != 0;
             retain_smaller(&mut best, candidate);
         }
+        if has_copies {
+            retain_lazy_transform(&mut lazy_portfolio, transform_bits, transforms);
+        }
     }
-    // Lazy parsing can only defer an existing match. If the greedy winner has
-    // no copies, the lazy pass would reproduce the same token stream.
-    if best
-        .as_ref()
-        .is_some_and(|candidate| candidate.stream.statistics().census().copy_tokens() != 0)
-    {
-        let lazy_transforms = best
-            .as_ref()
-            .map(|candidate| candidate.transforms.clone())
-            .ok_or_else(EncodeError::output_size_overflow)?;
+    // A finer entropy layout can change which greedy transform is smallest.
+    // Refine a bounded portfolio so one layout cannot suppress the strongest
+    // match parse of a close transform alternative.
+    for (_, lazy_transforms) in lazy_portfolio {
         let lazy_residuals = ResidualImage::collect_with_predictor(
             rgba,
             width_usize,
@@ -150,17 +152,26 @@ fn build_candidate(
     color_cache_bits: u8,
     parse_mode: ParseMode,
 ) -> Result<Candidate, EncodeError> {
-    let stream = TokenStream::collect_compressed_with_spatial(
-        residuals,
-        color_cache_bits,
-        parse_mode,
-        Some(SpatialProfile::Compact.block_pixels()),
-    )?;
+    let stream =
+        TokenStream::collect_compressed_with_spatial(residuals, color_cache_bits, parse_mode)?;
     let transform_bits = transform_prefix_bits(width, height, has_alpha, &transforms)?;
     let single = select_entropy(stream.statistics())?;
     let single_bits = single.main_bits(color_cache_bits)?;
-    let spatial = SpatialCandidate::build(&stream)?;
-    let (layout, layout_bits) = if spatial.encoded_bits < single_bits {
+    let mut spatial = None;
+    for grid in [fine_spatial_grid(), SpatialProfile::Compact.grid()] {
+        let candidate = SpatialCandidate::build(&stream, grid)?;
+        if spatial
+            .as_ref()
+            .is_none_or(|current: &SpatialCandidate| candidate.encoded_bits < current.encoded_bits)
+        {
+            spatial = Some(candidate);
+        }
+    }
+    let (layout, layout_bits) = if spatial
+        .as_ref()
+        .is_some_and(|candidate| candidate.encoded_bits < single_bits)
+    {
+        let spatial = spatial.ok_or_else(EncodeError::output_size_overflow)?;
         let spatial_bits = spatial.encoded_bits;
         (CandidateLayout::Spatial(Box::new(spatial)), spatial_bits)
     } else {
@@ -186,6 +197,19 @@ fn retain_smaller(best: &mut Option<Candidate>, candidate: Candidate) {
     }
 }
 
+fn retain_lazy_transform(
+    portfolio: &mut Vec<(usize, TransformCandidate)>,
+    payload_bits: usize,
+    transforms: TransformCandidate,
+) {
+    let position = portfolio
+        .iter()
+        .position(|(current, _)| payload_bits < *current)
+        .unwrap_or(portfolio.len());
+    portfolio.insert(position, (payload_bits, transforms));
+    portfolio.truncate(2);
+}
+
 fn select_entropy(
     statistics: &super::token_stream::TokenStatistics,
 ) -> Result<EntropyPlan, EncodeError> {
@@ -193,9 +217,8 @@ fn select_entropy(
 }
 
 impl SpatialCandidate {
-    fn build(stream: &TokenStream) -> Result<Self, EncodeError> {
-        let profile = SpatialProfile::Compact;
-        let spatial = SpatialPlan::build(stream, profile)?;
+    fn build(stream: &TokenStream, grid: SpatialGrid) -> Result<Self, EncodeError> {
+        let spatial = SpatialPlan::build_for_grid(stream, grid)?;
         let map_stream = build_group_map_stream(&spatial)?;
         let map_entropy = select_entropy(map_stream.statistics())?;
         let mut groups = Vec::new();
@@ -275,11 +298,7 @@ fn write_spatial_tokens(
         write_bits(&mut bits, u32::from(color_cache_bits), 4)?;
     }
     write_bits(&mut bits, 1, 1)?;
-    write_bits(
-        &mut bits,
-        u32::from(SpatialProfile::Compact.wire_block_bits()),
-        3,
-    )?;
+    write_bits(&mut bits, u32::from(candidate.spatial.wire_block_bits()), 3)?;
     write_bits(&mut bits, 0, 1)?;
     candidate.map_entropy.write_tables(&mut bits)?;
     let mut map_sink = PackedTokenWriter::from_prefix(bits, candidate.map_entropy.token_bits())?;

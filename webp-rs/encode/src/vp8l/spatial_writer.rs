@@ -144,7 +144,7 @@ pub fn encode_profile(
     rgba: &[u8],
     profile: SpatialProfile,
 ) -> Result<Vec<u8>, EncodeError> {
-    let prepared = prepare_spatial(width, height, rgba, profile)?;
+    let prepared = prepare_spatial(width, height, rgba)?;
     encode_prepared(&prepared, profile).map(|(encoded, _)| encoded)
 }
 
@@ -229,22 +229,10 @@ fn prepare(width: u32, height: u32, rgba: &[u8]) -> Result<Prepared, EncodeError
     })
 }
 
-fn prepare_spatial(
-    width: u32,
-    height: u32,
-    rgba: &[u8],
-    profile: SpatialProfile,
-) -> Result<Prepared, EncodeError> {
+fn prepare_spatial(width: u32, height: u32, rgba: &[u8]) -> Result<Prepared, EncodeError> {
     validate_input(width, height, rgba)?;
     let width_usize = usize::try_from(width).map_err(|_| EncodeError::input_size_overflow())?;
-    let stream = TokenStream::collect_for_spatial(
-        rgba,
-        width_usize,
-        true,
-        false,
-        0,
-        profile.block_pixels(),
-    )?;
+    let stream = TokenStream::collect(rgba, width_usize, true, false, 0)?;
     Ok(Prepared {
         width_u32: width,
         height_u32: height,
@@ -392,7 +380,7 @@ pub(crate) fn encode_candidate_for_test(
     rgba: &[u8],
     profile: SpatialProfile,
 ) -> Result<Vec<u8>, EncodeError> {
-    let prepared = prepare_spatial(width, height, rgba, profile)?;
+    let prepared = prepare_spatial(width, height, rgba)?;
     encode_spatial(&prepared, profile)
 }
 
@@ -403,7 +391,7 @@ pub(crate) fn encode_profile_control_for_test(
     rgba: &[u8],
     profile: SpatialProfile,
 ) -> Result<Vec<u8>, EncodeError> {
-    let prepared = prepare_spatial(width, height, rgba, profile)?;
+    let prepared = prepare_spatial(width, height, rgba)?;
     encode_profile_control(&prepared, profile)
 }
 
@@ -430,7 +418,7 @@ pub(crate) fn encode_profile_exact_for_test(
     rgba: &[u8],
     profile: SpatialProfile,
 ) -> Result<(Vec<u8>, SelectionStats), EncodeError> {
-    let prepared = prepare_spatial(width, height, rgba, profile)?;
+    let prepared = prepare_spatial(width, height, rgba)?;
     let plan = ProfilePlan::build(&prepared.stream, profile);
     let costs = plan.as_ref().ok().and_then(|plan| {
         let requested = plan.spatial(profile).ok()?.cost().ok()?;
@@ -438,7 +426,7 @@ pub(crate) fn encode_profile_exact_for_test(
             SpatialProfile::Compact => SpatialProfile::LowLatency,
             SpatialProfile::LowLatency => SpatialProfile::Compact,
         };
-        let other_prepared = prepare_spatial(width, height, rgba, other_profile).ok()?;
+        let other_prepared = prepare_spatial(width, height, rgba).ok()?;
         let other = SpatialCandidate::build(&other_prepared.stream, other_profile)
             .ok()?
             .cost()
@@ -476,7 +464,7 @@ pub(crate) fn encode_profile_plan_fallback_for_test(
     rgba: &[u8],
     profile: SpatialProfile,
 ) -> Result<(Vec<u8>, SelectionStats), EncodeError> {
-    let prepared = prepare_spatial(width, height, rgba, profile)?;
+    let prepared = prepare_spatial(width, height, rgba)?;
     let (encoded, kind) =
         encode_prepared_with_plan(&prepared, profile, Err(EncodeError::output_size_overflow()))?;
     Ok((encoded, selection_stats(kind, None, None, None)))
@@ -538,7 +526,7 @@ pub(crate) fn candidate_estimate_for_test(
     rgba: &[u8],
     profile: SpatialProfile,
 ) -> Result<(usize, usize, usize, usize), EncodeError> {
-    let prepared = prepare_spatial(width, height, rgba, profile)?;
+    let prepared = prepare_spatial(width, height, rgba)?;
     let plan = SpatialCandidate::build(&prepared.stream, profile)?;
     let (_, written_bits) = write_spatial_payload(&prepared, profile, &plan)?;
     Ok((
