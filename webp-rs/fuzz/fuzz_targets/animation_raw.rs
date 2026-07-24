@@ -4,6 +4,8 @@
 use libfuzzer_sys::fuzz_target;
 use webp::DecodeLimits;
 use webp::DecodeOptions;
+use webp::AnimationDecoder;
+use webp::AnimationDecoderOptions;
 use webp::decode_animation;
 
 fuzz_target!(|bytes: &[u8]| {
@@ -21,8 +23,27 @@ fuzz_target!(|bytes: &[u8]| {
     let _ = decode_animation(
         bytes,
         &DecodeOptions {
-            limits,
+            limits: limits.clone(),
             ..DecodeOptions::default()
         },
     );
+    if let Ok(mut decoder) = AnimationDecoder::new(
+        bytes,
+        AnimationDecoderOptions {
+            decode: DecodeOptions {
+                limits,
+                ..DecodeOptions::default()
+            },
+            use_threads: true,
+            ..AnimationDecoderOptions::default()
+        },
+    ) {
+        while decoder.has_more_frames() {
+            if decoder.next_frame().is_err() {
+                break;
+            }
+        }
+        decoder.reset();
+        let _ = decoder.next_frame();
+    }
 });

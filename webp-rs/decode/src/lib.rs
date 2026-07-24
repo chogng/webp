@@ -65,7 +65,17 @@ pub(crate) use limits::checked_rect_end;
 #[cfg(feature = "animation")]
 pub use animated_image::Animation;
 #[cfg(feature = "animation")]
+pub use animated_image::AnimationColorMode;
+#[cfg(feature = "animation")]
+pub use animated_image::AnimationDecoder;
+#[cfg(feature = "animation")]
+pub use animated_image::AnimationDecoderFrame;
+#[cfg(feature = "animation")]
+pub use animated_image::AnimationDecoderOptions;
+#[cfg(feature = "animation")]
 pub use animated_image::AnimationFrame;
+#[cfg(feature = "animation")]
+pub use animated_image::AnimationInfo;
 #[cfg(all(feature = "decode", feature = "animation"))]
 pub use animated_image::decode_animation;
 #[cfg(feature = "decode")]

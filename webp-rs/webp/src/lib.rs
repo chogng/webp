@@ -31,7 +31,17 @@ pub use webp_decode::read_metadata;
 #[cfg(all(feature = "decode", feature = "animation"))]
 pub use webp_decode::Animation;
 #[cfg(all(feature = "decode", feature = "animation"))]
+pub use webp_decode::AnimationColorMode;
+#[cfg(all(feature = "decode", feature = "animation"))]
+pub use webp_decode::AnimationDecoder;
+#[cfg(all(feature = "decode", feature = "animation"))]
+pub use webp_decode::AnimationDecoderFrame;
+#[cfg(all(feature = "decode", feature = "animation"))]
+pub use webp_decode::AnimationDecoderOptions;
+#[cfg(all(feature = "decode", feature = "animation"))]
 pub use webp_decode::AnimationFrame;
+#[cfg(all(feature = "decode", feature = "animation"))]
+pub use webp_decode::AnimationInfo;
 #[cfg(all(feature = "decode", feature = "animation"))]
 pub use webp_decode::decode_animation;
 

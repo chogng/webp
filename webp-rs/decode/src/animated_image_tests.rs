@@ -82,6 +82,89 @@ fn animated_vp8l_frames_are_composed_in_display_order() {
 }
 
 #[test]
+fn stateful_decoder_fetches_frames_and_restarts_from_the_first() {
+    let data = two_frame_animation();
+    let mut decoder = AnimationDecoder::new(&data, AnimationDecoderOptions::default()).unwrap();
+    assert_eq!(
+        *decoder.info(),
+        AnimationInfo {
+            width: 3,
+            height: 1,
+            loop_count: 0,
+            background_rgba: [2, 3, 4, 1],
+            frame_count: 2,
+        }
+    );
+    assert!(decoder.has_more_frames());
+
+    let first = {
+        let frame = decoder.next_frame().unwrap().unwrap();
+        assert_eq!(frame.duration_ms, 10);
+        assert_eq!(frame.timestamp_ms, 10);
+        assert_eq!(frame.color_mode, AnimationColorMode::Rgba);
+        frame.pixels.to_vec()
+    };
+    let second = {
+        let frame = decoder.next_frame().unwrap().unwrap();
+        assert_eq!(frame.duration_ms, 20);
+        assert_eq!(frame.timestamp_ms, 30);
+        frame.pixels.to_vec()
+    };
+    assert!(!decoder.has_more_frames());
+    assert!(decoder.next_frame().unwrap().is_none());
+
+    decoder.reset();
+    assert!(decoder.has_more_frames());
+    let replay = {
+        let frame = decoder.next_frame().unwrap().unwrap();
+        assert_eq!(frame.timestamp_ms, 10);
+        frame.pixels.to_vec()
+    };
+    assert_eq!(replay, first);
+    assert_ne!(first, second);
+}
+
+#[test]
+fn stateful_decoder_converts_the_borrowed_canvas_to_requested_color_mode() {
+    let data = two_frame_animation();
+    let mut decoder = AnimationDecoder::new(
+        &data,
+        AnimationDecoderOptions {
+            color_mode: AnimationColorMode::BgraPremultiplied,
+            ..AnimationDecoderOptions::default()
+        },
+    )
+    .unwrap();
+    assert_eq!(decoder.demuxer().frame_count(), 2);
+    let frame = decoder.next_frame().unwrap().unwrap();
+    assert_eq!(frame.color_mode, AnimationColorMode::BgraPremultiplied);
+    assert_eq!(&frame.pixels[..4], [30, 20, 10, 255]);
+    assert_eq!(&frame.pixels[4..8], [0, 0, 0, 1]);
+}
+
+#[test]
+fn threaded_frame_decode_matches_serial_alpha_composition() {
+    let bitstream = vp8l_pixel([10, 20, 30, 255]);
+    let alpha = [0, 77];
+    let frame = webp_demux::AnimationFrame {
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        duration_ms: 1,
+        dispose_to_background: false,
+        blend: false,
+        alpha: Some(&alpha),
+        bitstream: FrameBitstream::Vp8l(&bitstream),
+    };
+    let options = DecodeOptions::default();
+    let serial = decode_animation_frame(&frame, &options, false).unwrap();
+    let threaded = decode_animation_frame(&frame, &options, true).unwrap();
+    assert_eq!(serial, [10, 20, 30, 77]);
+    assert_eq!(threaded, serial);
+}
+
+#[test]
 fn animation_decode_rejects_static_images() {
     let static_image = vp8l_pixel([0; 4]);
     let mut body = b"WEBP".to_vec();

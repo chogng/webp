@@ -89,6 +89,14 @@ impl AnimationCanvas {
         &self.rgba
     }
 
+    /// Restores the initial ANIM background and forgets pending disposal.
+    pub fn reset(&mut self) {
+        self.rgba
+            .chunks_exact_mut(4)
+            .for_each(|pixel| pixel.copy_from_slice(&self.background));
+        self.pending_disposal = None;
+    }
+
     /// Applies the prior frame's requested disposal, then renders `frame`.
     /// The canvas after this call is the image to display for `frame`.
     pub fn compose(

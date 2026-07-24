@@ -13,6 +13,11 @@ scheduled after the remaining functional milestones are complete.
   full straight-RGBA8 canvas snapshot for every display frame. It applies
   blend, disposal-to-background, offsets, duration, loop count, and the ANIM
   BGRA background colour.
+- `AnimationDecoder` is the bounded streaming alternative: it borrows the
+  complete container, returns one composed canvas per pull, restarts with
+  `reset`, exposes the validated demux view, supports RGBA/BGRA plus
+  premultiplied output, and has an opt-in worker-thread path for independent
+  color and `ALPH` payloads.
 - Strict parsing checks ANMF geometry, nested chunk ordering and framing,
   resource bounds, and the VP8X alpha feature bit when an animation carries an
   `ALPH` subchunk. The compatible profile retains its documented recovery
