@@ -480,14 +480,24 @@ impl ResidualImage {
             .map_err(|_| EncodeError::allocation_failed())?;
         let mut index = 0_usize;
         while index < self.pixels.len() {
-            let found = finder.find(&self.pixels, index, parse_mode.chain_depth());
+            let found = finder.find_with_locality(
+                &self.pixels,
+                index,
+                parse_mode.chain_depth(),
+                self.geometry.width(),
+            );
             let mut current_inserted = false;
             let use_match = if found.length < 3 {
                 false
             } else if parse_mode.is_lazy() && index + 1 < self.pixels.len() {
                 finder.insert(&self.pixels, index);
                 current_inserted = true;
-                let next = finder.find(&self.pixels, index + 1, parse_mode.chain_depth());
+                let next = finder.find_with_locality(
+                    &self.pixels,
+                    index + 1,
+                    parse_mode.chain_depth(),
+                    self.geometry.width(),
+                );
                 next.length <= found.length.saturating_add(1)
             } else {
                 true

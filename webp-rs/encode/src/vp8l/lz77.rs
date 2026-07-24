@@ -50,13 +50,32 @@ impl MatchFinder {
         self.heads[slot] = index as u32;
     }
 
+    pub(super) fn find_with_locality(
+        &self,
+        pixels: &[u32],
+        index: usize,
+        chain_depth: usize,
+        width: usize,
+    ) -> Match {
+        let mut best = self.find(pixels, index, chain_depth);
+        let limit = MAX_MATCH_LENGTH.min(pixels.len().saturating_sub(index));
+        for distance in [1, width] {
+            if let Some(found) = match_at(pixels, index, distance, limit) {
+                if better_than(found, best) {
+                    best = found;
+                }
+            }
+        }
+        best
+    }
+
     pub(super) fn find(&self, pixels: &[u32], index: usize, chain_depth: usize) -> Match {
+        let mut best = Match::default();
         if index + MIN_MATCH_LENGTH > pixels.len() {
-            return Match::default();
+            return best;
         }
         let slot = match_hash(pixels, index) & (self.heads.len() - 1);
         let mut candidate = self.heads[slot];
-        let mut best = Match::default();
         let limit = MAX_MATCH_LENGTH.min(pixels.len() - index);
         for _ in 0..chain_depth {
             if candidate == u32::MAX {
@@ -67,24 +86,44 @@ impl MatchFinder {
             if distance > MAX_LINEAR_DISTANCE {
                 break;
             }
-            if pixels[candidate_index..candidate_index + MIN_MATCH_LENGTH]
-                == pixels[index..index + MIN_MATCH_LENGTH]
-            {
-                let mut length = MIN_MATCH_LENGTH;
-                while length < limit && pixels[candidate_index + length] == pixels[index + length] {
-                    length += 1;
+            if let Some(found) = match_at(pixels, index, distance, limit) {
+                if better_than(found, best) {
+                    best = found;
                 }
-                if length > best.length || (length == best.length && distance < best.distance) {
-                    best = Match { length, distance };
-                    if length == limit {
-                        break;
-                    }
+                if best.length == limit {
+                    break;
                 }
             }
             candidate = self.previous[candidate_index];
         }
         best
     }
+}
+
+fn match_at(pixels: &[u32], index: usize, distance: usize, limit: usize) -> Option<Match> {
+    if distance == 0
+        || distance > index
+        || distance > MAX_LINEAR_DISTANCE
+        || limit < MIN_MATCH_LENGTH
+    {
+        return None;
+    }
+    let candidate_index = index - distance;
+    if pixels[candidate_index..candidate_index + MIN_MATCH_LENGTH]
+        != pixels[index..index + MIN_MATCH_LENGTH]
+    {
+        return None;
+    }
+    let mut length = MIN_MATCH_LENGTH;
+    while length < limit && pixels[candidate_index + length] == pixels[index + length] {
+        length += 1;
+    }
+    Some(Match { length, distance })
+}
+
+fn better_than(candidate: Match, current: Match) -> bool {
+    candidate.length > current.length
+        || (candidate.length == current.length && candidate.distance < current.distance)
 }
 
 pub(super) fn distance_code(width: usize, distance: usize) -> usize {
