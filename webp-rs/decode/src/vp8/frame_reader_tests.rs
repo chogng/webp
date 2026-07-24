@@ -85,6 +85,32 @@ fn yuv_image_converts_visible_rectangle_to_vp8_rgba() {
 }
 
 #[test]
+fn threaded_yuv_conversion_matches_single_threaded_output() {
+    let width = 17;
+    let height = 64;
+    let image = Vp8YuvImage {
+        width,
+        height,
+        y_stride: width as usize,
+        uv_stride: width as usize / 2 + 1,
+        y: (0..width as usize * height as usize)
+            .map(|index| index as u8)
+            .collect(),
+        u: (0..width.div_ceil(2) as usize * height.div_ceil(2) as usize)
+            .map(|index| (index as u8).wrapping_add(71))
+            .collect(),
+        v: (0..width.div_ceil(2) as usize * height.div_ceil(2) as usize)
+            .map(|index| (index as u8).wrapping_add(139))
+            .collect(),
+    };
+    let limits = DecodeLimits::default();
+    assert_eq!(
+        image.to_rgba_with_threads(&limits, true).unwrap(),
+        image.to_rgba_with_threads(&limits, false).unwrap()
+    );
+}
+
+#[test]
 fn yuv_image_rejects_short_visible_plane() {
     let image = Vp8YuvImage {
         width: 2,

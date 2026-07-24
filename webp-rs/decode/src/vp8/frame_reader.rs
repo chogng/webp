@@ -67,6 +67,16 @@ impl Vp8YuvImage {
     /// fancy 4:2:0 chroma upsampling. Macroblock padding is never exposed in
     /// the returned buffer.
     pub fn to_rgba(&self, limits: &DecodeLimits) -> Result<Vec<u8>, DecodeError> {
+        self.to_rgba_with_threads(limits, false)
+    }
+
+    /// Converts the visible rectangle to RGBA8, optionally distributing
+    /// independent output rows across scoped worker threads.
+    pub(crate) fn to_rgba_with_threads(
+        &self,
+        limits: &DecodeLimits,
+        use_threads: bool,
+    ) -> Result<Vec<u8>, DecodeError> {
         let width = usize::try_from(self.width).map_err(|_| allocation_size_error())?;
         let height = usize::try_from(self.height).map_err(|_| allocation_size_error())?;
         let uv_width = width.checked_add(1).ok_or_else(allocation_size_error)? / 2;
@@ -107,22 +117,14 @@ impl Vp8YuvImage {
                 "cannot allocate VP8 RGBA output",
             )
         })?;
+        rgba.resize(rgba_len, 0);
         let chroma = ChromaSamplingGeometry {
             uv_width,
             uv_height,
             width,
             height,
         };
-        for y in 0..height {
-            let y_row = y * self.y_stride;
-            for x in 0..width {
-                let luma = self.y[y_row + x];
-                let chroma_u = fancy_chroma_sample(&self.u, self.uv_stride, chroma, x, y);
-                let chroma_v = fancy_chroma_sample(&self.v, self.uv_stride, chroma, x, y);
-                let [red, green, blue] = vp8_yuv_to_rgb(luma, chroma_u, chroma_v);
-                rgba.extend_from_slice(&[red, green, blue, 255]);
-            }
-        }
+        convert_yuv_to_rgba_rows(self, chroma, &mut rgba, use_threads);
         Ok(rgba)
     }
 
@@ -321,6 +323,51 @@ impl Vp8YuvImage {
                 .copy_from_slice(&pixels.u[row * 8..row * 8 + 8]);
             self.v[uv_origin + row * self.uv_stride..uv_origin + row * self.uv_stride + 8]
                 .copy_from_slice(&pixels.v[row * 8..row * 8 + 8]);
+        }
+    }
+}
+
+fn convert_yuv_to_rgba_rows(
+    image: &Vp8YuvImage,
+    chroma: ChromaSamplingGeometry,
+    rgba: &mut [u8],
+    use_threads: bool,
+) {
+    let output_stride = chroma.width * 4;
+    let workers = use_threads
+        .then(std::thread::available_parallelism)
+        .and_then(Result::ok)
+        .map_or(1, std::num::NonZeroUsize::get)
+        .min(chroma.height);
+    if workers < 2 || chroma.height < 32 {
+        write_rgba_rows(image, chroma, 0, rgba);
+        return;
+    }
+    let rows_per_worker = chroma.height.div_ceil(workers);
+    std::thread::scope(|scope| {
+        for (worker, output) in rgba.chunks_mut(rows_per_worker * output_stride).enumerate() {
+            let start_row = worker * rows_per_worker;
+            scope.spawn(move || write_rgba_rows(image, chroma, start_row, output));
+        }
+    });
+}
+
+fn write_rgba_rows(
+    image: &Vp8YuvImage,
+    chroma: ChromaSamplingGeometry,
+    start_row: usize,
+    output: &mut [u8],
+) {
+    for (row, output) in output.chunks_exact_mut(chroma.width * 4).enumerate() {
+        let y = start_row + row;
+        let y_row = y * image.y_stride;
+        for x in 0..chroma.width {
+            let [red, green, blue] = vp8_yuv_to_rgb(
+                image.y[y_row + x],
+                fancy_chroma_sample(&image.u, image.uv_stride, chroma, x, y),
+                fancy_chroma_sample(&image.v, image.uv_stride, chroma, x, y),
+            );
+            output[x * 4..x * 4 + 4].copy_from_slice(&[red, green, blue, 255]);
         }
     }
 }

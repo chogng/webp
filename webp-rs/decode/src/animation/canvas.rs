@@ -25,16 +25,18 @@ pub struct AnimationCanvas {
     width: u32,
     height: u32,
     rgba: Vec<u8>,
-    background: [u8; 4],
     pending_disposal: Option<(u32, u32, u32, u32)>,
 }
 
 impl AnimationCanvas {
-    /// Creates a canvas filled with WebP's BGRA background color.
+    /// Creates a transparent compositing canvas.
+    ///
+    /// ANIM's background color is container metadata. libwebp's animation
+    /// decoder starts and disposes its canvas to transparent instead.
     pub fn new(
         width: u32,
         height: u32,
-        background_bgra: [u8; 4],
+        _background_bgra: [u8; 4],
         limits: &DecodeLimits,
     ) -> Result<Self, DecodeError> {
         limits.check_image(width, height)?;
@@ -46,12 +48,6 @@ impl AnimationCanvas {
                 "animation canvas exceeds configured allocation limit",
             ));
         }
-        let background = [
-            background_bgra[2],
-            background_bgra[1],
-            background_bgra[0],
-            background_bgra[3],
-        ];
         let mut rgba = Vec::new();
         rgba.try_reserve_exact(bytes).map_err(|_| {
             DecodeError::new(
@@ -63,13 +59,12 @@ impl AnimationCanvas {
         let pixels = usize::try_from(u64::from(width) * u64::from(height))
             .map_err(|_| invalid("animation canvas exceeds usize"))?;
         for _ in 0..pixels {
-            rgba.extend_from_slice(&background);
+            rgba.extend_from_slice(&[0; 4]);
         }
         Ok(Self {
             width,
             height,
             rgba,
-            background,
             pending_disposal: None,
         })
     }
@@ -89,11 +84,11 @@ impl AnimationCanvas {
         &self.rgba
     }
 
-    /// Restores the initial ANIM background and forgets pending disposal.
+    /// Restores the transparent initial canvas and forgets pending disposal.
     pub fn reset(&mut self) {
         self.rgba
             .chunks_exact_mut(4)
-            .for_each(|pixel| pixel.copy_from_slice(&self.background));
+            .for_each(|pixel| pixel.copy_from_slice(&[0; 4]));
         self.pending_disposal = None;
     }
 
@@ -116,16 +111,30 @@ impl AnimationCanvas {
         }
         let mut work = limits.work_budget();
         let frame_pixels = u64::from(frame.width) * u64::from(frame.height);
-        let disposal_pixels = self
-            .pending_disposal
-            .map(|(_, _, width, height)| u64::from(width) * u64::from(height))
-            .unwrap_or(0);
+        // A no-blend frame that replaces the complete canvas is a display
+        // keyframe: its output is independent of both the previous canvas and
+        // any pending disposal. Avoid clearing a rectangle that this frame
+        // immediately overwrites.
+        let replaces_canvas = !frame.blend
+            && frame.x == 0
+            && frame.y == 0
+            && frame.width == self.width
+            && frame.height == self.height;
+        let disposal_pixels = if replaces_canvas {
+            0
+        } else {
+            self.pending_disposal
+                .map(|(_, _, width, height)| u64::from(width) * u64::from(height))
+                .unwrap_or(0)
+        };
         work.consume(
             frame_pixels
                 .checked_add(disposal_pixels)
                 .ok_or_else(|| invalid("animation work exceeds u64"))?,
         )?;
-        if let Some(rect) = self.pending_disposal.take() {
+        if replaces_canvas {
+            self.pending_disposal = None;
+        } else if let Some(rect) = self.pending_disposal.take() {
             self.fill_rect(rect);
         }
         let canvas_width =
@@ -165,7 +174,7 @@ impl AnimationCanvas {
             let start = (row * canvas_width + x) * 4;
             self.rgba[start..start + width * 4]
                 .chunks_exact_mut(4)
-                .for_each(|pixel| pixel.copy_from_slice(&self.background));
+                .for_each(|pixel| pixel.copy_from_slice(&[0; 4]));
         }
     }
 }

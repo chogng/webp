@@ -90,10 +90,7 @@ fn animation_state_vectors_match_composed_pixel_oracles() {
         pixel(&dispose.frames[1].rgba, 128, 32, 24),
         [35, 35, 220, 255]
     );
-    assert_eq!(
-        pixel(&dispose.frames[2].rgba, 128, 32, 24),
-        [10, 20, 30, 255]
-    );
+    assert_eq!(pixel(&dispose.frames[2].rgba, 128, 32, 24), [0, 0, 0, 0]);
     assert_eq!(
         pixel(&dispose.frames[2].rgba, 128, 48, 24),
         [35, 220, 35, 255]

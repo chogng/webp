@@ -72,12 +72,12 @@ fn animated_vp8l_frames_are_composed_in_display_order() {
     assert_eq!(animation.frames[0].duration_ms, 10);
     assert_eq!(
         animation.frames[0].rgba,
-        [10, 20, 30, 255, 2, 3, 4, 1, 2, 3, 4, 1]
+        [10, 20, 30, 255, 0, 0, 0, 0, 0, 0, 0, 0]
     );
     assert_eq!(animation.frames[1].duration_ms, 20);
     assert_eq!(
         animation.frames[1].rgba,
-        [2, 3, 4, 1, 2, 3, 4, 1, 100, 0, 0, 255]
+        [0, 0, 0, 0, 0, 0, 0, 0, 100, 0, 0, 255]
     );
 }
 
@@ -139,7 +139,7 @@ fn stateful_decoder_converts_the_borrowed_canvas_to_requested_color_mode() {
     let frame = decoder.next_frame().unwrap().unwrap();
     assert_eq!(frame.color_mode, AnimationColorMode::BgraPremultiplied);
     assert_eq!(&frame.pixels[..4], [30, 20, 10, 255]);
-    assert_eq!(&frame.pixels[4..8], [0, 0, 0, 1]);
+    assert_eq!(&frame.pixels[4..8], [0, 0, 0, 0]);
 }
 
 #[test]

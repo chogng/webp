@@ -21,7 +21,7 @@ fn replace_blend_and_disposal_follow_frame_order() {
             &limits(),
         )
         .unwrap();
-    assert_eq!(canvas.rgba(), &[10, 20, 30, 255, 2, 3, 4, 1]);
+    assert_eq!(canvas.rgba(), &[10, 20, 30, 255, 0, 0, 0, 0]);
     canvas
         .compose(
             DecodedFrame {
@@ -36,7 +36,7 @@ fn replace_blend_and_disposal_follow_frame_order() {
             &limits(),
         )
         .unwrap();
-    assert_eq!(canvas.rgba(), &[2, 3, 4, 1, 100, 0, 0, 255]);
+    assert_eq!(canvas.rgba(), &[0, 0, 0, 0, 100, 0, 0, 255]);
 }
 
 #[test]
@@ -71,6 +71,44 @@ fn alpha_blend_keeps_straight_rgba() {
         )
         .unwrap();
     assert_eq!(canvas.rgba(), &[128, 0, 127, 255]);
+}
+
+#[test]
+fn full_canvas_replace_skips_an_obsolete_pending_disposal() {
+    let mut canvas = AnimationCanvas::new(1, 1, [4, 3, 2, 1], &limits()).unwrap();
+    canvas
+        .compose(
+            DecodedFrame {
+                x: 0,
+                y: 0,
+                width: 1,
+                height: 1,
+                rgba: &[10, 20, 30, 255],
+                blend: false,
+                dispose_to_background: true,
+            },
+            &limits(),
+        )
+        .unwrap();
+    let limited = DecodeLimits {
+        max_work_units: 1,
+        ..limits()
+    };
+    canvas
+        .compose(
+            DecodedFrame {
+                x: 0,
+                y: 0,
+                width: 1,
+                height: 1,
+                rgba: &[100, 110, 120, 255],
+                blend: false,
+                dispose_to_background: false,
+            },
+            &limited,
+        )
+        .unwrap();
+    assert_eq!(canvas.rgba(), &[100, 110, 120, 255]);
 }
 
 #[test]

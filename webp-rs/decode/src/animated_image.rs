@@ -31,10 +31,12 @@ pub struct AnimationDecoderOptions {
     pub decode: DecodeOptions,
     /// Layout of the pixels returned by [`AnimationDecoder::next_frame`].
     pub color_mode: AnimationColorMode,
-    /// Decode independent VP8/VP8L color and `ALPH` payloads concurrently.
+    /// Use available worker threads for independent animation work.
     ///
-    /// Composition remains ordered and occurs on the caller's thread. This
-    /// option is therefore most useful for lossy frames that carry `ALPH`.
+    /// For a lossy frame with `ALPH`, color and alpha decoding run
+    /// concurrently. Otherwise, lossy VP8 YUV-to-RGBA conversion distributes
+    /// independent output rows across workers. Entropy decoding, prediction,
+    /// and composition remain ordered.
     pub use_threads: bool,
 }
 
@@ -283,14 +285,14 @@ fn decode_animation_frame(
 ) -> Result<Vec<u8>, DecodeError> {
     let (mut rgba, alpha) = if use_threads && frame.alpha.is_some() {
         let (color, alpha) = std::thread::scope(|scope| {
-            let color = scope.spawn(|| decode_animation_color(frame, options));
+            let color = scope.spawn(|| decode_animation_color(frame, options, false));
             let alpha = scope.spawn(|| decode_animation_alpha(frame, options));
             (color.join(), alpha.join())
         });
         (join_frame_task(color)?, join_frame_task(alpha)?)
     } else {
         (
-            decode_animation_color(frame, options)?,
+            decode_animation_color(frame, options, use_threads)?,
             decode_animation_alpha(frame, options)?,
         )
     };
@@ -305,6 +307,7 @@ fn decode_animation_frame(
 fn decode_animation_color(
     frame: &webp_demux::AnimationFrame<'_>,
     options: &DecodeOptions,
+    use_threads: bool,
 ) -> Result<Vec<u8>, DecodeError> {
     match frame.bitstream {
         FrameBitstream::Vp8l(payload) => {
@@ -326,7 +329,7 @@ fn decode_animation_color(
             )?;
             Ok(
                 crate::vp8::decode_intra_frame(payload, &header, &options.limits)?
-                    .to_rgba(&options.limits)?,
+                    .to_rgba_with_threads(&options.limits, use_threads)?,
             )
         }
     }

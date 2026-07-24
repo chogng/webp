@@ -11,8 +11,8 @@ scheduled after the remaining functional milestones are complete.
   horizontal, vertical, and gradient inverse filters.
 - `decode_animation` validates an extended animation container and returns a
   full straight-RGBA8 canvas snapshot for every display frame. It applies
-  blend, disposal-to-background, offsets, duration, loop count, and the ANIM
-  BGRA background colour.
+  blend, transparent disposal-to-background, offsets, duration, and loop
+  count. The ANIM BGRA background colour remains available as metadata.
 - `AnimationDecoder` is the bounded streaming alternative: it borrows the
   complete container, returns one composed canvas per pull, restarts with
   `reset`, exposes the validated demux view, supports RGBA/BGRA plus
@@ -33,7 +33,10 @@ scheduled after the remaining functional milestones are complete.
   RGB is compared only for opaque pixels because `dwebp`'s PAM writer
   premultiplies translucent RGB while this API returns straight RGBA.
 - Generated libwebp animation vectors assert pixel results for offset blend,
-  disposal, background restoration, duration, and loop count.
+  transparent disposal, duration, and loop count.
+- The optional `libwebp_animation_oracle` test invokes libwebp's
+  `WebPAnimDecoder` frame by frame, checking timestamps and complete RGBA
+  canvases. Set `LIBWEBP_ANIM_ORACLE_PREFIX` to a libwebp installation prefix.
 - `animation_raw` fuzzes the public animation decode path under bounded input,
   dimension, frame, allocation, and work limits. Bootstrap always supplies a
   valid minimal ANIM/ANMF seed and uses the external animation corpus when it

@@ -29,7 +29,9 @@ encoding; performance work remains deliberately deferred.
   feature flags in static and animated containers.
 - Animated `ANIM`/`ANMF` containers validate frame geometry and resources;
   `decode_animation` returns full display-order RGBA canvas snapshots after
-  blend and disposal.
+  blend and transparent disposal. `AnimationDecoder` additionally streams one composed
+  canvas at a time, supports reset/replay, RGBA/BGRA and premultiplied output,
+  and can decode independent color and `ALPH` payloads concurrently.
 - External libwebp vectors cover ALPH filters and animated blend/dispose
   composition, including pixel-level oracle checks where representations match.
 - `encode_lossless_rgba` writes a complete static VP8L WebP from straight
