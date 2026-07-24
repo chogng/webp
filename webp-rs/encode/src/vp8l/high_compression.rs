@@ -100,32 +100,40 @@ pub(crate) fn encode(width: u32, height: u32, rgba: &[u8]) -> Result<Vec<u8>, En
             retain_smaller(&mut best, candidate);
         }
     }
-    let lazy_transforms = best
+    // Lazy parsing can only defer an existing match. If the greedy winner has
+    // no copies, the lazy pass would reproduce the same token stream.
+    if best
         .as_ref()
-        .map(|candidate| candidate.transforms.clone())
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let lazy_residuals = ResidualImage::collect_with_predictor(
-        rgba,
-        width_usize,
-        lazy_transforms.subtract_green,
-        lazy_transforms.color,
-        &lazy_transforms.predictor,
-    )?;
-    let lazy_cache = lazy_residuals.select_color_cache_bits();
-    for color_cache_bits in [0, lazy_cache]
-        .into_iter()
-        .take(if lazy_cache == 0 { 1 } else { 2 })
+        .is_some_and(|candidate| candidate.stream.statistics().census().copy_tokens() != 0)
     {
-        let candidate = build_candidate(
-            width,
-            height,
-            has_alpha,
-            lazy_transforms.clone(),
-            &lazy_residuals,
-            color_cache_bits,
-            ParseMode::Lazy,
+        let lazy_transforms = best
+            .as_ref()
+            .map(|candidate| candidate.transforms.clone())
+            .ok_or_else(EncodeError::output_size_overflow)?;
+        let lazy_residuals = ResidualImage::collect_with_predictor(
+            rgba,
+            width_usize,
+            lazy_transforms.subtract_green,
+            lazy_transforms.color,
+            &lazy_transforms.predictor,
         )?;
-        retain_smaller(&mut best, candidate);
+        let lazy_cache = lazy_residuals.select_color_cache_bits();
+        for color_cache_bits in
+            [0, lazy_cache]
+                .into_iter()
+                .take(if lazy_cache == 0 { 1 } else { 2 })
+        {
+            let candidate = build_candidate(
+                width,
+                height,
+                has_alpha,
+                lazy_transforms.clone(),
+                &lazy_residuals,
+                color_cache_bits,
+                ParseMode::Lazy,
+            )?;
+            retain_smaller(&mut best, candidate);
+        }
     }
     write_candidate(
         width,
@@ -354,10 +362,61 @@ fn write_predictor_plan(
     height: u32,
     plan: &PredictorPlan,
 ) -> Result<(), EncodeError> {
-    write_literal_entropy_image_prefix(writer, false)?;
     let block_size = 1_u32 << plan.block_bits();
     let mode_width = width.div_ceil(block_size);
     let mode_height = height.div_ceil(block_size);
+    let mode_pixels =
+        build_predictor_mode_pixels(width, mode_width, mode_height, block_size, plan)?;
+    let stream = TokenStream::collect(
+        &mode_pixels,
+        usize::try_from(mode_width).map_err(|_| EncodeError::output_size_overflow())?,
+        false,
+        false,
+        0,
+    )?;
+    let entropy = select_entropy(stream.statistics())?;
+    let compressed_bits = 1_usize
+        .checked_add(entropy.encoded_bits()?)
+        .ok_or_else(EncodeError::output_size_overflow)?;
+    let literal_bits = literal_predictor_bits(&mode_pixels)?;
+    if compressed_bits < literal_bits {
+        write_bits(writer, 0, 1)?;
+        entropy.write_tables(writer)?;
+        let prefix = std::mem::take(writer);
+        let mut packed = PackedTokenWriter::from_prefix(prefix, entropy.token_bits())?;
+        for &token in stream.tokens() {
+            packed.write_token(token, entropy.tables())?;
+        }
+        *writer = packed.into_prefix()?;
+    } else {
+        write_literal_predictor_plan(writer, &mode_pixels)?;
+    }
+    Ok(())
+}
+
+fn build_predictor_mode_pixels(
+    width: u32,
+    mode_width: u32,
+    mode_height: u32,
+    block_size: u32,
+    plan: &PredictorPlan,
+) -> Result<Vec<u8>, EncodeError> {
+    let pixel_count = usize::try_from(mode_width)
+        .ok()
+        .and_then(|mode_width| {
+            usize::try_from(mode_height)
+                .ok()
+                .and_then(|mode_height| mode_width.checked_mul(mode_height))
+        })
+        .ok_or_else(EncodeError::output_size_overflow)?;
+    let mut pixels = Vec::new();
+    pixels
+        .try_reserve_exact(
+            pixel_count
+                .checked_mul(4)
+                .ok_or_else(EncodeError::output_size_overflow)?,
+        )
+        .map_err(|_| EncodeError::allocation_failed())?;
     for y in 0..mode_height {
         for x in 0..mode_width {
             let source_x =
@@ -369,9 +428,26 @@ fn write_predictor_plan(
             let mode = plan
                 .mode_at(source_y * source_width + source_x, source_width)
                 .ok_or_else(EncodeError::output_size_overflow)?;
-            for channel in [mode, 0, 0, u8::MAX] {
-                write_fixed_symbol(writer, channel)?;
-            }
+            pixels.extend_from_slice(&[0, mode, 0, u8::MAX]);
+        }
+    }
+    Ok(pixels)
+}
+
+fn literal_predictor_bits(mode_pixels: &[u8]) -> Result<usize, EncodeError> {
+    let mut writer = BitWriter::new();
+    write_literal_predictor_plan(&mut writer, mode_pixels)?;
+    Ok(writer.bit_len())
+}
+
+fn write_literal_predictor_plan(
+    writer: &mut BitWriter,
+    mode_pixels: &[u8],
+) -> Result<(), EncodeError> {
+    write_literal_entropy_image_prefix(writer, false)?;
+    for pixel in mode_pixels.chunks_exact(4) {
+        for channel in [pixel[1], pixel[0], pixel[2], pixel[3]] {
+            write_fixed_symbol(writer, channel)?;
         }
     }
     Ok(())
