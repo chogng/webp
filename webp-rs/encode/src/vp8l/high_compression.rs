@@ -5,13 +5,13 @@ use super::packet_sink::PackedTokenWriter;
 use super::predictor_plan::{
     LARGE_ADAPTIVE_PREDICTOR_BLOCK_BITS, LARGE_ADAPTIVE_PREDICTOR_PIXEL_LIMIT, PredictorPlan,
 };
+use super::restricted_entropy_image::write_restricted_entropy_image;
 use super::source_analysis::SourceAnalysis;
 use super::spatial_plan::{SpatialGrid, SpatialPlan, SpatialProfile, fine_spatial_grid};
 use super::token_stream::{CompressedParse, ParseMode, ResidualImage, TokenStream, token_span};
 use super::{
     BitWriter, COLOR_TRANSFORM_BLOCK_BITS, ColorTransformPlan, EncodeError, validate_input,
-    wrap_vp8l, write_bits, write_color_transform_image, write_compact_entropy_image,
-    write_vp8l_header,
+    wrap_vp8l, write_bits, write_color_transform_image, write_vp8l_header,
 };
 
 #[derive(Clone)]
@@ -405,7 +405,7 @@ fn write_predictor_plan(
     let mode_height = height.div_ceil(block_size);
     let mode_pixels =
         build_predictor_mode_pixels(width, mode_width, mode_height, block_size, plan)?;
-    write_compact_entropy_image(
+    write_restricted_entropy_image(
         writer,
         &mode_pixels,
         usize::try_from(mode_width).map_err(|_| EncodeError::output_size_overflow())?,

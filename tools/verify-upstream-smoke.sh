@@ -7,8 +7,9 @@ selection='tests/corpora/libwebp-test-data-smoke-v1.txt'
 repo_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 checksum_lock="$repo_root/tests/corpora/libwebp-test-data-smoke-v1.sha256"
 expected_count=68
-selected_names=$(mktemp "${TMPDIR:-/tmp}/webp-smoke-selection.XXXXXX")
-trap 'rm -f "$selected_names"' EXIT HUP INT TERM
+. "$repo_root/tools/temporary.sh"
+selected_names=$(webp_mktemp_file "$repo_root" webp-smoke-selection)
+webp_cleanup_on_exit "$selected_names"
 
 if [ ! -d "$corpus/.git" ]; then
     printf '%s\n' "error: $corpus is not a Git checkout; run tools/fetch-libwebp-test-data.sh" >&2

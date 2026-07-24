@@ -1,8 +1,15 @@
 # Local cargo-mutants reports and rotated reports.
 /mutants.out/
 /mutants.out.old/
-# Downloaded test corpora, libwebp oracle checkouts, and benchmarks.
-/third_party/
+# Downloaded corpora and oracle checkouts stay local. The small, curated
+# pinned-libwebp benchmark record is the only tracked third-party artifact.
+/third_party/*
+!/third_party/benchmarks/
+/third_party/benchmarks/*
+!/third_party/benchmarks/README.md
+!/third_party/benchmarks/libwebp/
+/third_party/benchmarks/libwebp/*
+!/third_party/benchmarks/libwebp/vp8l-encode.md
 
 # Deterministic public-API fixtures are generated once into a local cache.
 /tests/fixtures/generated/
@@ -10,6 +17,9 @@
 # Bazel output-tree convenience symlinks and local overrides.
 /.bazelrc.user
 /bazel-*
+
+# One-shot tool scratch space. Tool EXIT traps remove each run directory.
+/target/temporary/
 
 # Reproducible experiment outputs. Keep reports, manifests, provenance,
 # reproducer/summarizer sources, and curated top-level summaries in Git; write

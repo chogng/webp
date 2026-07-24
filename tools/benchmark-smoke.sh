@@ -12,6 +12,7 @@ scripts=(
   "$root/tools/benchmark-vp8-encode.sh"
   "$root/tools/benchmark-vp8l-clic.sh"
   "$root/tools/benchmark-vp8l-encode.sh"
+  "$root/tools/benchmark-vp8l-reference.sh"
   "$root/tools/benchmark-vp8l.sh"
 )
 

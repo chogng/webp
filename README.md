@@ -62,12 +62,28 @@ public API over the upstream transparent corpus with:
 tools/benchmark-alpha-encode.sh 50
 ```
 
-Compare both the default and high-compression VP8L profiles with the pinned
-libwebp lossless API on the locked MustAccept corpus with:
+Record the pinned libwebp lossless reference once for the current benchmark
+contract with:
 
 ```sh
-tools/benchmark-vp8l-encode.sh 5
+tools/benchmark-vp8l-reference.sh 5
 ```
+
+Then benchmark each Rust candidate once against the recorded Rust and libwebp
+results. Choose one invocation: omit `--promote` for a disposable comparison,
+or include it in that same job when the candidate should replace the current
+accepted Rust baseline:
+
+```sh
+tools/benchmark-vp8l-encode.sh 5                 # compare only
+tools/benchmark-vp8l-encode.sh --promote 5       # compare and promote
+```
+
+The reference command refuses to overwrite an existing result. Use
+`--replace` only after the corpus, host, or measurement contract changes.
+The fixed upstream reference and current horizontal comparison live at
+`third_party/benchmarks/libwebp/vp8l-encode.md`; downloaded corpora, upstream
+checkouts, builds, and raw benchmark output remain ignored.
 
 Codec milestones also require the conformance, robustness, performance, and
 resource gates in [`docs/quality-gates.md`](docs/quality-gates.md); passing

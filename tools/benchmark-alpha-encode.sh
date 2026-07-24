@@ -9,6 +9,7 @@ if ! [[ "$iterations" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$root/tools/temporary.sh"
 corpus="${WEBP_ALPHA_BENCH_CORPUS:-$root/third_party/corpus/libwebp-test-data}"
 oracle="${WEBP_ALPHA_BENCH_LIBWEBP:-$root/third_party/oracle/libwebp}"
 if [[ ! -d "$corpus/manifests" || ! -f "$oracle/build/libwebp.a" ]]; then
@@ -83,8 +84,8 @@ cargo run --release -p webp --example alpha_encode_bench \
   --features "$features" -- \
   "$iterations" "${inputs[@]}"
 
-scratch="$(mktemp -d "${TMPDIR:-/tmp}/webp-alpha-encode-bench.XXXXXX")"
-trap 'rm -rf "$scratch"' EXIT
+scratch="$(webp_mktemp_dir "$root" webp-alpha-encode-bench)"
+webp_cleanup_on_exit "$scratch"
 native="$scratch/libwebp_alpha_encode_bench"
 cc -O3 -I"$oracle/src" "$root/tools/libwebp_alpha_encode_bench.c" \
   "$oracle/build/libwebp.a" "$oracle/build/libsharpyuv.a" -lm -o "$native"

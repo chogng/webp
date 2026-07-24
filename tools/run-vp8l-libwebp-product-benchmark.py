@@ -13,7 +13,7 @@ import sys
 import time
 
 
-LOCK = Path("/private/tmp/webp-vp8l-libwebp-product-benchmark.lock")
+LOCK = Path(__file__).resolve().parents[1] / "target/temporary/locks/webp-vp8l-libwebp-product-benchmark.lock"
 
 
 def parse_args() -> argparse.Namespace:
@@ -90,6 +90,7 @@ def main() -> int:
     args.output.mkdir(parents=True, exist_ok=False)
     measurements = args.output / "measurements"
     measurements.mkdir()
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(LOCK, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     os.write(descriptor, f"{os.getpid()}\n".encode())
     interrupted = False

@@ -10,6 +10,7 @@ if ! [[ "$iterations" =~ ^[1-9][0-9]*$ ]] || ! [[ "$jobs" =~ ^[1-9][0-9]*$ ]]; t
 fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$root/tools/temporary.sh"
 manifest="$root/third_party/benchdata/clic/validation-manifest.json"
 input_root="$root/third_party/benchdata/clic/validation-png"
 output_root="$root/third_party/benchdata/clic/vp8l-lossless-exact"
@@ -101,11 +102,8 @@ for method in 0 3 6; do
   fi
 done
 
-scratch="$(mktemp -d "${TMPDIR:-/tmp}/webp-vp8l-clic-bench.XXXXXX")"
-cleanup() {
-  rm -r -- "$scratch"
-}
-trap cleanup EXIT HUP INT TERM
+scratch="$(webp_mktemp_dir "$root" webp-vp8l-clic-bench)"
+webp_cleanup_on_exit "$scratch"
 native="$scratch/libwebp_decode_bench"
 cc -O3 -I"$oracle/src" "$root/tools/libwebp_decode_bench.c" \
   "$oracle/build/libwebp.a" -o "$native"

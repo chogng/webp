@@ -12,7 +12,6 @@ use webp_utils::BitWriter;
 use self::huffman::EncodingTable;
 use self::huffman::canonical_table;
 use self::huffman::write_canonical_symbol;
-use self::huffman::write_simple_table;
 #[cfg(test)]
 use self::huffman::write_table_symbol;
 use self::packet_sink::PackedTokenWriter;
@@ -23,9 +22,7 @@ pub(crate) use self::token_stream::EntropyToken;
 pub(crate) use self::token_stream::TokenStream;
 pub(crate) use self::token_stream::select_color_cache_bits;
 pub(crate) use self::token_stream::select_left_predictor;
-use self::token_stream::{
-    CHANNEL_ALPHABET_SIZE, DISTANCE_ALPHABET_SIZE, FIRST_CACHE_SYMBOL, GREEN_ALPHABET_SIZE,
-};
+use self::token_stream::{CHANNEL_ALPHABET_SIZE, DISTANCE_ALPHABET_SIZE, FIRST_CACHE_SYMBOL};
 use self::token_stream::{ParseMode, ResidualImage};
 
 pub(crate) const MAX_DIMENSION: u32 = 1 << 14;
@@ -46,6 +43,7 @@ mod packet_sink;
 mod portfolio_policy;
 mod predictor_plan;
 mod prefix;
+mod restricted_entropy_image;
 mod source_analysis;
 mod token_stream;
 
@@ -166,7 +164,7 @@ pub(super) fn encode_palette_vp8l_payload(
             .map_err(|_| EncodeError::output_size_overflow())?,
         8,
     )?;
-    write_palette_image(&mut bits, palette.entries(), compact)?;
+    write_palette_image(&mut bits, palette.entries())?;
     write_bits(&mut bits, 0, 1)?; // Transform-list terminator.
 
     let selected_cache_bits = select_color_cache_bits(
@@ -258,11 +256,7 @@ pub(crate) fn try_make_palette_plan(
     Ok(source_analysis::SourceAnalysis::collect(rgba, width)?.into_palette())
 }
 
-fn write_palette_image(
-    writer: &mut BitWriter,
-    entries: &[[u8; 4]],
-    compact: bool,
-) -> Result<(), EncodeError> {
+fn write_palette_image(writer: &mut BitWriter, entries: &[[u8; 4]]) -> Result<(), EncodeError> {
     let mut deltas = Vec::new();
     deltas
         .try_reserve_exact(
@@ -287,50 +281,7 @@ fn write_palette_image(
         deltas.extend_from_slice(&delta);
         previous = entry;
     }
-    if compact {
-        write_compact_entropy_image(writer, &deltas, entries.len())
-    } else {
-        write_literal_rgba_entropy_image(writer, &deltas)
-    }
-}
-
-pub(super) fn write_compact_entropy_image(
-    writer: &mut BitWriter,
-    rgba: &[u8],
-    width: usize,
-) -> Result<(), EncodeError> {
-    let stream = TokenStream::collect(rgba, width, false, false, 0)?;
-    let plan = entropy_plan::EntropyPlan::build_compact_for_stream(stream.statistics())?;
-    let compressed_bits = 1_usize
-        .checked_add(plan.encoded_bits()?)
-        .ok_or_else(EncodeError::output_size_overflow)?;
-    let mut literal = BitWriter::new();
-    write_literal_rgba_entropy_image(&mut literal, rgba)?;
-    if compressed_bits >= literal.bit_len() {
-        return write_literal_rgba_entropy_image(writer, rgba);
-    }
-    write_bits(writer, 0, 1)?;
-    plan.write_tables(writer)?;
-    let prefix = std::mem::take(writer);
-    let mut packed = PackedTokenWriter::from_prefix(prefix, plan.token_bits())?;
-    for &token in stream.tokens() {
-        packed.write_token(token, plan.tables())?;
-    }
-    *writer = packed.into_prefix()?;
-    Ok(())
-}
-
-fn write_literal_rgba_entropy_image(
-    writer: &mut BitWriter,
-    rgba: &[u8],
-) -> Result<(), EncodeError> {
-    write_literal_entropy_image_prefix(writer, false)?;
-    for pixel in rgba.chunks_exact(4) {
-        for channel in [pixel[1], pixel[0], pixel[2], pixel[3]] {
-            write_fixed_symbol(writer, channel)?;
-        }
-    }
-    Ok(())
+    restricted_entropy_image::write_restricted_entropy_image(writer, &deltas, entries.len())
 }
 
 /// Writes the predictor's transform subimage. Transform subimages are not
@@ -340,20 +291,32 @@ fn write_predictor_mode_image(
     width: u32,
     height: u32,
 ) -> Result<(), EncodeError> {
-    write_literal_entropy_image_prefix(writer, false)?;
     let mode_width = width.div_ceil(PREDICTOR_BLOCK_SIZE);
     let mode_height = height.div_ceil(PREDICTOR_BLOCK_SIZE);
-    let mode_pixels = u64::from(mode_width)
-        .checked_mul(u64::from(mode_height))
-        .ok_or_else(EncodeError::input_size_overflow)?;
+    let mode_pixels = usize::try_from(
+        u64::from(mode_width)
+            .checked_mul(u64::from(mode_height))
+            .ok_or_else(EncodeError::input_size_overflow)?,
+    )
+    .map_err(|_| EncodeError::input_size_overflow())?;
+    let mut modes = Vec::new();
+    modes
+        .try_reserve_exact(
+            mode_pixels
+                .checked_mul(4)
+                .ok_or_else(EncodeError::output_size_overflow)?,
+        )
+        .map_err(|_| EncodeError::allocation_failed())?;
     for _ in 0..mode_pixels {
         // Predictor mode is carried in green; all transform-image channels
-        // still use the ordinary literal entropy syntax.
-        for channel in [LEFT_PREDICTOR_MODE, 0, 0, u8::MAX] {
-            write_fixed_symbol(writer, channel)?;
-        }
+        // remain ordinary ARGB samples before entropy coding.
+        modes.extend_from_slice(&[0, LEFT_PREDICTOR_MODE, 0, u8::MAX]);
     }
-    Ok(())
+    restricted_entropy_image::write_restricted_entropy_image(
+        writer,
+        &modes,
+        usize::try_from(mode_width).map_err(|_| EncodeError::output_size_overflow())?,
+    )
 }
 
 /// Writes a single, global VP8L color-transform table. A seven-bit block size
@@ -365,41 +328,39 @@ fn write_color_transform_image(
     height: u32,
     plan: ColorTransformPlan,
 ) -> Result<(), EncodeError> {
-    write_literal_entropy_image_prefix(writer, false)?;
     let block_size = 1_u32 << COLOR_TRANSFORM_BLOCK_BITS;
     let block_width = width.div_ceil(block_size);
     let block_height = height.div_ceil(block_size);
-    let pixels = u64::from(block_width)
-        .checked_mul(u64::from(block_height))
-        .ok_or_else(EncodeError::input_size_overflow)?;
+    let pixels = usize::try_from(
+        u64::from(block_width)
+            .checked_mul(u64::from(block_height))
+            .ok_or_else(EncodeError::input_size_overflow)?,
+    )
+    .map_err(|_| EncodeError::input_size_overflow())?;
+    let mut transforms = Vec::new();
+    transforms
+        .try_reserve_exact(
+            pixels
+                .checked_mul(4)
+                .ok_or_else(EncodeError::output_size_overflow)?,
+        )
+        .map_err(|_| EncodeError::allocation_failed())?;
     for _ in 0..pixels {
-        // VP8L stores green-to-red in blue, green-to-blue in green, and
-        // red-to-blue in red. The alpha transform-image channel is unused.
-        for channel in [
-            plan.green_to_blue as u8,
+        // VP8L writes channels in green/red/blue/alpha order. The restricted
+        // writer accepts RGBA pixels, so arrange them to make that wire order
+        // green-to-blue, red-to-blue, green-to-red, and zero respectively.
+        transforms.extend_from_slice(&[
             plan.red_to_blue as u8,
+            plan.green_to_blue as u8,
             plan.green_to_red as u8,
             0,
-        ] {
-            write_fixed_symbol(writer, channel)?;
-        }
+        ]);
     }
-    Ok(())
-}
-
-fn write_literal_entropy_image_prefix(
-    writer: &mut BitWriter,
-    is_level_zero: bool,
-) -> Result<(), EncodeError> {
-    write_bits(writer, 0, 1)?; // No color cache.
-    if is_level_zero {
-        write_bits(writer, 0, 1)?; // One entropy-code group, not meta-Huffman.
-    }
-    write_literal_table(writer, GREEN_ALPHABET_SIZE, 256)?;
-    write_literal_table(writer, CHANNEL_ALPHABET_SIZE, CHANNEL_ALPHABET_SIZE)?;
-    write_literal_table(writer, CHANNEL_ALPHABET_SIZE, CHANNEL_ALPHABET_SIZE)?;
-    write_literal_table(writer, CHANNEL_ALPHABET_SIZE, CHANNEL_ALPHABET_SIZE)?;
-    Ok(write_simple_table(writer, 0)?) // Distance codes are unused.
+    restricted_entropy_image::write_restricted_entropy_image(
+        writer,
+        &transforms,
+        usize::try_from(block_width).map_err(|_| EncodeError::output_size_overflow())?,
+    )
 }
 
 /// Writes a deterministic, frequency-adaptive complete Huffman table.
@@ -528,38 +489,6 @@ pub fn validate_input(width: u32, height: u32, rgba: &[u8]) -> Result<(), Encode
         return Err(EncodeError::invalid_rgba_length());
     }
     Ok(())
-}
-
-/// Writes a normal table containing `used_symbols` fixed eight-bit symbols.
-/// The remainder of `alphabet_size` is unused. A 256-symbol literal alphabet
-/// is therefore complete, while VP8L's extra green symbols remain absent.
-fn write_literal_table(
-    writer: &mut BitWriter,
-    alphabet_size: usize,
-    used_symbols: usize,
-) -> Result<(), EncodeError> {
-    debug_assert_eq!(used_symbols, 256);
-    debug_assert!(used_symbols <= alphabet_size);
-
-    write_bits(writer, 0, 1)?; // Normal Huffman-code representation.
-    write_bits(writer, 8, 4)?; // 4 + 8 = 12 code-length-code entries.
-    // In VP8L wire order these entries describe symbols
-    // 17, 18, 0, 1, 2, 3, 4, 5, 16, 6, 7, and 8. Only 0 and 8 are needed;
-    // their two one-bit codes form a complete code-length alphabet.
-    for length in [0_u32, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1] {
-        write_bits(writer, length, 3)?;
-    }
-    write_bits(writer, 0, 1)?; // No max-code-length-symbol shortening.
-    for symbol in 0..alphabet_size {
-        write_bits(writer, u32::from(symbol < used_symbols), 1)?;
-    }
-    Ok(())
-}
-
-/// Emits one symbol from a fixed eight-bit canonical table. VP8L transmits
-/// canonical codes least-significant bit first, hence the bit reversal.
-fn write_fixed_symbol(writer: &mut BitWriter, symbol: u8) -> Result<(), EncodeError> {
-    Ok(write_canonical_symbol(writer, u32::from(symbol), 8)?)
 }
 
 fn write_bits(writer: &mut BitWriter, value: u32, count: u8) -> Result<(), EncodeError> {

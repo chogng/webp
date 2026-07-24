@@ -8,6 +8,7 @@ if ! [[ "$iterations" =~ ^[1-9][0-9]*$ ]]; then
   exit 2
 fi
 root="$(cd "$(dirname "$0")/.." && pwd)"
+. "$root/tools/temporary.sh"
 corpus="$root/third_party/corpus/reference-v1"
 oracle="$root/third_party/oracle/libwebp"
 lockfile="$root/tools/corpus-lock.toml"
@@ -51,8 +52,8 @@ fi
 cargo run --release -p webp --example vp8_encode_bench \
   --manifest-path "$root/webp-rs/Cargo.toml" -- "$iterations" "${files[@]}"
 
-scratch="$(mktemp -d "${TMPDIR:-/tmp}/webp-vp8-encode-bench.XXXXXX")"
-trap 'rm -rf "$scratch"' EXIT
+scratch="$(webp_mktemp_dir "$root" webp-vp8-encode-bench)"
+webp_cleanup_on_exit "$scratch"
 native="$scratch/libwebp_vp8_encode_bench"
 cc -O3 -I"$oracle/src" "$root/tools/libwebp_vp8_encode_bench.c" \
   "$oracle/build/libwebp.a" "$oracle/build/libsharpyuv.a" -lm -o "$native"

@@ -9,6 +9,7 @@ if ! [[ "$iterations" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+. "$root/tools/temporary.sh"
 corpus="$root/third_party/corpus/libwebp-test-data"
 oracle="$root/third_party/oracle/libwebp"
 if [[ ! -d "$corpus/manifests" || ! -f "$oracle/build/libwebp.a" ]]; then
@@ -32,8 +33,8 @@ if [[ "${#inputs[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-scratch="$(mktemp -d "${TMPDIR:-/tmp}/webp-vp8l-bench.XXXXXX")"
-trap 'rm -rf "$scratch"' EXIT
+scratch="$(webp_mktemp_dir "$root" webp-vp8l-bench)"
+webp_cleanup_on_exit "$scratch"
 native="$scratch/libwebp_decode_bench"
 cc -O3 -I"$oracle/src" "$root/tools/libwebp_decode_bench.c" \
   "$oracle/build/libwebp.a" -o "$native"

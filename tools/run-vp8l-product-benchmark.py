@@ -13,7 +13,7 @@ import sys
 import time
 
 
-LOCK = Path("/private/tmp/webp-vp8l-product-benchmark.lock")
+LOCK = Path(__file__).resolve().parents[1] / "target/temporary/locks/webp-vp8l-product-benchmark.lock"
 TEST_NAME = "vp8l::product_benchmark_tests::product_validation_reproducer"
 
 
@@ -39,6 +39,7 @@ def sha256(path: Path) -> str:
 
 
 def acquire_lock() -> int:
+    LOCK.parent.mkdir(parents=True, exist_ok=True)
     descriptor = os.open(LOCK, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     os.write(descriptor, f"{os.getpid()}\n".encode())
     return descriptor

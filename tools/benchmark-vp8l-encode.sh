@@ -1,62 +1,68 @@
 #!/usr/bin/env bash
-# Benchmark the public static VP8L encoder against the pinned MustAccept corpus.
+# Benchmark one Rust VP8L candidate against the recorded baselines.
 set -euo pipefail
 
+promote=false
+if [[ "${1:-}" == "--promote" ]]; then
+  promote=true
+  shift
+fi
 iterations="${1:-5}"
 if ! [[ "$iterations" =~ ^[1-9][0-9]*$ ]]; then
-  echo "usage: $0 [positive iterations]" >&2
+  echo "usage: $0 [--promote] [positive iterations]" >&2
+  exit 2
+fi
+if [[ "$#" -gt 1 ]]; then
+  echo "usage: $0 [--promote] [positive iterations]" >&2
   exit 2
 fi
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-corpus="$root/third_party/corpus/libwebp-test-data"
-oracle="$root/third_party/oracle/libwebp"
-lockfile="$root/tools/corpus-lock.toml"
-if [[ ! -d "$corpus/manifests" || ! -f "$oracle/build/libwebp.a" ]]; then
-  echo "fetch the pinned corpus and oracle before benchmarking:" >&2
-  echo "  tools/fetch-libwebp-test-data.sh" >&2
-  echo "  tools/fetch-libwebp-oracle.sh" >&2
+. "$root/tools/temporary.sh"
+. "$root/tools/benchmark-vp8l-common.sh"
+
+results_document="$root/third_party/benchmarks/libwebp/vp8l-encode.md"
+if [[ ! -f "$results_document" ]]; then
+  echo "no fixed libwebp reference; run tools/benchmark-vp8l-reference.sh once" >&2
   exit 1
 fi
 
-expected_commit="$(awk -F ' = ' '
-  $0 == "[libwebp]" { in_section = 1; next }
-  /^\[/ { in_section = 0 }
-  in_section && $1 == "commit" {
-    value = $2
-    gsub(/^"|"$/, "", value)
-    print value
-    exit
-  }
-' "$lockfile")"
-actual_commit="$(git -C "$oracle" rev-parse HEAD)"
-if [[ -z "$expected_commit" || "$actual_commit" != "$expected_commit" ]]; then
-  echo "libwebp oracle pin mismatch: expected $expected_commit, found $actual_commit" >&2
-  exit 1
+vp8l_collect_benchmark_inputs "$root"
+scratch="$(webp_mktemp_dir "$root" webp-vp8l-rust-candidate)"
+webp_cleanup_on_exit "$scratch"
+input_manifest="$scratch/inputs.txt"
+results="$scratch/rust-results.txt"
+cargo_target="$scratch/cargo-target"
+vp8l_write_benchmark_input_manifest "$input_manifest"
+
+WEBP_RS_LOSSLESS_PROFILE=default CARGO_TARGET_DIR="$cargo_target" \
+  cargo run --quiet --release -p webp \
+  --example encode_bench --manifest-path "$root/webp-rs/Cargo.toml" \
+  -- 1 "${vp8l_benchmark_inputs[@]}" >/dev/null
+WEBP_RS_LOSSLESS_PROFILE=high-compression CARGO_TARGET_DIR="$cargo_target" \
+  cargo run --quiet --release -p webp \
+  --example encode_bench --manifest-path "$root/webp-rs/Cargo.toml" \
+  -- 1 "${vp8l_benchmark_inputs[@]}" >/dev/null
+
+: >"$results"
+WEBP_RS_LOSSLESS_PROFILE=default CARGO_TARGET_DIR="$cargo_target" \
+  cargo run --quiet --release -p webp \
+  --example encode_bench --manifest-path "$root/webp-rs/Cargo.toml" \
+  -- "$iterations" "${vp8l_benchmark_inputs[@]}" | tee -a "$results"
+WEBP_RS_LOSSLESS_PROFILE=high-compression CARGO_TARGET_DIR="$cargo_target" \
+  cargo run --quiet --release -p webp \
+  --example encode_bench --manifest-path "$root/webp-rs/Cargo.toml" \
+  -- "$iterations" "${vp8l_benchmark_inputs[@]}" | tee -a "$results"
+
+manager_arguments=(
+  candidate
+  --root "$root"
+  --iterations "$iterations"
+  --inputs "$input_manifest"
+  --results "$results"
+  --document "$results_document"
+)
+if [[ "$promote" == true ]]; then
+  manager_arguments+=(--promote)
 fi
-
-inputs=()
-for manifest in "$corpus"/manifests/*.toml; do
-  if rg -q '^class = "MustAccept"$' "$manifest" && \
-      rg -q '^codec = "VP8L"$' "$manifest" && \
-      rg -q '^api = "Decode"$' "$manifest"; then
-    file="$(sed -n 's|^file = "../\(.*\)"|\1|p' "$manifest")"
-    inputs+=("$corpus/$file")
-  fi
-done
-if [[ "${#inputs[@]}" -eq 0 ]]; then
-  echo "no accepted VP8L benchmark inputs found" >&2
-  exit 1
-fi
-
-WEBP_RS_LOSSLESS_PROFILE=default cargo run --release -p webp --example encode_bench \
-  --manifest-path "$root/webp-rs/Cargo.toml" -- "$iterations" "${inputs[@]}"
-WEBP_RS_LOSSLESS_PROFILE=high-compression cargo run --release -p webp --example encode_bench \
-  --manifest-path "$root/webp-rs/Cargo.toml" -- "$iterations" "${inputs[@]}"
-
-scratch="$(mktemp -d "${TMPDIR:-/tmp}/webp-vp8l-encode-bench.XXXXXX")"
-trap 'rm -rf "$scratch"' EXIT
-native="$scratch/libwebp_vp8l_encode_bench"
-cc -O3 -I"$oracle/src" "$root/tools/libwebp_vp8l_encode_bench.c" \
-  "$oracle/build/libwebp.a" "$oracle/build/libsharpyuv.a" -lm -o "$native"
-"$native" "$iterations" "${inputs[@]}"
+python3 "$root/tools/update-vp8l-encode-baseline.py" "${manager_arguments[@]}"

@@ -9,6 +9,7 @@ if ! [[ "$iterations" =~ ^[1-9][0-9]*$ ]]; then
 fi
 
 root="$(cd "$(dirname "$0")/.." && pwd)"
+. "$root/tools/temporary.sh"
 corpus="$root/third_party/corpus/reference-v1"
 oracle="$root/third_party/oracle/libwebp"
 lockfile="$root/tools/corpus-lock.toml"
@@ -48,8 +49,8 @@ if [[ "${#inputs[@]}" -eq 0 ]]; then
   exit 1
 fi
 
-scratch="$(mktemp -d "${TMPDIR:-/tmp}/webp-sharp-yuv-bench.XXXXXX")"
-trap 'rm -rf "$scratch"' EXIT
+scratch="$(webp_mktemp_dir "$root" webp-sharp-yuv-bench)"
+webp_cleanup_on_exit "$scratch"
 rgba_corpus="$scratch/rgba-corpus.bin"
 SHARP_YUV_RGBA_CORPUS="$rgba_corpus" \
   cargo run --quiet --release -p webp --example sharp_yuv_bench \
